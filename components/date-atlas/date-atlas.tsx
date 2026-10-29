@@ -876,7 +876,8 @@ export function DateAtlas({
           <Results
             result={result}
             planningRequest={request}
-            signedIn={signedIn}
+            signedIn={signedIn && !authOpen}
+            accountRevision={`${accountId}:${historyRevision}`}
             onSignIn={() => setAuthOpen(true)}
             onActivePlan={rememberPlan}
             setResult={(next) => {

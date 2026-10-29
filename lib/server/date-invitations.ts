@@ -32,7 +32,7 @@ export async function persistDiscoverySession(request: Request, result: NearbyRe
 
 export async function createChosenDate(request: Request, sessionId: string, placeId: string) {
   const auth = await authenticatedClient(request);
-  if (!auth) throw new RequestError("Please reopen your date ideas to pick a place.", 401);
+  if (!auth || auth.user.firebase.sign_in_provider === "anonymous") throw new RequestError("Create an account or sign in to share an invitation.", 401);
   const user = auth.db.collection("users").doc(auth.user.uid);
   const session = sessionSchema.safeParse((await user.collection("discoverySessions").doc(sessionId).get()).data());
   if (!session.success) throw new RequestError("Reopen your date ideas to choose this place.", 404);

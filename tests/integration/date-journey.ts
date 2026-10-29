@@ -47,14 +47,22 @@ for (const key of ["notes", "budget", "startingArea", "interests", "date"]) asse
 
 const create = { action: "create", sessionId: session.sessionId, placeId: choices.places[0].id };
 assert.equal((await invitations(req(create))).status, 401);
+assert.equal((await invitations(req(create, guest.idToken))).status, 401, "Guest sessions cannot create shareable invitation links");
+assert.equal((await db.collection("users").doc(guest.localId).collection("dateHistory").get()).size, 0);
+assert.equal((await db.collection("dateInvitations").where("ownerId", "==", guest.localId).get()).size, 0);
 assert.equal((await invitations(req(create, stranger.idToken))).status, 404);
-assert.equal((await invitations(req({ ...create, placeId: "NOT_A_CANDIDATE" }, guest.idToken))).status, 400);
-const created = await Promise.all([invitations(req(create, guest.idToken)), invitations(req(create, guest.idToken))]);
+assert.equal((await invitations(req(create, member.idToken))).status, 404, "An account cannot access an untransferred guest plan");
+assert.equal((await mergeGuest(req({ guestToken: guest.idToken }, member.idToken))).status, 200);
+assert.equal((await mergeGuest(req({ guestToken: guest.idToken }, member.idToken))).status, 200);
+assert.equal((await db.collection("users").doc(member.localId).collection("discoverySessions").doc(session.sessionId).get()).exists, true);
+assert.equal((await invitations(req({ ...create, placeId: "NOT_A_CANDIDATE" }, member.idToken))).status, 400);
+const created = await Promise.all([invitations(req(create, member.idToken)), invitations(req(create, member.idToken))]);
 for (const response of created) assert.equal(response.status, 200);
 const first = createdInvitationSchema.parse(await created[0].json());
 const duplicate = createdInvitationSchema.parse(await created[1].json());
 assert.deepEqual(first, duplicate);
-assert.equal((await db.collection("users").doc(guest.localId).collection("dateHistory").get()).size, 1);
+assert.equal((await db.collection("users").doc(member.localId).collection("dateHistory").get()).size, 1);
+assert.equal((await db.collection("users").doc(guest.localId).collection("dateHistory").get()).size, 0);
 
 const publicResponse = await invitations(req({ action: "read", token: first.token }));
 assert.equal(publicResponse.status, 200);
@@ -114,5 +122,5 @@ const finishedInvite = createdInvitationSchema.parse(await (await invitations(re
 assert.equal((await dateHistory(req({ action: "complete", id: finishedInvite.id }, member.idToken))).status, 200);
 assert.equal((await invitations(req({ action: "reply", token: finishedInvite.token, response: "accepted" }))).status, 409);
 await writeFile(".vercel/emulator-journey-member.json", JSON.stringify({ email: memberEmail, password: "Emulator-only-Password-728!" }), { mode: 0o600 });
-console.log("Date journey emulator checks passed: private sessions, three candidates, concurrent selection, guest/account merge, public invitation, explicit and idempotent replies, account isolation, completed dates, and pagination.");
+console.log("Date journey emulator checks passed: guest planning, account-required invitation creation, private sessions, three candidates, concurrent selection, guest/account merge, public invitation, explicit and idempotent replies, account isolation, completed dates, and pagination.");
 await db.terminate();

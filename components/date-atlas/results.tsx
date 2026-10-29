@@ -44,6 +44,7 @@ export function Results({
   result,
   planningRequest,
   signedIn,
+  accountRevision,
   onSignIn,
   onActivePlan,
   setResult,
@@ -59,6 +60,7 @@ export function Results({
   result: RecommendationResult;
   planningRequest: PlanRequest;
   signedIn: boolean;
+  accountRevision: string;
   onSignIn: () => void;
   onActivePlan: (plan: DatePlan) => void;
   setResult: (result: RecommendationResult) => void;
@@ -116,7 +118,7 @@ export function Results({
   const activeLocked = locked.filter((id) =>
     plan?.activities.some((activity) => activity.experience.id === id),
   );
-  if (!plan && chosenPlace && result.nearby) return <ChosenDateReveal place={chosenPlace} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} onSignIn={onSignIn} onChange={() => { setChosenPlace(null); window.scrollTo({ top: 0 }); }} />;
+  if (!plan && chosenPlace && result.nearby) return <ChosenDateReveal key={`${chosenPlace.id}:${accountRevision}`} place={chosenPlace} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} onSignIn={onSignIn} onChange={() => { setChosenPlace(null); window.scrollTo({ top: 0 }); }} />;
   if (!plan && result.nearby?.places.length) return <main className="page-container discovery-results">
     <div className="discovery-topline"><span className="discovery-city">EXPLORING {result.nearby.city.toUpperCase()}</span><button type="button" onClick={onChangeDestination}>Change search <span aria-hidden="true">↗</span></button></div>
     <div className="discovery-intro"><span className="eyebrow">FOR YOUR KIND OF TOGETHER</span><h1 ref={discoveryHeading} tabIndex={-1}>{result.nearby.headline || "A little outside the ordinary."}</h1><p>{result.nearby.introduction || "A fresh backdrop. Good company. A story worth making."}</p></div>

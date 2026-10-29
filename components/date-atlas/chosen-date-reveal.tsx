@@ -27,6 +27,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; title.current?.focus({ preventScroll: true }); return () => { mounted.current = false; responseController.current?.abort(); }; }, []);
   useEffect(() => {
+    if (!signedIn) return;
     const controller = new AbortController();
     async function save() {
       try {
@@ -40,10 +41,11 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     }
     void save();
     return () => controller.abort();
-  }, [sessionId, place.id, revision]);
+  }, [signedIn, sessionId, place.id, revision]);
   const story = place.story ?? fallbackDateStory(place.category);
-  const inviteUrl = () => selection ? `${window.location.origin}/invite/${selection.token}` : "";
+  const inviteUrl = () => signedIn && selection ? `${window.location.origin}/invite/${selection.token}` : "";
   async function share(copy = false) {
+    if (!signedIn) { onSignIn(); return; }
     const url = inviteUrl();
     if (!url) return;
     setError(""); setNotice("");
@@ -53,7 +55,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     } catch (failure) { if (mounted.current && !(failure instanceof Error && failure.name === "AbortError")) setError("Sharing didn't open. Copy the invitation link below instead."); }
   }
   async function checkResponse() {
-    if (!selection || checking) return;
+    if (!signedIn || !selection || checking) return;
     const controller = new AbortController(); responseController.current?.abort(); responseController.current = controller;
     setChecking(true); setError("");
     try {
@@ -65,11 +67,11 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
   return <main className={styles.reveal}>
     <div className={styles.revealIntro}><AtlasCompanion pose="review" lively width={120} height={100} label="Atlas celebrates your chosen date" /><span className={styles.eyebrow}>ONE LITTLE YES AWAY</span><h1 ref={title} tabIndex={-1}>This one&apos;s yours.</h1><p>{dateTimingLabel(request.datePreference, request.startTime)}</p></div>
     <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} animated /></div>
-    <section className={styles.sharePanel} aria-label="Invite your date"><h2>Now, make their day.</h2><p>Send a little invitation. They can say yes right from the link.</p>
-      {saving ? <p role="status">Preparing your invitation…</p> : selection ? <><div className={styles.actions}><Button onClick={() => void share()}>Share with your date</Button><Button variant="outline" onClick={() => void share(true)}>Copy invitation link</Button></div><details className={styles.linkDetails}><summary>Show invitation link</summary><input aria-label="Your invitation link" readOnly value={inviteUrl()} onFocus={(event) => event.currentTarget.select()} /></details><div className={styles.responseStatus} role="status">{response === "accepted" ? "They said yes. It's a date." : response === "declined" ? "They'd prefer another time." : "Your invitation is ready."}</div>{response === "pending" && <button type="button" className={styles.textButton} disabled={checking} onClick={() => void checkResponse()}>{checking ? "Checking…" : "Check their response"}</button>}</> : <Button onClick={() => { setSaving(true); setError(""); setRevision((value) => value + 1); }}>Try again</Button>}
-      {error && <p className="error-message" role="alert">{error}</p>}{notice && <p className={styles.notice} role="status">{notice}</p>}
-      {selection && <a className={styles.textButton} href={`https://wa.me/?text=${encodeURIComponent(`I've planned a little something for us. Will you come? ${inviteUrl()}`)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>}
-      {signedIn ? <Link className={styles.historyLink} href="/saved">Your dates are kept in My dates ↗</Link> : <button type="button" disabled={saving} className={styles.textButton} onClick={onSignIn}>Sign in to keep your dates</button>}
+    <section className={styles.sharePanel} aria-label="Invite your date"><h2>Now, make their day.</h2><p>{signedIn ? "Send a little invitation. They can say yes right from the link." : "Create an account or sign in to share this invitation and keep your dates together."}</p>
+      {!signedIn ? <Button onClick={onSignIn}>Sign in or create an account</Button> : saving ? <p role="status">Preparing your invitation…</p> : selection ? <><div className={styles.actions}><Button onClick={() => void share()}>Share with your date</Button><Button variant="outline" onClick={() => void share(true)}>Copy invitation link</Button></div><details className={styles.linkDetails}><summary>Show invitation link</summary><input aria-label="Your invitation link" readOnly value={inviteUrl()} onFocus={(event) => event.currentTarget.select()} /></details><div className={styles.responseStatus} role="status">{response === "accepted" ? "They said yes. It's a date." : response === "declined" ? "They'd prefer another time." : "Your invitation is ready."}</div>{response === "pending" && <button type="button" className={styles.textButton} disabled={checking} onClick={() => void checkResponse()}>{checking ? "Checking…" : "Check their response"}</button>}</> : <Button onClick={() => { setSaving(true); setError(""); setRevision((value) => value + 1); }}>Try again</Button>}
+      {signedIn && error && <p className="error-message" role="alert">{error}</p>}{signedIn && notice && <p className={styles.notice} role="status">{notice}</p>}
+      {signedIn && selection && <a className={styles.textButton} href={`https://wa.me/?text=${encodeURIComponent(`I've planned a little something for us. Will you come? ${inviteUrl()}`)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>}
+      {signedIn && <Link className={styles.historyLink} href="/saved">Your dates are kept in My dates ↗</Link>}
     </section>
     <DateStoryView story={story} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Choose another place</button>
   </main>;
