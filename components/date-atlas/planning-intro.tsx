@@ -27,6 +27,7 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
   const [pending, startTransition] = useTransition();
   const screen = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const startButton = useRef<HTMLButtonElement>(null);
   const ready = chapter === chapters.length;
   const current = chapters[Math.min(chapter, chapters.length - 1)];
 
@@ -78,6 +79,18 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
       motion.removeEventListener("change", motionChanged);
     };
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    const frame = window.requestAnimationFrame(() => {
+      startButton.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "end",
+        inline: "nearest",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [ready]);
 
   return <main ref={screen} className={styles.screen} aria-label="Before you plan your date" data-chapter={chapter}>
     <div className={styles.backdrop} aria-hidden="true">
@@ -135,7 +148,7 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
     <footer className={styles.footer}>
       <div className={styles.progress} aria-hidden="true"><span /></div>
       <div className={styles.actionSlot}>{ready
-        ? <button type="button" className={styles.start} disabled={pending} aria-busy={pending} onClick={() => startTransition(onStart)}>{pending ? "Opening your planner…" : "Start my date plan"}<span aria-hidden="true">→</span></button>
+        ? <button ref={startButton} type="button" className={styles.start} disabled={pending} aria-busy={pending} onClick={() => startTransition(onStart)}>{pending ? "Opening your planner…" : "Start my date plan"}<span aria-hidden="true">→</span></button>
         : <p className={styles.watch}>A quick look at how it all comes together<span aria-hidden="true">…</span></p>}
       </div>
     </footer>
