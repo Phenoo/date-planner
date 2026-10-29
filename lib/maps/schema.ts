@@ -17,6 +17,7 @@ export const nearbySearchSchema = z.object({
   locationScope: z.enum(["city", "area"]).default("area"),
   maxDistance: z.number().min(1).max(100).default(15),
   vibes: z.array(z.enum(vibes)).max(12).default([]), interests: z.string().max(1000).default(""),
+  dislikes: z.string().max(500).default(""), notes: z.string().max(2000).default(""),
   includeFood: z.boolean().default(true), avoidRestaurants: z.boolean().default(false),
 });
 export type NearbySearch = z.infer<typeof nearbySearchSchema>;

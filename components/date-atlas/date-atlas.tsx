@@ -86,7 +86,7 @@ const defaultRequest = () =>
     maxDistance: 30,
     occasion: "Romantic date",
     budget: null,
-    vibes: ["Romantic", "Creative"],
+    vibes: ["Romantic"],
     datePreference: "weekend",
     date: "",
     startTime: "",
@@ -500,7 +500,7 @@ export function DateAtlas({
       const data = recommendationResultSchema.parse(await readPlanningResponse(response, (stage) => { if (!controller.signal.aborted) setLoadingStage(stage); }));
       if (controller.signal.aborted || id !== generationId.current) return;
       if (extra.excludePlaceIds?.length && !data.plans.length && !data.nearby?.places.length)
-        throw new Error("No new places matched these preferences. Your kept places are still here. Try changing the location or vibe.");
+        throw new Error("No new places matched these preferences. Your current recommendations are still here. Try changing the location or vibe.");
       setRequest(data.plans[0]?.request ?? preferences);
       setResult(data);
       try {

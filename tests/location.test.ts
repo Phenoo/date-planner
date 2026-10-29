@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { discoveryQuery, geocodeResponseSchema, locationFromGeocode } from "../lib/maps/location";
 import { nearbySearchSchema } from "../lib/maps/schema";
-import { mapNearbyPlaces, placesResponseSchema, preferredPlaceTypes } from "../lib/maps/nearby";
+import { diversePlaces, mapNearbyPlaces, placesResponseSchema, placeTypeGroups, preferredPlaceTypes } from "../lib/maps/nearby";
 
 test("reverse geocoding chooses neighborhood and city by type, without returning an exact address", () => {
   const data = geocodeResponseSchema.parse({ status: "OK", results: [{ address_components: [
@@ -53,4 +53,43 @@ test("restaurant exclusions apply to both the Places query and its returned reco
   assert.ok(!preferredPlaceTypes(search).includes("cafe"));
   const result = mapNearbyPlaces(placesResponseSchema.parse({ places: [place("gallery"), place("food", "restaurant")] }), origin, search);
   assert.deepEqual(result.places.map((item) => item.id), ["gallery"]);
+});
+
+test("broad city searches include dining, scenery and entertainment without defaulting to galleries", () => {
+  const romantic = { ...request, vibes: ["Romantic"] as const };
+  const search = nearbySearchSchema.parse(romantic);
+  const types = placeTypeGroups(search).flat();
+  for (const type of ["restaurant", "park", "beach", "movie_theater", "amusement_center"]) assert.ok(types.includes(type));
+  assert.ok(!types.includes("art_gallery"));
+  assert.ok(!types.includes("museum"));
+  const noFood = placeTypeGroups({ ...search, includeFood: false }).flat();
+  assert.ok(!noFood.includes("restaurant"));
+  assert.ok(!noFood.includes("cafe"));
+  assert.ok(placeTypeGroups(request).flat().includes("art_gallery"));
+});
+
+test("words like partner, party and karting do not accidentally become an interest in art", () => {
+  for (const interests of ["My partner loves good food", "A birthday party", "Go-karting and games", "Good food, no galleries"]) {
+    const types = preferredPlaceTypes({ ...request, vibes: [], interests });
+    assert.ok(!types.includes("art_gallery"));
+    assert.ok(!types.includes("museum"));
+  }
+  assert.ok(preferredPlaceTypes({ ...request, vibes: [], interests: "Art and pottery" }).includes("art_gallery"));
+});
+
+test("fallback recommendations retain variety without fabricating or duplicating places", () => {
+  const places = ["Art gallery", "Museum", "Art gallery", "Cafe", "Italian restaurant", "Park", "Cinema"].map((category, index) => ({ id: String(index), category }));
+  assert.deepEqual(diversePlaces(places).map((place) => place.id), ["0", "3", "5"]);
+  assert.deepEqual(diversePlaces([places[0], places[0]]), [places[0]]);
+  assert.deepEqual(diversePlaces([]), []);
+});
+
+test("explicitly excluded activities stay out of searches and returned candidates", () => {
+  for (const preferences of [{ interests: "My partner loves good food, no galleries." }, { dislikes: "Art galleries" }, { notes: "Avoid galleries but include restaurants." }]) {
+    const search = { ...request, ...preferences };
+    assert.ok(!placeTypeGroups(search).flat().includes("art_gallery"));
+    assert.ok(placeTypeGroups(search).flat().includes("restaurant"));
+    const data = placesResponseSchema.parse({ places: [place("gallery"), place("restaurant", "restaurant"), place("park", "park")] });
+    assert.deepEqual(new Set(mapNearbyPlaces(data, origin, search).places.map((item) => item.id)), new Set(["restaurant", "park"]));
+  }
 });

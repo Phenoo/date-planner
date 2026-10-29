@@ -2,7 +2,7 @@ import "server-only";
 import { geocodeLocation, mapsServerKey } from "./google";
 import { discoveryQuery } from "./location";
 import { placePhoto } from "./photos";
-import { mapNearbyPlaces, placesResponseSchema, preferredPlaceTypes } from "./nearby";
+import { mapNearbyPlaces, placesResponseSchema, placeTypeGroups } from "./nearby";
 import type { Coordinates, NearbySearch } from "./schema";
 import { RequestError } from "@/lib/planner/http";
 
@@ -13,12 +13,16 @@ const fields = "places.id,places.displayName,places.formattedAddress,places.prim
 export async function loadPlaceCandidates(request: NearbySearch, center?: Coordinates, options: SearchOptions = {}) {
   const origin = center ?? (await geocodeLocation(discoveryQuery(request))).results[0]?.geometry?.location;
   if (!origin) throw new RequestError("Choose an area to find nearby places.", 422);
-  const types = preferredPlaceTypes(request);
-  const groups = [types.filter((type) => ["art_gallery", "museum"].includes(type)), types.filter((type) => ["park", "movie_theater", "bowling_alley"].includes(type)), types.filter((type) => ["restaurant", "cafe"].includes(type))].filter((group) => group.length);
+  const groups = placeTypeGroups(request);
   const circle = { center: { latitude: origin.lat, longitude: origin.lng }, radius: Math.min(request.maxDistance, 50) * 1000 };
-  const searches = options.queries?.length
-    ? options.queries.slice(0, 4).map((query) => ({ method: "searchText", body: { textQuery: `${query} in ${discoveryQuery(request)}`, pageSize: 10, languageCode: "en", locationBias: { circle }, includePureServiceAreaBusinesses: false } }))
-    : groups.map((includedTypes) => ({ method: "searchNearby", body: { includedTypes, maxResultCount: 10, rankPreference: request.locationScope === "city" ? "POPULARITY" : "DISTANCE", languageCode: "en", locationRestriction: { circle } } }));
+  const nearbyGroups = options.queries?.length
+    ? [groups.find((group) => group.includes("restaurant")) ?? [], groups.filter((group) => !group.some((type) => ["art_gallery", "museum", "restaurant", "cafe"].includes(type))).flat()].filter((group) => group.length)
+    : groups;
+  const searches = [
+    ...(options.queries ?? []).slice(0, 2).map((query) => ({ method: "searchText", body: { textQuery: `${query} in ${discoveryQuery(request)}`, pageSize: 10, languageCode: "en", locationBias: { circle }, includePureServiceAreaBusinesses: false } })),
+    ...nearbyGroups.map((includedTypes) => ({ method: "searchNearby", body: { includedTypes, maxResultCount: 10, rankPreference: request.locationScope === "city" ? "POPULARITY" : "DISTANCE", languageCode: "en", locationRestriction: { circle } } })),
+  ];
+  if (!searches.length) return { result: mapNearbyPlaces({ places: [] }, origin, request, options.limit ?? 8), records: [] };
   const results = await Promise.allSettled(searches.map(async (search) => {
   const response = await fetch(`https://places.googleapis.com/v1/places:${search.method}`, {
     method: "POST", cache: "no-store", signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000),

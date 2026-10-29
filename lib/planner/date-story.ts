@@ -15,7 +15,7 @@ export function dateStoryIntroduction(preferences: { datePreference: "weekday" |
 }
 
 export function fallbackDateStory(category: string): DateStory {
-  const creative = /art|gallery|museum|pottery|ceramic|studio/i.test(category);
+  const creative = /\b(?:arts?|galler(?:y|ies)|museums?|pottery|ceramics?|studio)\b/i.test(category);
   const outdoors = /park|garden|beach|nature/i.test(category);
   const food = /restaurant|cafe|dining|bar/i.test(category);
   return {

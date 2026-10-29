@@ -1,14 +1,9 @@
-export type PlaceDecision = "keep" | "skip";
-export type PlaceChoice<T extends { id: string }> = { place: T; decision: PlaceDecision };
+export type PlaceDirection = "next" | "previous";
 
-export function recordPlaceChoice<T extends { id: string }>(history: readonly PlaceChoice<T>[], place: T, decision: PlaceDecision): PlaceChoice<T>[] {
-  if (history.some((choice) => choice.place.id === place.id)) return [...history];
-  return [...history, { place, decision }];
-}
-
-export function remainingPlaces<T extends { id: string }>(places: readonly T[], history: readonly PlaceChoice<T>[]) {
-  const seen = new Set(history.map((choice) => choice.place.id));
-  return places.filter((place) => !seen.has(place.id));
+export function rotatePlaceDeck<T>(places: readonly T[], position: number): T[] {
+  if (!places.length) return [];
+  const index = Number.isFinite(position) ? ((Math.trunc(position) % places.length) + places.length) % places.length : 0;
+  return [...places.slice(index), ...places.slice(0, index)];
 }
 
 export function cardSwipeMotion(deltaX: number, bounds: { width: number; height: number; availableWidth: number }) {
@@ -23,9 +18,9 @@ export function cardSwipeMotion(deltaX: number, bounds: { width: number; height:
   return { x: travel * progress, rotation: tilt * progress };
 }
 
-export function swipeDecision(deltaX: number, deltaY: number, width: number): PlaceDecision | null {
+export function swipeDirection(deltaX: number, deltaY: number, width: number): PlaceDirection | null {
   if (![deltaX, deltaY, width].every(Number.isFinite) || width <= 0 || Math.abs(deltaY) > Math.abs(deltaX)) return null;
   const threshold = Math.max(64, Math.min(110, width * .23));
   if (Math.abs(deltaX) < threshold) return null;
-  return deltaX > 0 ? "keep" : "skip";
+  return deltaX < 0 ? "next" : "previous";
 }

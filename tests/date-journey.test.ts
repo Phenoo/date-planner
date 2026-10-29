@@ -31,6 +31,7 @@ test("date stories remain suggestions and support creative, outdoor and dining e
     assert.doesNotMatch(JSON.stringify(story), /reserved|confirmed|₦|\d:\d/);
   }
   assert.notEqual(fallbackDateStory("Art gallery").title, fallbackDateStory("Restaurant").title);
+  assert.doesNotMatch(fallbackDateStory("Go-karting venue").title, /creativity/);
   const introduction = dateStoryIntroduction(request);
   assert.match(introduction, /weekday/);
   assert.match(introduction, /creativity/);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { applyDiscoveryRanking } from "../lib/planner/discovery-ai";
-import { cardSwipeMotion, recordPlaceChoice, remainingPlaces, swipeDecision } from "../lib/planner/place-deck";
+import { cardSwipeMotion, rotatePlaceDeck, swipeDirection } from "../lib/planner/place-deck";
 import { generateSchema, requestSchema } from "../lib/planner/schema";
 import { nearbyResultSchema, nearbySearchSchema, type NearbyResult } from "../lib/maps/schema";
 import { mapNearbyPlaces, placesResponseSchema } from "../lib/maps/nearby";
@@ -47,21 +47,22 @@ test("a well matched place can reference all applicable preferences without disc
   assert.equal(output?.places.length, 1);
   assert.equal(output?.places[0].id, result.places[0].id);
 });
-test("all candidates are reachable, keep and skip are distinct, duplicate events are harmless, and undo restores a card", () => {
-  let history = recordPlaceChoice([], result.places[0], "keep");
-  history = recordPlaceChoice(history, result.places[0], "skip");
-  assert.equal(history.length, 1);
-  assert.equal(history[0].decision, "keep");
-  history = recordPlaceChoice(history, result.places[1], "skip");
-  assert.equal(remainingPlaces(result.places, history).length, 7);
-  assert.equal(remainingPlaces(result.places, history.slice(0, -1))[0].id, "test-1");
-  for (const place of result.places.slice(2)) history = recordPlaceChoice(history, place, "skip");
-  assert.equal(remainingPlaces(result.places, history).length, 0);
-  assert.equal(history.filter((choice) => choice.decision === "keep").length, 1);
-  assert.equal(remainingPlaces([result.places[0]], []).length, 1);
-  assert.deepEqual(remainingPlaces([], history), []);
+test("swiping cycles through every card in both directions without removing recommendations", () => {
+  const places = result.places.slice(0, 3);
+  for (let position = -30; position <= 30; position++) {
+    const deck = rotatePlaceDeck(places, position);
+    assert.equal(deck.length, 3);
+    assert.deepEqual(new Set(deck.map((place) => place.id)), new Set(places.map((place) => place.id)));
+    assert.equal(deck[0], places[((position % 3) + 3) % 3]);
+  }
+  assert.deepEqual(rotatePlaceDeck(places, 3), places);
+  assert.deepEqual(rotatePlaceDeck(places, -3), places);
+  assert.deepEqual(rotatePlaceDeck(places, NaN), places);
+  assert.deepEqual(rotatePlaceDeck([places[0]], 100), [places[0]]);
+  assert.deepEqual(rotatePlaceDeck([], 1), []);
+  assert.equal(result.places.length, 9);
 });
-test("long swipes stay visually bounded while raw gesture distance still determines keep or skip", () => {
+test("long swipes stay visually bounded while raw gesture distance determines navigation", () => {
   for (const width of [240, 310, 350, 500]) {
     for (const delta of [-5000, -500, 500, 5000]) {
       const motion = cardSwipeMotion(delta, { width, height: 476, availableWidth: width + 80 });
@@ -69,7 +70,7 @@ test("long swipes stay visually bounded while raw gesture distance still determi
       assert.ok(Math.abs(motion.x) <= width * .18);
       assert.ok(Math.abs(motion.rotation) <= 3);
       assert.equal(Math.sign(motion.x), Math.sign(delta));
-      assert.equal(swipeDecision(delta, 0, width), delta > 0 ? "keep" : "skip");
+      assert.equal(swipeDirection(delta, 0, width), delta < 0 ? "next" : "previous");
     }
   }
   const bounds = { width: 350, height: 476, availableWidth: 1280 };
@@ -100,11 +101,18 @@ test("the whole rotated card stays inside narrow and wide screens throughout a s
   assert.deepEqual(cardSwipeMotion(500, { width: 310, height: 474, availableWidth: 310 }), { x: 0, rotation: 0 });
 });
 test("swipe thresholds support phones and desktop without treating vertical scroll or short drags as decisions", () => {
-  assert.equal(swipeDecision(100, 5, 330), "keep");
-  assert.equal(swipeDecision(-130, 5, 500), "skip");
+  assert.equal(swipeDirection(100, 5, 330), "previous");
+  assert.equal(swipeDirection(-130, 5, 500), "next");
   for (const values of [[20, 0, 330], [90, 160, 330], [200, 0, 0], [NaN, 0, 330]]) {
-    assert.equal(swipeDecision(values[0], values[1], values[2]), null);
+    assert.equal(swipeDirection(values[0], values[1], values[2]), null);
   }
+});
+test("AI ranking returns different activity categories before repeating galleries", () => {
+  const mixed = { ...result, places: result.places.map((place, index) => ({ ...place, category: index === 4 ? "Italian restaurant" : index === 7 ? "Botanical garden" : "Art gallery" })) };
+  const output = applyDiscoveryRanking(mixed, request, ranked);
+  assert.deepEqual(output?.places.map((place) => place.id), ["test-0", "test-4", "test-7"]);
+  assert.equal(output?.places.length, 3);
+  assert.ok(output?.places.every((place) => place.story));
 });
 test("discovery removes closed, distant and excluded food venues and deduplicates the full pool", () => {
   const place = { id: "gallery", displayName: { text: "Fixture gallery" }, formattedAddress: "Fixture", businessStatus: "OPERATIONAL", types: ["art_gallery"], location: { latitude: 6.45, longitude: 3.46 } };

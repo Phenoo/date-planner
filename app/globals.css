@@ -6853,15 +6853,15 @@ i {
 .venue-deck--stack .deck-card[data-dragging="true"] { transition: transform 90ms ease-out; will-change: transform; }
 .venue-deck--still .deck-card, .venue-deck--still .deck-card--leaving, .venue-deck--still .deck-card[data-dragging="true"] { transition: none; }
 .deck-swipe-stamp { position: absolute; top: 64px; z-index: 3; border: 3px solid currentColor; padding: 6px 14px; border-radius: 9px; font-size: 28px; font-weight: 700; letter-spacing: .06em; opacity: 0; pointer-events: none; background: #fffffff2; }
-.deck-swipe-stamp--keep { left: 24px; color: #9c1232; transform: rotate(-12deg); }
-.deck-swipe-stamp--skip { right: 24px; color: #4e3850; transform: rotate(12deg); }
-[data-swipe="keep"] > .deck-swipe-stamp--keep, [data-swipe="skip"] > .deck-swipe-stamp--skip { opacity: var(--swipe-opacity, 0); }
+.deck-swipe-stamp--next { left: 24px; color: #9c1232; transform: rotate(-12deg); }
+.deck-swipe-stamp--previous { right: 24px; color: #4e3850; transform: rotate(12deg); }
+[data-swipe="next"] > .deck-swipe-stamp--next, [data-swipe="previous"] > .deck-swipe-stamp--previous { opacity: var(--swipe-opacity, 0); }
 .deck-decision { display: flex; align-items: center; justify-content: center; gap: 24px; min-width: 112px; min-height: 52px; padding: 12px 20px; border: 1px solid var(--border); border-radius: 30px; font-size: 14px; font-weight: 500; transition: transform 180ms, background 180ms; }
-.deck-decision--keep { color: white; background: var(--red); border-color: var(--red); }
-.deck-decision--skip { color: var(--charcoal); background: var(--paper, white); }
+.deck-decision--next, .deck-decision--previous { color: var(--charcoal); background: var(--paper, white); }
 .deck-decision:hover:not(:disabled) { transform: translateY(-2px); }
-.deck-decision--keep:hover:not(:disabled) { background: var(--red-dark); border-color: var(--red-dark); color: white; }
-.deck-decision--skip:hover:not(:disabled) { background: var(--red-soft); border-color: var(--red); color: var(--charcoal); }
+.deck-decision--next:hover:not(:disabled), .deck-decision--previous:hover:not(:disabled) { background: var(--red-soft); border-color: var(--red); color: var(--charcoal); }
+.deck-pick-action { display: flex; justify-content: center; margin-top: 12px; }
+.deck-pick-action > button { min-width: 230px; min-height: 52px; }
 .deck-decision:disabled, .deck-secondary-actions > button:disabled { opacity: .45; cursor: default; }
 .deck-secondary-actions { display: flex; align-items: center; justify-content: center; gap: 26px; margin-top: 10px; }
 .deck-secondary-actions > button { min-height: 44px; font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; }
