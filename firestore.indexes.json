@@ -1,0 +1,48 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "experiences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "approved",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "demo",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "dateHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dateStatus", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "experiences",
+      "fieldPath": "record",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "savedPlans",
+      "fieldPath": "recipe",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "plannerLimits",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    }
+  ]
+}

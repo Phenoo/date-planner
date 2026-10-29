@@ -1,0 +1,31 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { toKobo, fromKobo, encodeRecipe, decodeRecipe, encodeExperience, decodeExperience, encodePlan, decodePlanRequest } from "../lib/planner/money";
+import { demoCatalog } from "../lib/planner/demo-catalog";
+import { generatePlans } from "../lib/planner/engine";
+import { generateSchema, requestSchema } from "../lib/planner/schema";
+import { toRecipe } from "../lib/planner/saved";
+test("Firestore financial amounts use integer kobo and preserve old records",()=>{
+  assert.equal(toKobo(50000),5000000);assert.equal(fromKobo(125050),1250.5);
+  for(const bad of [NaN,Infinity,-1])assert.throws(()=>toKobo(bad));
+  assert.throws(()=>fromKobo(1.5));
+  const record=demoCatalog[0];const stored=encodeExperience(record);
+  assert.equal(stored.price,record.price*100);assert.deepEqual(decodeExperience(stored),decodeExperience(record));
+  const plan=generatePlans(generateSchema.parse({request:{city:"Lagos",area:"Lekki",occasion:"First date",budget:50000,vibes:["Romantic"],date:"2026-10-31",startTime:"16:00",duration:240}}),demoCatalog).plans[0];
+  const recipe=toRecipe(plan);const encoded=encodeRecipe(recipe);
+  assert.equal(encoded.request.budget,5000000);assert.deepEqual(decodeRecipe(encoded),decodeRecipe(recipe));
+  assert.equal(decodeRecipe({...encoded,total:NaN}).success,false);
+});
+test("saving and restoring an unset budget preserves null while keeping expenses in integer kobo", () => {
+  const plan = generatePlans(generateSchema.parse({ request: { city: "Lagos", area: "Lekki", occasion: "First date", budget: null, vibes: ["Romantic"], date: "2026-10-31", startTime: "16:00", duration: 240 } }), demoCatalog).plans[0];
+  assert.ok(plan);
+  const recipe = toRecipe(plan);
+  const encoded = encodeRecipe(recipe);
+  assert.equal(encoded.request.budget, null);
+  assert.deepEqual(decodeRecipe(encoded), decodeRecipe(recipe));
+  const stored = encodePlan(plan);
+  assert.equal(stored.budget, null);
+  assert.equal(stored.remaining, null);
+  assert.equal(stored.total, plan.total * 100);
+  assert.deepEqual(decodePlanRequest(stored), requestSchema.safeParse(plan.request));
+});

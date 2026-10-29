@@ -1,0 +1,15 @@
+{
+  "name": "date-atlas-functions",
+  "private": true,
+  "main": "lib/index.cjs",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-functions": "^7.4.0",
+    "firebase-admin": "^14.5.0",
+    "ai": "^7.0.153",
+    "@ai-sdk/deepseek": "^3.0.73",
+    "zod": "^4.6.7"
+  }
+}

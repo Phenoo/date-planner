@@ -1,0 +1,19 @@
+.track { position: relative; width: min(100%,340px); height: 64px; flex-shrink: 0; border-radius: 19px; background: #d91335; box-shadow: 0 8px 24px #d913351f; user-select: none; }
+.label { position: absolute; inset: 0 15px 0 68px; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; font-weight: 500; line-height: 1.5; pointer-events: none; transition: opacity .2s; }
+.rail { position: absolute; inset: 6px; pointer-events: none; }
+.handle { position: absolute; top: 0; display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 14px; background: white; color: #d91335; box-shadow: 0 2px 8px #8d09262b; touch-action: pan-y; pointer-events: auto; cursor: grab; transition: left .25s ease, transform .25s ease, background-color .2s; animation: swipeHint 2.8s ease-in-out infinite; }
+.handle:hover { background: #fff4f6; }
+.handle:focus-visible { outline: 2px solid #261014; outline-offset: 3px; }
+.cue { display: flex; pointer-events: none; }
+.track:hover .handle, .track:focus-within .handle, .track[data-dragging="true"] .handle { animation: none; }
+.track[data-dragging="true"] .handle { cursor: grabbing; transition: none; }
+.track[data-dragging="true"] .label { transition: none; }
+/* Keep the idle nudge separate from the transform used for dragging. */
+@keyframes swipeHint {
+  0%, 12%, 48%, 100% { translate: 0; }
+  28% { translate: 18px 0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .handle, .label { transition: none; }
+  .handle { animation: none; }
+}

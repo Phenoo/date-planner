@@ -1,0 +1,15 @@
+.git/
+.vercel/
+.next/
+node_modules/
+functions/
+.firebase/
+supabase/
+coverage/
+.env*
+*.pem
+*.key
+*service-account*.json
+*.tsbuildinfo
+*.log
+.DS_Store

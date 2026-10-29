@@ -1,0 +1,10 @@
+.suggestions { margin-block: 6px 20px; }
+.suggestions p { font-size: 12px; line-height: 1.7; }
+.suggestions .heading { color: var(--charcoal); font-size: 14px; margin-bottom: 12px; }
+.options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-bottom: 12px; }
+.options > button { display: flex; flex-direction: column; align-items: flex-start; gap: 0; border-radius: 12px; padding: 13px 14px; text-align: left; min-width: 0; min-height: 64px; }
+.options span { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.options small { display: block; font-size: 10px; margin-top: 4px; }
+.suggestions .caption { font-size: 10px; margin-top: 5px; }
+.suggestions a, .suggestions p > button { text-decoration: underline; text-underline-offset: 3px; }
+@media(min-width:700px) { .options { grid-template-columns: repeat(3,minmax(0,1fr)); } }

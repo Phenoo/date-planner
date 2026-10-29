@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All database access goes through server routes, which verify Firebase ID
+    // tokens and administrator claims. The Admin SDK is governed by IAM.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

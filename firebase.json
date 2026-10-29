@@ -1,0 +1,30 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "singleProjectMode": true
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "date-atlas",
+      "runtime": "nodejs22",
+      "predeploy": [
+        "npm run build:functions"
+      ],
+      "ignore": [
+        "node_modules",
+        ".env*",
+        "src"
+      ]
+    }
+  ]
+}

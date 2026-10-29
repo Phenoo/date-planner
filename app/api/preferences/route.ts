@@ -1,0 +1,9 @@
+import { FieldValue } from "firebase-admin/firestore";
+import { authenticatedClient } from "@/lib/firebase/server";
+import { preferenceSchema } from "@/lib/planner/preferences-storage";
+import { apiError, readJson } from "@/lib/planner/http";
+import { toKobo, fromKobo } from "@/lib/planner/money";
+export async function GET(request: Request){try{const auth=await authenticatedClient(request);if(!auth)return Response.json({error:"Sign in first."},{status:401});const doc=await auth.db.collection("users").doc(auth.user.uid).collection("settings").doc("preferences").get();const data=doc.data();const prefs=data?.preferences;
+const parsed=preferenceSchema.safeParse(prefs&&data?.moneyUnit==="NGN_KOBO"&&typeof prefs.budget==="number"?{...prefs,budget:fromKobo(prefs.budget)}:prefs);return Response.json({preferences:parsed.success?parsed.data:{}},{headers:{"Cache-Control":"no-store"}});}catch(error){return apiError(error);}}
+export async function PUT(request: Request){try{const auth=await authenticatedClient(request);if(!auth)return Response.json({error:"Sign in first."},{status:401});const parsed=preferenceSchema.safeParse(await readJson(request));if(!parsed.success)return Response.json({error:"Check your preferences."},{status:400});await auth.db.collection("users").doc(auth.user.uid).collection("settings").doc("preferences").set({moneyUnit:"NGN_KOBO",preferences:{...parsed.data,...(parsed.data.budget===undefined?{}:{budget:parsed.data.budget===null?null:toKobo(parsed.data.budget)})},updatedAt:FieldValue.serverTimestamp()});return Response.json({saved:true});}catch(error){return apiError(error);}}
+export async function DELETE(request: Request){try{const auth=await authenticatedClient(request);if(!auth)return Response.json({error:"Sign in first."},{status:401});await auth.db.collection("users").doc(auth.user.uid).collection("settings").doc("preferences").delete();return Response.json({removed:true});}catch(error){return apiError(error);}}
