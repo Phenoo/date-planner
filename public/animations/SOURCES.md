@@ -2,6 +2,8 @@
 
 All JSON, SVG, and dotLottie assets in this directory are original vector illustrations authored for this project. No third-party animation URLs, artwork, or licenses are required. The editable generation source is scripts/build-animations.mjs. Palette: existing Date Atlas brand tokens.
 
+`reaction-hearts/` contains the two hand-drawn hearts shown below the planner's typewritten responses. `scripts/build-reaction-hearts.mjs` generates the original vectors and still fallbacks for the white, red and dark themes.
+
 ## Atlas companion
 
 The Atlas pin-shaped companion is adapted from the expressive shape animation construction in the user-owned Sexlife project. Its red palette, pin silhouette, contextual props and Date Atlas compositions are maintained by scripts/build-atlas-character.mjs. Still fallbacks are rendered from those same vector shapes by scripts/animation-stills.mjs. Sexlife source files remain unchanged.

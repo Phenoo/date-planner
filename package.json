@@ -14,7 +14,7 @@
     "test:journey": "node scripts/check-date-journey.mjs",
     "admin:grant": "node scripts/set-admin.mjs",
     "build:functions": "node scripts/build-functions.mjs",
-    "build:animations": "node scripts/build-atlas-character.mjs && node scripts/build-atlas-lively.mjs && node scripts/build-atlas-human.mjs && node scripts/animation-stills.mjs && python3 scripts/package-animations.py"
+    "build:animations": "node scripts/build-atlas-character.mjs && node scripts/build-atlas-lively.mjs && node scripts/build-atlas-human.mjs && node scripts/build-reaction-hearts.mjs && node scripts/animation-stills.mjs && python3 scripts/package-animations.py"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^3.0.73",

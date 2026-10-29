@@ -149,15 +149,6 @@ export function PlannerWizard({
   }
   const stage = plannerQuestions[step];
   const dialogue = usePlannerConversation(stage.id, request);
-  useEffect(() => {
-    if (!feedback) return;
-    const target = feedback.target;
-    const timer = window.setTimeout(() => {
-      setStep(target);
-      setFeedback(null);
-    }, Math.min(2600, Math.max(1700, feedback.line.split(/\s+/).length * 120 + 350)));
-    return () => window.clearTimeout(timer);
-  }, [feedback, setStep]);
   const selectedCity = stage.id === "city" && locationMode === "selected";
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
@@ -355,7 +346,7 @@ export function PlannerWizard({
   const total =
     (request.budget ?? 0) * (request.budgetType === "per-person" ? request.guests : 1);
   if (loading) return <GeneratingScreen stage={loadingStage} theme={theme} />;
-  if (feedback) return <PlannerReaction line={feedback.line} />;
+  if (feedback) return <PlannerReaction key={feedback.target} line={feedback.line} theme={theme} onComplete={() => { setStep(feedback.target); setFeedback(null); }} />;
   return (
     <main className={`typeform-shell ${styles.wizard} ${stage.id === "review" ? "planner-review" : ""}`}>
       {step > 0 && <div className="typeform-stage-bar">
