@@ -2,7 +2,7 @@ import { z } from "zod";
 import { genderOptions, occasions, vibes, type PlanRequest } from "./schema";
 import { plannerQuestions } from "./questions";
 
-export const conversationSteps = ["yourGender", "dateGender", "city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
+export const conversationSteps = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "duration", "review"] as const;
 export type ConversationStep = typeof conversationSteps[number];
 export const conversationInputSchema = z.object({
   step: z.enum(conversationSteps),
@@ -41,9 +41,9 @@ export function conversationChoices(step: ConversationStep): { key: string; labe
   if (step === "vibes") return vibes.map((label) => ({ key: label, label }));
   if (step === "budget") return [{ key: "yes", label: "Set a budget" }, { key: "no", label: "Keep the budget open" }];
   if (step === "date") return [{ key: "weekday", label: "Weekday" }, { key: "weekend", label: "Weekend" }];
-  if (step === "time") return [{ key: "open", label: "Decide together" }, { key: "15:00", label: "3 PM" }, { key: "18:00", label: "6 PM" }];
+  if (step === "time") return [{ key: "10:00", label: "Morning at 10 AM" }, { key: "14:00", label: "Afternoon at 2 PM" }, { key: "18:00", label: "Evening at 6 PM" }];
   if (step === "people") return [2, 4, 6].map((value) => ({ key: String(value), label: `${value} people` }));
-  if (step === "duration") return [90, 120, 180, 240, 300, 360, 480, 720].map((value) => ({ key: String(value), label: `${value / 60} hours` }));
+  if (step === "duration") return [120, 240, 420, 720].map((value) => ({ key: String(value), label: `${value / 60} hours` }));
   return [{ key: "continue", label: "Continue with these details" }];
 }
 export function conversationAnswerKey(step: ConversationStep, request: PlanRequest): string {

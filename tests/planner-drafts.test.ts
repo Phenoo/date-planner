@@ -21,7 +21,7 @@ test("v7 drafts retain their question after the budget move and new gender steps
   const old = ["city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "duration", "review"];
   old.forEach((id, index) => assert.equal(plannerQuestions[restorePlannerStep(index, 7)].id, id));
   const people = plannerQuestions.findIndex((question) => question.id === "people");
-  assert.equal(plannerQuestions[people + 1].id, "budget");
+  assert.equal(plannerQuestions[people + 1].id, "vibes");
   assert.deepEqual(plannerQuestions.slice(0, 3).map(({ id }) => id), ["yourGender", "dateGender", "city"]);
   assert.deepEqual(plannerQuestions[people].fields, ["guests"]);
 });
@@ -46,4 +46,8 @@ test("v10 drafts keep every answer and their question when gender moves to the s
   const previous = ["city", "area", "occasion", "people", "yourGender", "dateGender", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"];
   previous.forEach((id, step) => assert.equal(plannerQuestions[restorePlannerStep(step, 10)].id, id));
   assert.deepEqual(plannerQuestions.slice(0, 2).map(({ id }) => id), ["yourGender", "dateGender"]);
+});
+test("v11 drafts keep their answers and semantic question after budget moves behind preferences", () => {
+  const previous = ["yourGender", "dateGender", "city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"];
+  previous.forEach((id, step) => assert.equal(plannerQuestions[restorePlannerStep(step, 11)].id, id));
 });

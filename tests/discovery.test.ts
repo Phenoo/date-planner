@@ -8,12 +8,12 @@ import { mapNearbyPlaces, placesResponseSchema } from "../lib/maps/nearby";
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Romantic date", budget: 60000, vibes: ["Creative"], interests: "Art and pottery", date: "2026-10-31", startTime: "16:00", duration: 300 });
 const result: NearbyResult = { city: "Lagos", area: "Lekki", country: "Nigeria", places: Array.from({ length: 9 }, (_, index) => ({ id: `test-${index}`, name: `Test fixture ${index}`, address: `Fixture address ${index}`, category: "Art gallery", distanceKm: index, reason: "Source reason", mapsUrl: `https://www.google.com/maps/search/?query_place_id=test-${index}`, attributions: [{ name: "Fixture attribution" }] })) };
-const ranked = { headline: "A little creativity, together.", introduction: "Ideas for your creative side.", picks: result.places.map((place) => ({ id: place.id, matches: ["vibe:Creative", "interests"] })) };
+const ranked = { headline: "A little creativity, together.", introduction: "Ideas for your creative side.", picks: result.places.slice(0, 1).map((place) => ({ id: place.id, matches: ["vibe:Creative", "interests"] })) };
 
-test("DeepSeek ranks a larger candidate pool down to at most three while preserving canonical place facts", () => {
-  const output = applyDiscoveryRanking(result, request, { ...ranked, picks: [...ranked.picks].reverse() });
+test("DeepSeek returns one best-fit place while preserving canonical venue facts", () => {
+  const output = applyDiscoveryRanking(result, request, { ...ranked, picks: [{ ...ranked.picks[0], id: "test-8" }] });
   assert.equal(output?.ai, true);
-  assert.equal(output?.places.length, 3);
+  assert.equal(output?.places.length, 1);
   assert.equal(output?.places[0].id, "test-8");
   for (const place of output!.places) {
     const source = result.places.find((item) => item.id === place.id)!;
@@ -107,13 +107,14 @@ test("swipe thresholds support phones and desktop without treating vertical scro
     assert.equal(swipeDirection(values[0], values[1], values[2]), null);
   }
 });
-test("AI ranking returns different activity categories before repeating galleries", () => {
-  const mixed = { ...result, places: result.places.map((place, index) => ({ ...place, category: index === 4 ? "Italian restaurant" : index === 7 ? "Botanical garden" : "Art gallery" })) };
-  const output = applyDiscoveryRanking(mixed, request, ranked);
-  assert.deepEqual(output?.places.map((place) => place.id), ["test-0", "test-4", "test-7"]);
-  assert.equal(output?.places.length, 3);
-  assert.ok(output?.places.every((place) => place.story));
+test("AI output cannot include a second recommendation or comparison list", () => {
+  assert.equal(applyDiscoveryRanking(result, request, { ...ranked, picks: [ranked.picks[0], { ...ranked.picks[0], id: "test-1" }] }), null);
+  const first = applyDiscoveryRanking(result, request, ranked)!;
+  const next = applyDiscoveryRanking(result, request, { ...ranked, picks: [{ ...ranked.picks[0], id: "test-1" }] }, [first.places[0].id]);
+  assert.equal(next?.places.length, 1);
+  assert.notEqual(next?.places[0].id, first.places[0].id);
 });
+
 test("discovery removes closed, distant and excluded food venues and deduplicates the full pool", () => {
   const place = { id: "gallery", displayName: { text: "Fixture gallery" }, formattedAddress: "Fixture", businessStatus: "OPERATIONAL", types: ["art_gallery"], location: { latitude: 6.45, longitude: 3.46 } };
   const data = placesResponseSchema.parse({ places: [place, place, { ...place, id: "closed", businessStatus: "CLOSED_PERMANENTLY" }, { ...place, id: "far", location: { latitude: 8, longitude: 3 } }, { ...place, id: "food", types: ["restaurant"] }] });

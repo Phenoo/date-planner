@@ -16,6 +16,7 @@ import { AuthScreen } from "./auth-screen";
 import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { AnimatedFeedback } from "@/components/animations/feedback";
 import { recommendationResultSchema } from "@/lib/planner/response-schema";
+import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession } from "@/lib/planner/discovery-session";
 import { Homepage } from "./homepage";
 import { Explore, ExperienceCard } from "./explore";
 import { ExperiencePage } from "./experience-page";
@@ -113,6 +114,7 @@ export function DateAtlas({
   const [preferredIds, setPreferredIds] = useState<string[]>([]);
   const [compactHeader, setCompactHeader] = useState(false);
   const [request, setRequest] = useState<PlanRequest>(defaultRequest);
+  const restoredDiscovery = useRef(false);
   const [plannerStep, setPlannerStep] = useState(0);
   const [draftReady, setDraftReady] = useState(initialView !== "planner");
   const [plannerAppearance, setPlannerAppearance] = useState<PlannerAppearance>("red");
@@ -212,6 +214,14 @@ export function DateAtlas({
           );
           const flow =
             new URLSearchParams(window.location.search).get("flow") ?? "direct";
+          const discovery = restoreDiscoverySession(sessionStorage.getItem(activeDiscoveryKey), flow) ?? (hasEmailSignInLink() ? restoreDiscoverySession(localStorage.getItem(invitationReturnKey), flow) : null);
+          if (discovery) {
+            restoredDiscovery.current = true;
+            setRequest(discovery.request); setResult(discovery.result); setView("results"); setDraftReady(true);
+            sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(discovery));
+            if (discovery.accepted && discovery.result.nearby?.places[0]) sessionStorage.setItem(`date-atlas:accepted-pick:${discovery.result.nearby.sessionId ?? discovery.result.nearby.places[0].id}`, discovery.result.nearby.places[0].id);
+            return;
+          }
           if (
             flow &&
             stored &&
@@ -231,6 +241,7 @@ export function DateAtlas({
         .then(
           () =>
             sessionStorage.getItem(draftKey) ||
+            sessionStorage.getItem("date-atlas:planning-draft:v11") ||
             sessionStorage.getItem("date-atlas:planning-draft:v10") ||
             sessionStorage.getItem("date-atlas:planning-draft:v9") ||
             sessionStorage.getItem("date-atlas:planning-draft:v8") ||
@@ -242,12 +253,12 @@ export function DateAtlas({
             sessionStorage.getItem("date-atlas:planning-draft:v2"),
         )
         .then((raw) => {
-          if (!active || !raw) return;
+          if (!active || !raw || restoredDiscovery.current) return;
           const draft: unknown = JSON.parse(raw);
           if (draft && typeof draft === "object" && "request" in draft) {
             const parsed = requestSchema.safeParse(draft.request);
             if (parsed.success) {
-              setRequest("version" in draft && (draft.version === plannerDraftVersion || draft.version === 10 || draft.version === 9) ? parsed.data : { ...parsed.data, date: "", startTime: "", endTime: "" });
+              setRequest(parsed.data);
               setPlannerStep(
                 restorePlannerStep(
                   "step" in draft ? draft.step : 0,
@@ -326,6 +337,8 @@ export function DateAtlas({
         await completeEmailSignIn(email);
         if (active) {
           setAuthOpen(false);
+          setHistoryRevision((value) => value + 1);
+          try { localStorage.removeItem(invitationReturnKey); } catch { /* Sign-in can finish without storage. */ }
           setToast("You're signed in. Your plans have a home.");
         }
       } catch (failure) {
@@ -453,6 +466,7 @@ export function DateAtlas({
     setError("");
     try {
       sessionStorage.removeItem(activePlanKey);
+      sessionStorage.removeItem(activeDiscoveryKey);
     } catch {
       /* The current session remains usable. */
     }
@@ -499,12 +513,15 @@ export function DateAtlas({
       });
       const data = recommendationResultSchema.parse(await readPlanningResponse(response, (stage) => { if (!controller.signal.aborted) setLoadingStage(stage); }));
       if (controller.signal.aborted || id !== generationId.current) return;
-      if (extra.excludePlaceIds?.length && !data.plans.length && !data.nearby?.places.length)
-        throw new Error("No new places matched these preferences. Your current recommendations are still here. Try changing the location or vibe.");
+      if ((extra.excludePlaceIds?.length || extra.excludeIds?.length) && !data.plans.length && !data.nearby?.places.length)
+        throw new Error("No new place matched these preferences. Try changing the location, time or vibe.");
       setRequest(data.plans[0]?.request ?? preferences);
       setResult(data);
       try {
+        if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify({ flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", request: preferences, result: data, expiresAt: Date.now() + 3600000, accepted: false }));
+        else sessionStorage.removeItem(activeDiscoveryKey);
         sessionStorage.removeItem(draftKey);
+        sessionStorage.removeItem("date-atlas:planning-draft:v11");
         sessionStorage.removeItem("date-atlas:planning-draft:v10");
         sessionStorage.removeItem("date-atlas:planning-draft:v9");
         sessionStorage.removeItem("date-atlas:planning-draft:v8");
@@ -885,7 +902,7 @@ export function DateAtlas({
               if (next.plans.length) setRequest(next.plans[0].request);
             }}
             onCustomize={() => customize()}
-            onChangeDestination={() => customize(plannerQuestions.findIndex((question) => question.id === "area"))}
+            onChangeTiming={() => customize(plannerQuestions.findIndex((question) => question.id === "date"))}
             onBack={() => router.push("/")}
             onSave={(plan) => void savePlan(plan)}
             onShare={(plan, whatsapp) => void sharePlan(plan, whatsapp)}
@@ -1107,7 +1124,7 @@ export function DateAtlas({
             </Button>
             </>
           ) : (
-            <AccountAccess onDone={() => { setAuthOpen(false); setHistoryRevision((value) => value + 1); setFeedbackState("success"); setToast("You're signed in. Your guest dates stay with you."); }} />
+            <AccountAccess onDone={() => { try { localStorage.removeItem(invitationReturnKey); } catch { /* Sign-in can finish without storage. */ } setAuthOpen(false); setHistoryRevision((value) => value + 1); setFeedbackState("success"); setToast("You're signed in. Your guest dates stay with you."); }} />
           )}
           {authBusy && <p role="status">Completing your secure sign-in…</p>}
           {authMessage && (

@@ -631,3 +631,23 @@ export function recalculateExactPlan(
     return null;
   return buildItinerary(experiences, request, weights, origin);
 }
+
+export function generateSinglePlan(input: GenerateInput, catalog: Experience[], weights = defaultWeights, originOverride?: Point): RecommendationResult {
+  const { request } = input;
+  if (!request.date || !request.startTime) return { plans: [], diagnostics: [], source: catalog.some((item) => item.demo) ? "demo" : "firebase", ai: false, warnings: ["Choose the actual day and starting time for your date."] };
+  const origin = originOverride ?? startPoint(request, catalog);
+  const diagnostics = catalog.map((experience) => {
+    const reasons = rejectionReasons(experience, request, origin);
+    if (input.excludeIds.includes(experience.id)) reasons.push("Excluded from this recommendation");
+    return { id: experience.id, name: experience.name, eligible: reasons.length === 0, reasons, ...(!reasons.length ? { score: scoreExperience(experience, request, weights, origin).score } : {}) };
+  });
+  const eligible = new Set(diagnostics.filter((item) => item.eligible).map((item) => item.id));
+  const required = [...new Set([...input.preferredIds, ...input.lockedIds])];
+  const candidates = catalog.filter((item) => eligible.has(item.id) && (!required.length || required.length === 1 && required[0] === item.id))
+    .flatMap((experience) => { const plan = buildItinerary([experience], request, weights, origin); return plan ? [plan] : []; });
+  const costBasis = request.budget === null ? Math.max(1, ...candidates.map((plan) => plan.total)) : totalBudget(request);
+  const score = (plan: DatePlan) => input.mode === "cheaper" ? plan.score - plan.total / costBasis * 25 : input.mode === "closer" ? plan.score - plan.totalDistance * 3 : input.mode === "special" ? plan.score + Number(plan.activities[0].experience.vibes.includes("Unexpected")) * 6 : plan.score;
+  candidates.sort((a, b) => score(b) - score(a) || a.totalDistance - b.totalDistance);
+  const source = catalog.some((item) => item.demo) ? "demo" as const : "firebase" as const;
+  return { plans: candidates.slice(0, 1), diagnostics, source, ai: false, warnings: source === "demo" ? ["Demonstration data: fictional venues, sample prices and illustrative photography. No real-world booking availability."] : candidates.length ? ["Catalog prices and travel are estimates. Confirm final costs and booking availability with the venue."] : ["No single verified catalog experience fits all selected requirements."] };
+}

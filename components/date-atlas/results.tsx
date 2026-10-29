@@ -28,8 +28,8 @@ import { Button } from "@/components/ui/button";
 import { plannerFetch } from "@/lib/firebase/planner-client";
 import { LottieAnimation } from "@/components/animations/lottie-animation";
 import { DateMap } from "./date-map";
-import { NearbyPlaces } from "./nearby-places";
-import { ChosenDateReveal } from "./chosen-date-reveal";
+import { SinglePlaceJourney } from "./single-place-journey";
+import { CinematicReveal } from "./cinematic-reveal";
 import type { NearbyResult } from "@/lib/maps/schema";
 import { Dialog } from "@/components/ui/dialog";
 import { formatTime, money } from "@/lib/utils";
@@ -49,7 +49,7 @@ export function Results({
   onActivePlan,
   setResult,
   onCustomize,
-  onChangeDestination,
+  onChangeTiming,
   onBack,
   onSave,
   onShare,
@@ -65,7 +65,7 @@ export function Results({
   onActivePlan: (plan: DatePlan) => void;
   setResult: (result: RecommendationResult) => void;
   onCustomize: () => void;
-  onChangeDestination: () => void;
+  onChangeTiming: () => void;
   onBack: () => void;
   onSave: (plan: DatePlan) => void;
   onShare: (plan: DatePlan, whatsapp?: boolean) => void;
@@ -77,12 +77,12 @@ export function Results({
   requestError: string;
 }) {
   const [editing, setEditing] = useState(false);
-  const [chosenPlace, setChosenPlace] = useState<NearbyResult["places"][number] | null>(null);
-  const discoveryHeading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { if (!chosenPlace) discoveryHeading.current?.focus({ preventScroll: true }); }, [chosenPlace]);
+  const [lastRejected, setLastRejected] = useState("");
+  const [acceptedCatalog, setAcceptedCatalog] = useState("");
+  const rejectedCatalog = useRef<string[]>([]);
+  const rejectedIds = useRef<string[]>([]);
   const [editError, setEditError] = useState("");
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [selected, setSelected] = useState(1);
   const [locked, setLocked] = useState<string[]>([]);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const [alternatives, setAlternatives] = useState<DatePlan[]>([]);
@@ -110,7 +110,7 @@ export function Results({
       ?.focus({ preventScroll: true });
   }, [assistantOpen]);
   useEffect(() => () => abortRef.current?.abort(), []);
-  const plan = result.plans[Math.min(selected, result.plans.length - 1)];
+  const plan = result.plans[0];
   const rememberPlan = useEffectEvent(onActivePlan);
   useEffect(() => {
     if (plan) rememberPlan(plan);
@@ -118,14 +118,22 @@ export function Results({
   const activeLocked = locked.filter((id) =>
     plan?.activities.some((activity) => activity.experience.id === id),
   );
-  if (!plan && chosenPlace && result.nearby) return <ChosenDateReveal key={`${chosenPlace.id}:${accountRevision}`} place={chosenPlace} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} onSignIn={onSignIn} onChange={() => { setChosenPlace(null); window.scrollTo({ top: 0 }); }} />;
-  if (!plan && result.nearby?.places.length) return <main className="page-container discovery-results">
-    <div className="discovery-topline"><span className="discovery-city">EXPLORING {result.nearby.city.toUpperCase()}</span><button type="button" onClick={onChangeDestination}>Change search <span aria-hidden="true">↗</span></button></div>
-    <div className="discovery-intro"><span className="eyebrow">FOR YOUR KIND OF TOGETHER</span><h1 ref={discoveryHeading} tabIndex={-1}>{result.nearby.headline || "A little outside the ordinary."}</h1><p>{result.nearby.introduction || "A fresh backdrop. Good company. A story worth making."}</p></div>
-    {requestError && <p className="error-message" role="alert">{requestError}</p>}
-    <NearbyPlaces initialResult={result.nearby} refreshing={busy} onPick={(place) => { setChosenPlace(place); window.scrollTo({ top: 0 }); }} onRefresh={(excludePlaceIds, likedPlaceCategories) => onRegenerate(planningRequest, { excludePlaceIds, likedPlaceCategories })} />
-    <div className="discovery-footer"><button type="button" onClick={onCustomize}>Refine your preferences →</button><button type="button" onClick={onBack}>Back to inspiration</button></div>
-  </main>;
+  if (plan && acceptedCatalog !== plan.id) {
+    const activity = plan.activities[0];
+    const place: NearbyResult["places"][number] = { id: activity.experience.id, name: activity.experience.venue, category: activity.experience.category, address: `${activity.experience.area}, ${activity.experience.city}`, distanceKm: activity.distance, reason: activity.reason, mapsUrl: "https://www.google.com/maps/", attributions: [], photo: { url: activity.experience.image, authors: [] } };
+    return <CinematicReveal key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => setAcceptedCatalog(plan.id)} onEdit={onCustomize} onTiming={onChangeTiming} onReject={() => { rejectedCatalog.current = [...new Set([...rejectedCatalog.current, ...plan.activities.map((item) => item.experience.id)])].slice(-30); setLastRejected(plan.id); void onRegenerate(plan.request, { excludeIds: rejectedCatalog.current }); }} />;
+  }
+  if (!plan && result.nearby?.places[0]) {
+    const place = result.nearby.places[0];
+    return <SinglePlaceJourney key={`${place.id}:${result.nearby.sessionId ?? ""}`} place={place} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} accountRevision={accountRevision} busy={busy} error={requestError} rejected={lastRejected === place.id} onSignIn={onSignIn} onEdit={onCustomize} onTiming={onChangeTiming} onReject={() => {
+      let previous: string[] = [];
+      try { const stored: unknown = JSON.parse(sessionStorage.getItem("date-atlas:rejected-picks") || "[]"); if (Array.isArray(stored)) previous = stored.filter((id): id is string => typeof id === "string"); } catch { /* Current-session exclusions still apply. */ }
+      const excluded = [...new Set([...previous, ...rejectedIds.current, place.id])].slice(-60);
+      rejectedIds.current = excluded; setLastRejected(place.id);
+      try { sessionStorage.setItem("date-atlas:rejected-picks", JSON.stringify(excluded)); } catch { /* In-memory exclusions remain available. */ }
+      void onRegenerate(planningRequest, { excludePlaceIds: excluded });
+    }} />;
+  }
   if (!plan)
     return (
       <main className="empty-state page-container">
@@ -259,7 +267,6 @@ export function Results({
         throw new Error(data.error || "We couldn't update your plan.");
       if (data.plans.length) {
         setResult(data);
-        setSelected(1);
       }
       setChatMessages((previous) => [
         ...previous,
@@ -358,111 +365,8 @@ export function Results({
           </button>
         ))}
       </div>
-      <div className="plan-options" aria-label="Your personalized plans">
-        {result.plans.map((item, index) => (
-          <article
-            key={item.id}
-            className={`plan-option plan-tone-${index} ${item.id === plan.id ? "selected" : ""}`}
-          >
-            <div className="plan-option-photo">
-              <Image
-                src={item.activities[0].experience.image}
-                alt="Illustrative date atmosphere"
-                fill
-                sizes="(max-width:700px) 85vw, 33vw"
-              />
-              <span>{item.score}% match</span>
-              {item.type === "Best overall match" && (
-                <span className="our-pick">OUR PICK FOR YOU</span>
-              )}
-            </div>
-            <div className="plan-option-content">
-              <span className="mini-label">
-                {
-                  {
-                    "Smart & affordable": "Sweet & Simple",
-                    "Best overall match": "Perfect Match",
-                    "Something special": "Something Special",
-                  }[item.type]
-                }
-              </span>
-              <h3>{item.title}</h3>
-              <p>
-                {item.activities
-                  .map((activity) =>
-                    activity.experience.category
-                      .replace(" & culture", "")
-                      .replace(" & dining", ""),
-                  )
-                  .join(" + ")}
-              </p>
-              <span className="plan-card-meta">
-                {item.activities.length} experiences ·{" "}
-                {Math.floor(item.duration / 60)}h {item.duration % 60}m ·{" "}
-                {item.request.area}
-              </span>
-              <div className="plan-option-bottom">
-                <strong>
-                  {money(item.total)}
-                  <small> estimated total</small>
-                </strong>
-                <button
-                  className="icon-action"
-                  aria-label={`Save ${item.title}`}
-                  disabled={changing}
-                  onClick={() => onSave(item)}
-                >
-                  <Bookmark size={17} />
-                </button>
-              </div>
-              <Button
-                variant={item.id === plan.id ? "default" : "outline"}
-                disabled={changing}
-                onClick={() => {
-                  setSelected(index);
-                  setLocked([]);
-                  setShowScores(false);
-                  setEditError("");
-                  document.getElementById("full-itinerary")?.scrollIntoView({
-                    behavior: window.matchMedia(
-                      "(prefers-reduced-motion: reduce)",
-                    ).matches
-                      ? "auto"
-                      : "smooth",
-                    block: "start",
-                  });
-                }}
-              >
-                {item.id === plan.id ? "Viewing full plan" : "View Full Plan"}
-                <ArrowRight size={14} />
-              </Button>
-              <button
-                className="plan-customize text-link"
-                disabled={changing}
-                onClick={onCustomize}
-              >
-                Customize preferences
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
-      {editError && (
-        <div className="itinerary-edit-error" role="alert">
-          <span>{editError}</span>
-          <button
-            aria-label="Dismiss itinerary error"
-            onClick={() => setEditError("")}
-          >
-            ×
-          </button>
-        </div>
-      )}
-      <div
-        id="full-itinerary"
-        className="itinerary-layout"
-        aria-busy={changing}
-      >
+      {editError && <div className="itinerary-edit-error" role="alert"><span>{editError}</span><button aria-label="Dismiss itinerary error" onClick={() => setEditError("")}>×</button></div>}
+      <div className="itinerary-layout" id="full-itinerary" aria-busy={changing}>
         <aside
           ref={assistantRef}
           className={`assistant-sidebar ${assistantOpen ? "mobile-open" : ""}`}

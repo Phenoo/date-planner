@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { Coordinates, NearbyResult, NearbySearch } from "./schema";
+import { fitsVenueRequest, providerFactsSchema, providerPrice, travelEstimate, venueOpeningStatus } from "./venue-facts";
+import { timeMinutes } from "@/lib/planner/schedule";
 
 const negativePreferencePattern = /\b(?:no|avoid|without|not into|not interested in|don't (?:like|want|enjoy)|do not (?:like|want|enjoy))\s+[^,.!?;]*/gi;
 
@@ -10,7 +12,7 @@ export const placesResponseSchema = z.object({
     location: z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }),
     attributions: z.array(z.object({ provider: z.string().optional(), providerUri: z.string().optional() })).default([]),
     photos: z.array(z.object({ name: z.string(), authorAttributions: z.array(z.object({ displayName: z.string(), uri: z.string().optional() })).default([]) })).default([]),
-  })).default([]),
+  }).extend(providerFactsSchema.shape)).default([]),
 });
 export function excludedPlaceTypes(request: NearbySearch) {
   const negativeClauses = `${request.interests} ${request.notes}`.match(negativePreferencePattern) ?? [];
@@ -82,7 +84,7 @@ export function mapNearbyPlaces(data: z.infer<typeof placesResponseSchema>, orig
       const map = new URL("https://www.google.com/maps/search/");
       map.searchParams.set("api", "1"); map.searchParams.set("query", place.displayName.text); map.searchParams.set("query_place_id", place.id);
       const group = place.types.some((type) => ["art_gallery", "museum"].includes(type)) ? "art" : place.types.some((type) => ["restaurant", "cafe"].includes(type)) ? "dining" : place.types.includes("park") ? "nature" : "entertainment";
-      return { fit, distanceKm, group, providerIndex, place: {
+      return { fit, distanceKm, group, providerIndex, eligible: !request.date || fitsVenueRequest(place, request, distanceKm), place: {
         id: place.id, name: place.displayName.text, address: place.formattedAddress, category, distanceKm: Math.round(distanceKm * 10) / 10,
         reason: `${category} in ${request.locationScope === "city" ? request.city : `${request.area}, ${request.city}`}${place.types.some((type) => ["art_gallery", "museum"].includes(type)) && preferred.includes("art_gallery") ? ", for your creative side" : ""}.`,
         mapsUrl: map.toString(), attributions: place.attributions.flatMap((item) => {
@@ -90,8 +92,9 @@ export function mapNearbyPlaces(data: z.infer<typeof placesResponseSchema>, orig
           const url = z.url({ protocol: /^https$/ }).safeParse(item.providerUri);
           return [{ name: item.provider, ...(url.success ? { url: url.data } : {}) }];
         }),
+        details: { checkedAt: new Date().toISOString(), opening: venueOpeningStatus(place, request.date, timeMinutes(request.startTime) + travelEstimate(distanceKm, request.transport), Math.max(30, request.duration - travelEstimate(distanceKm, request.transport) * 2)) === "fits" ? "fits" as const : "unknown" as const, hours: place.regularOpeningHours?.weekdayDescriptions ?? [], timeZone: place.timeZone?.id, rating: place.rating, reviewCount: place.userRatingCount, price: providerPrice(place), travelMinutes: travelEstimate(distanceKm, request.transport), reviews: [] },
       } };
-    }).filter((item) => item.distanceKm <= Math.min(request.maxDistance, 50))
+    }).filter((item) => item.eligible && item.distanceKm <= Math.min(request.maxDistance, 50))
     .sort((a, b) => b.fit - a.fit || (request.locationScope === "city" ? a.providerIndex - b.providerIndex : a.distanceKm - b.distanceKm));
   const groups = new Set<string>();
   const varied = places.filter((item) => { if (groups.has(item.group)) return false; groups.add(item.group); return true; });

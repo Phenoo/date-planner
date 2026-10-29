@@ -6,6 +6,8 @@ import {
   isSignInWithEmailLink,
   sendSignInLinkToEmail,
   signInWithEmailLink,
+  EmailAuthProvider,
+  linkWithCredential,
 } from "firebase/auth";
 
 const emailKey = "date-atlas:sign-in-email";
@@ -60,8 +62,23 @@ export async function completeEmailSignIn(email: string) {
   if (!auth || !hasEmailSignInLink()) return false;
   if (!completingLink) {
     const url = window.location.href;
-    completingLink = signInWithEmailLink(auth, email, url)
-      .then(() => {
+    completingLink = (async () => {
+      await auth.authStateReady();
+      const guest = auth.currentUser?.isAnonymous ? auth.currentUser : null;
+      const guestToken = guest ? await guest.getIdToken() : null;
+      if (guest) {
+        try { await linkWithCredential(guest, EmailAuthProvider.credentialWithLink(email, url)); }
+        catch (failure) {
+          const code = failure && typeof failure === "object" && "code" in failure ? failure.code : "";
+          if (code !== "auth/email-already-in-use" && code !== "auth/credential-already-in-use") throw failure;
+          await signInWithEmailLink(auth, email, url);
+        }
+      } else await signInWithEmailLink(auth, email, url);
+      if (guestToken && auth.currentUser?.uid !== guest?.uid) {
+        const token = await auth.currentUser?.getIdToken();
+        const merge = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken }) });
+        if (!merge.ok) throw new Error("Signed in, but your chosen date couldn't be transferred. Reopen the original planning tab to retry.");
+      }
         try {
           localStorage.removeItem(emailKey);
         } catch {
@@ -71,7 +88,7 @@ export async function completeEmailSignIn(email: string) {
         for (const key of ["apiKey", "oobCode", "mode", "lang", "auth"])
           clean.searchParams.delete(key);
         window.history.replaceState(window.history.state, "", clean);
-      })
+      })()
       .finally(() => {
         completingLink = null;
       });
@@ -86,8 +103,11 @@ export async function sendEmailSignIn(email: string) {
     throw new Error(
       "Account sign-in is being connected. You can still plan and save on this device.",
     );
+  const returnUrl = new URL(window.location.href);
+  for (const key of ["apiKey", "oobCode", "mode", "lang"]) returnUrl.searchParams.delete(key);
+  returnUrl.searchParams.set("auth", "email");
   await sendSignInLinkToEmail(auth, email, {
-    url: `${window.location.origin}/?auth=email`,
+    url: returnUrl.toString(),
     handleCodeInApp: true,
   });
   try {

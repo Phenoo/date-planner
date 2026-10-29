@@ -7,6 +7,8 @@ import { GeneratingScreen } from "./generating-screen";
 import { NearbyCities } from "./nearby-cities";
 import { VibeChoices } from "./vibe-choices";
 import { GenderChoices } from "./gender-choices";
+import { DatePicker } from "./date-picker";
+import { calendarDay, calendarLabel, dateValue, scheduleError } from "@/lib/planner/schedule";
 import { usePlannerConversation } from "./use-planner-conversation";
 import { PlannerReaction } from "./planner-reaction";
 import { conversationAnswerKey, localReaction } from "@/lib/planner/conversation";
@@ -26,7 +28,6 @@ import {
   plannerQuestionCount,
 } from "@/lib/planner/questions";
 import { money } from "@/lib/utils";
-import { dateTimingLabel } from "@/lib/planner/date-story";
 import type { CompanionTheme } from "@/lib/animations/registry";
 import type { DetectedLocation } from "@/lib/maps/schema";
 import { browserLocationError, resolveLocation } from "@/lib/maps/client-location";
@@ -77,13 +78,11 @@ const budgetOptions = [10000, 25000, 50000, 60000, 100000, 200000].map(
   }),
 );
 const timeOptions = [
-  { value: "", label: "We'll decide together" },
-  { value: "15:00", label: "3:00 PM" },
-  { value: "18:00", label: "6:00 PM" },
+  { value: "10:00", label: "Morning · 10:00 AM" },
+  { value: "14:00", label: "Afternoon · 2:00 PM" },
+  { value: "18:00", label: "Evening · 6:00 PM" },
 ];
-const durationOptions = [90, 120, 180, 240, 300, 360, 480, 720].map(
-  (value) => ({ value, label: `${value / 60} hours` }),
-);
+const durationOptions = [{ value: 120, label: "1–2 hours" }, { value: 240, label: "3–5 hours" }, { value: 420, label: "6–8 hours" }, { value: 720, label: "Full day" }];
 type DestinationChoice = "city" | "area" | "elsewhere";
 
 export function PlannerWizard({
@@ -188,6 +187,9 @@ export function PlannerWizard({
   }
   function next(updated = request) {
     if (transitioning || loading) return;
+    if ((stage.id === "date" || stage.id === "review") && (!updated.date || updated.date < dateValue(new Date()))) { setError("Choose today or a future day for your date."); return; }
+    if ((stage.id === "time" || stage.id === "review") && !updated.startTime) { setError("Choose a time for your date."); return; }
+    if (stage.id === "review") { const issue = scheduleError(updated); if (issue) { setError(issue); return; } }
     if (stage.id === "city" && (locationMode === "choose" || locating)) {
       setError(locating ? "Finding your area. Please wait a moment." : "Use your location or choose an area manually to continue.");
       return;
@@ -207,8 +209,8 @@ export function PlannerWizard({
           budget: "Enter a budget between ₦1,000 and ₦10,000,000.",
           people: "Choose a whole number of people between 1 and 12.",
           vibes: "Choose at least one vibe to keep going.",
-          date: "Choose weekday or weekend to continue.",
-          time: "Enter a valid time, or leave it open to decide together.",
+          date: "Choose a valid day for your date.",
+          time: "Choose a valid starting time.",
         };
         setError(messages[stage.id] ?? issue.message);
         return;
@@ -320,10 +322,6 @@ export function PlannerWizard({
       event.preventDefault();
       choose("startTime", timeOptions[index].value);
     }
-    if (stage.id === "date" && index < 2) {
-      event.preventDefault();
-      choose("datePreference", index === 0 ? "weekday" : "weekend");
-    }
     if (stage.id === "duration" && durationOptions[index]) {
       event.preventDefault();
       choose("duration", durationOptions[index].value);
@@ -340,7 +338,7 @@ export function PlannerWizard({
     { id: "interests", label: "Interests & preferences", value: [request.interests, request.notes, request.surprises ? "Surprises welcome" : "No surprises"].filter(Boolean).join(" · ") },
     { id: "requirements", label: "Requirements", value: [...request.dietary, request.quiet ? "Quiet places" : "", request.accessibility ? "Step-free access" : "", request.dislikes ? `Avoid: ${request.dislikes}` : ""].filter(Boolean).join(" · ") || "None specified" },
     { id: "budget", label: "Spending limit", value: request.budget === null ? "No spending limit set" : `${money(request.budget)} ${request.budgetType === "total" ? "total" : "per person"} · ${request.includeFood ? "Food included" : "Food excluded"} · ${request.includeTransport ? "Transport included" : "Transport excluded"}` },
-    { id: "date", label: "Your kind of day", value: dateTimingLabel(request.datePreference, request.startTime) },
+    { id: "date", label: "Date & time", value: `${request.date ? calendarLabel(request.date) : "Choose a day"} · ${request.startTime || "Choose a time"}` },
     { id: "duration", label: "Duration", value: `${request.duration / 60} hours${request.endTime ? ` · Be back by ${request.endTime}` : ""}` },
   ];
   const total =
@@ -700,7 +698,7 @@ export function PlannerWizard({
             </div>
           )}
           {stage.id === "date" && (
-            <AnswerChoices options={[{ value: "weekday", label: "Weekday" }, { value: "weekend", label: "Weekend" }]} selected={[request.datePreference]} disabled={pending !== null} onChoose={(value) => choose("datePreference", value)} />
+            <DatePicker value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
           )}
           {stage.id === "time" && (
             <>
@@ -710,7 +708,7 @@ export function PlannerWizard({
                 disabled={pending !== null}
                 onChoose={(value) => choose("startTime", value)}
               />
-              <Field label="Another time (optional)">
+              <Field label="Choose a time · venue local time">
                 <input
                   type="time"
                   value={request.startTime}
@@ -727,6 +725,7 @@ export function PlannerWizard({
                 disabled={pending !== null}
                 onChoose={(value) => choose("duration", value)}
               />
+              <Field label="Custom duration (hours)"><input type="number" min={1} max={12} step={0.5} value={request.duration / 60} onChange={(event) => { const hours = event.target.valueAsNumber; if (Number.isFinite(hours)) update("duration", Math.round(hours * 60)); }} /><small>We&apos;ll plan for {request.duration / 60} hours, including estimated travel.</small></Field>
               <details className="flow-details">
                 <summary>A little more about the timing and setting</summary>
                 <div className="form-stack">

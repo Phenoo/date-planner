@@ -3,7 +3,7 @@ import { persistPlans, ownedPlanRequest } from "@/lib/server/plan-persistence";
 import { z } from "zod";
 import { generateSchema } from "@/lib/planner/schema";
 import { interpretModification, personalize } from "@/lib/planner/ai";
-import { generatePlans } from "@/lib/planner/engine";
+import { generateSinglePlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
@@ -36,7 +36,7 @@ export async function chat(request: Request, progress?: (stage: string) => void)
         { status: 422 },
       );
     const result = await personalize(
-      generatePlans(
+      generateSinglePlan(
         {
           ...parsed.data,
           request: modification.request,

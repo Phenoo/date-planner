@@ -65,15 +65,14 @@ const originalQuestions = [
   },
   {
     id: "date",
-    title: "Weekday or weekend?",
-    description: "Choose the kind of day. You can agree on the exact date together.",
-    fields: ["datePreference"],
+    title: "When are we making this happen?",
+    description: "Pick the day that works best for you.",
+    fields: ["date", "datePreference"],
   },
   {
     id: "time",
-    title: "What time should it begin?",
-    description:
-      "Have a time in mind? This is optional — you can decide together later.",
+    title: "What time works best?",
+    description: "Choose a starting time. We'll check the venue's local opening hours.",
     fields: ["startTime"],
   },
   {
@@ -101,19 +100,21 @@ const versionSixOrder = previousOrder.filter((id) => id !== "notes");
 const versionSevenOrder = previousOrder.filter((id) => id !== "notes" && id !== "intro");
 const versionNineOrder = ["city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
 const versionTenOrder = ["city", "area", "occasion", "people", "yourGender", "dateGender", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
-const order = ["yourGender", "dateGender", "city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
+const versionElevenOrder = ["yourGender", "dateGender", "city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
+const order = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "duration", "review"] as const;
 export type PlannerQuestionId = typeof order[number];
 export const plannerQuestions: readonly { id: PlannerQuestionId; title: string; description: string; fields: readonly (keyof PlanRequest)[] }[] = order.map((id) => {
   if (id === "review") return { id, title: "Everything looks good?", description: "One last look. Every detail is yours to change.", fields: [] };
   const question = originalQuestions.find((item) => item.id === id) ?? genderQuestions.find((item) => item.id === id)!;
-  const titles: Record<string, string> = { occasion: "What's the special occasion?", vibes: "What kind of date are you feeling?", interests: "What makes a date special for you?", duration: "How much time do you have?" };
+  const titles: Record<string, string> = { occasion: "What's the special occasion?", vibes: "What kind of date are you feeling?", interests: "What makes a date special for you?", duration: "How long are we going out?" };
   return { ...question, title: titles[id] || question.title };
 });
 export const plannerQuestionCount = plannerQuestions.length;
-export const plannerDraftVersion = 11;
+export const plannerDraftVersion = 12;
 export function restorePlannerStep(step: unknown, version: unknown): number {
   if (typeof step !== "number" || !Number.isInteger(step) || step < 0) return 0;
   if (version === plannerDraftVersion) return Math.min(plannerQuestionCount - 1, step);
+  if (version === 11) return order.indexOf(versionElevenOrder[Math.min(versionElevenOrder.length - 1, step)]);
   if (version === 10) return order.indexOf(versionTenOrder[Math.min(versionTenOrder.length - 1, step)]);
   if (version === 8 || version === 9) return order.indexOf(versionNineOrder[Math.min(versionNineOrder.length - 1, step)]);
   if (version === 7) return order.indexOf(versionSevenOrder[Math.min(versionSevenOrder.length - 1, step)]);

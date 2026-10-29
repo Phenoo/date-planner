@@ -8,7 +8,7 @@ import { RequestError } from "@/lib/planner/http";
 
 type PlaceRecord = ReturnType<typeof placesResponseSchema.parse>["places"][number];
 type SearchOptions = { queries?: string[]; excludeIds?: readonly string[]; signal?: AbortSignal; limit?: number };
-const fields = "places.id,places.displayName,places.formattedAddress,places.primaryTypeDisplayName,places.location,places.types,places.businessStatus,places.attributions,places.photos";
+const fields = "places.id,places.displayName,places.formattedAddress,places.primaryTypeDisplayName,places.location,places.types,places.businessStatus,places.attributions,places.photos,places.regularOpeningHours,places.currentOpeningHours,places.timeZone,places.priceRange,places.rating,places.userRatingCount,places.accessibilityOptions,places.servesVegetarianFood";
 
 export async function loadPlaceCandidates(request: NearbySearch, center?: Coordinates, options: SearchOptions = {}) {
   const origin = center ?? (await geocodeLocation(discoveryQuery(request))).results[0]?.geometry?.location;

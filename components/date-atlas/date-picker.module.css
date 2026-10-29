@@ -1,0 +1,21 @@
+.picker { width: 100%; max-width: 620px; margin: 0 auto; color: var(--planner-text); }
+.quick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.quick button,.weekend button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--planner-border); border-radius: 30px; font-size: 12px; color: var(--planner-text); background: var(--planner-surface); transition: border-color 180ms, background 180ms; }
+.quick button:hover:not(:disabled),.weekend button:hover:not(:disabled) { border-color: var(--planner-accent); background: var(--planner-hover); }
+.weekend { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
+.weekHeader { display: flex; align-items: center; justify-content: space-between; margin: 25px 0 15px; }
+.weekHeader button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--planner-border); }
+.weekHeader strong { font-weight: 500; font-size: 16px; }
+.week { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 8px; }
+.week button { min-width: 0; padding: 17px 3px; display: grid; justify-items: center; gap: 6px; border: 1px solid var(--planner-border); border-radius: 18px; background: var(--planner-surface); transition: transform 180ms, border-color 180ms; }
+.week button:hover:not(:disabled) { transform: translateY(-3px); border-color: var(--planner-accent); }
+.week button[aria-pressed="true"] { background: var(--planner-primary-bg); color: var(--planner-primary-text); border-color: var(--planner-accent); box-shadow: 0 8px 24px #0001; }
+.week span,.week small { font-size: 11px; }
+.week strong { font-size: 25px; font-weight: 500; line-height: 1.4; }
+.calendar { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px; margin: 25px auto 0; font-size: 12px; }
+.calendar input { border: 1px solid var(--planner-border); border-radius: 12px; padding: 12px; background: var(--planner-surface); color: var(--planner-text); color-scheme: inherit; }
+.selected { text-align: center; color: var(--planner-text); font-size: 15px; margin: 22px 0 0; }
+.picker button:disabled { opacity: .35; cursor: default; }
+.picker button:focus-visible,.calendar input:focus-visible { outline: 2px solid var(--planner-accent); outline-offset: 4px; }
+@media(max-width:500px) { .week { gap: 5px; } .week button { border-radius: 13px; padding: 13px 0; } .week span,.week small { font-size: 9px; } .week strong { font-size: 21px; } .quick { gap: 6px; } .quick button { padding: 9px 12px; font-size: 11px; } }
+@media(prefers-reduced-motion:reduce) { .picker * { transition: none !important; } }

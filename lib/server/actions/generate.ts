@@ -1,7 +1,7 @@
 import { persistPlans } from "@/lib/server/plan-persistence";
 import { incorporatePreferences } from "@/lib/planner/preferences";
 import { generateSchema } from "@/lib/planner/schema";
-import { generatePlans } from "@/lib/planner/engine";
+import { generateSinglePlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { personalize } from "@/lib/planner/ai";
 import { apiError, readJson } from "@/lib/planner/http";
@@ -10,6 +10,7 @@ import { planningOrigin } from "@/lib/maps/google";
 import { discoverDatePlaces } from "@/lib/server/date-discovery";
 import { persistDiscoverySession } from "@/lib/server/date-invitations";
 import type { Coordinates, NearbyResult } from "@/lib/maps/schema";
+import { scheduleError, addCalendarDays } from "@/lib/planner/schedule";
 
 export async function generate(request: Request, progress?: (stage: string) => void) {
   try {
@@ -23,6 +24,8 @@ export async function generate(request: Request, progress?: (stage: string) => v
         { status: 400 },
       );
     parsed.data.request = incorporatePreferences(parsed.data.request);
+    const invalidSchedule = scheduleError(parsed.data.request, addCalendarDays(new Date().toISOString().slice(0, 10), -1));
+    if (invalidSchedule) return Response.json({ error: invalidSchedule }, { status: 400 });
     const start = parsed.data.request.startTime;
     if (parsed.data.request.endTime && parsed.data.request.endTime <= start)
       return Response.json(
@@ -39,8 +42,8 @@ export async function generate(request: Request, progress?: (stage: string) => v
     try { origin = await planningOrigin(parsed.data.request); }
     catch { mapWarnings.push("Maps couldn't resolve the selected area. Catalog location estimates were used; nearby suggestions are temporarily unavailable."); }
     progress?.("Checking budgets, opening hours, and schedules");
-    const candidates = generatePlans(parsed.data, catalog, undefined, origin);
-    const discovery = origin ? discoverDatePlaces(parsed.data.request, !parsed.data.request.startingArea && parsed.data.request.locationScope === "area" ? origin : undefined, {
+    const candidates = generateSinglePlan(parsed.data, catalog, undefined, origin);
+    const discovery = origin && !candidates.plans.length ? discoverDatePlaces(parsed.data.request, !parsed.data.request.startingArea && parsed.data.request.locationScope === "area" ? origin : undefined, {
       excludePlaceIds: parsed.data.excludePlaceIds, likedPlaceCategories: parsed.data.likedPlaceCategories, signal: request.signal,
     }, progress).catch(() => { mapWarnings.push("Google Maps suggestions couldn't be loaded. Please try again or adjust your destination."); return undefined; }) : Promise.resolve(undefined);
     const [result, discovered]: [Awaited<ReturnType<typeof personalize>>, NearbyResult | undefined] = await Promise.all([personalize(candidates), discovery]);

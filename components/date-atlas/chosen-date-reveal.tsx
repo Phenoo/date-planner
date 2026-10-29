@@ -10,10 +10,12 @@ import { Button } from "@/components/ui/button";
 import { AtlasCompanion } from "@/components/animations/atlas-companion";
 import { ChosenPlaceCard } from "./chosen-place-card";
 import { DateStoryView } from "./date-story-view";
+import { VenueDetails } from "./venue-details";
+import { calendarLabel, clockLabel, timeMinutes } from "@/lib/planner/schedule";
 import styles from "./date-journey.module.css";
 
-export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange, onSignIn }: {
-  place: NearbyResult["places"][number]; sessionId?: string; request: PlanRequest; signedIn: boolean; onChange: () => void; onSignIn: () => void;
+export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange, onSignIn, onTiming }: {
+  place: NearbyResult["places"][number]; sessionId?: string; request: PlanRequest; signedIn: boolean; onChange: () => void; onSignIn: () => void; onTiming: () => void;
 }) {
   const [selection, setSelection] = useState<{ id: string; token: string } | null>(null);
   const [revision, setRevision] = useState(0);
@@ -65,7 +67,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     finally { if (!controller.signal.aborted) setChecking(false); }
   }
   return <main className={styles.reveal}>
-    <div className={styles.revealIntro}><AtlasCompanion pose="review" lively width={120} height={100} label="Atlas celebrates your chosen date" /><span className={styles.eyebrow}>ONE LITTLE YES AWAY</span><h1 ref={title} tabIndex={-1}>This one&apos;s yours.</h1><p>{dateTimingLabel(request.datePreference, request.startTime)}</p></div>
+    <div className={styles.revealIntro}><AtlasCompanion pose="review" lively width={120} height={100} label="Atlas celebrates your chosen date" /><span className={styles.eyebrow}>YOUR DATE, THOUGHTFULLY PLANNED</span><h1 ref={title} tabIndex={-1}>It feels like a date.</h1><p>{request.date ? `${calendarLabel(request.date)} · ${clockLabel(timeMinutes(request.startTime))}` : dateTimingLabel(request.datePreference, request.startTime)}</p><button type="button" className={styles.textButton} onClick={onTiming}>Change day or time ↗</button></div>
     <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} animated /></div>
     <section className={styles.sharePanel} aria-label="Invite your date"><h2>Now, make their day.</h2><p>{signedIn ? "Send a little invitation. They can say yes right from the link." : "Create an account or sign in to share this invitation and keep your dates together."}</p>
       {!signedIn ? <Button onClick={onSignIn}>Sign in or create an account</Button> : saving ? <p role="status">Preparing your invitation…</p> : selection ? <><div className={styles.actions}><Button onClick={() => void share()}>Share with your date</Button><Button variant="outline" onClick={() => void share(true)}>Copy invitation link</Button></div><details className={styles.linkDetails}><summary>Show invitation link</summary><input aria-label="Your invitation link" readOnly value={inviteUrl()} onFocus={(event) => event.currentTarget.select()} /></details><div className={styles.responseStatus} role="status">{response === "accepted" ? "They said yes. It's a date." : response === "declined" ? "They'd prefer another time." : "Your invitation is ready."}</div>{response === "pending" && <button type="button" className={styles.textButton} disabled={checking} onClick={() => void checkResponse()}>{checking ? "Checking…" : "Check their response"}</button>}</> : <Button onClick={() => { setSaving(true); setError(""); setRevision((value) => value + 1); }}>Try again</Button>}
@@ -73,6 +75,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
       {signedIn && selection && <a className={styles.textButton} href={`https://wa.me/?text=${encodeURIComponent(`I've planned a little something for us. Will you come? ${inviteUrl()}`)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>}
       {signedIn && <Link className={styles.historyLink} href="/saved">Your dates are kept in My dates ↗</Link>}
     </section>
-    <DateStoryView story={story} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Choose another place</button>
+    <VenueDetails place={place} request={request} />
+    <DateStoryView story={story} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Revisit your recommendation</button>
   </main>;
 }

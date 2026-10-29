@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { calendarLabel } from "./schedule";
 
 export const dateStorySchema = z.object({
   title: z.string().trim().min(3).max(90),
@@ -30,8 +31,8 @@ export function fallbackDateStory(category: string): DateStory {
   };
 }
 
-export function dateTimingLabel(preference: "weekday" | "weekend", time: string, completed = false) {
-  const day = preference === "weekday" ? "Weekday" : "Weekend";
+export function dateTimingLabel(preference: "weekday" | "weekend", time: string, completed = false, date = "") {
+  const day = date ? calendarLabel(date, { weekday: "short", day: "numeric", month: "short" }) : preference === "weekday" ? "Weekday" : "Weekend";
   if (!time) return completed ? `${day} date` : `${day} · Time to decide together`;
   const [hour, minute] = time.split(":").map(Number);
   return `${day} · ${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;

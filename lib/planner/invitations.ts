@@ -6,6 +6,7 @@ export const invitationTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{32}$/);
 export const selectionIdSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const invitationPlaceSchema = nearbyPlaceSchema.omit({ distanceKm: true, reason: true, story: true });
 export const datePreferencesSchema = z.object({
+  date: z.union([z.literal(""), z.iso.date()]).default(""), duration: z.number().int().min(60).max(720).default(180),
   datePreference: z.enum(["weekday", "weekend"]),
   startTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]),
   city: z.string().min(2).max(80), country: z.string().min(2).max(80),

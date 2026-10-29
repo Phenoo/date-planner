@@ -7,13 +7,13 @@ import { dateStoryIntroduction, dateStorySchema, dateTimingLabel, fallbackDateSt
 import { invitationInputSchema, nextInvitationResponse, publicInvitationSchema } from "../lib/planner/invitations";
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Romantic date", budget: null, vibes: ["Creative"], datePreference: "weekday", duration: 180 });
-test("weekday/weekend requests do not require a calendar date or a starting time", () => {
+test("legacy saved requests remain readable while the wizard collects an actual calendar date", () => {
   assert.equal(request.date, "");
   assert.equal(request.startTime, "");
   assert.equal(request.datePreference, "weekday");
   assert.equal(requestSchema.safeParse({ ...request, datePreference: "someday" }).success, false);
   assert.equal(requestSchema.safeParse({ ...request, startTime: "26:00" }).success, false);
-  assert.deepEqual(plannerQuestions.find((question) => question.id === "date")?.fields, ["datePreference"]);
+  assert.deepEqual(plannerQuestions.find((question) => question.id === "date")?.fields, ["date", "datePreference"]);
   assert.equal(restorePlannerStep(8, 8), plannerQuestions.findIndex((question) => question.id === "date"));
 });
 test("flexible timing never turns into an invented date, opening-hours check or scheduled itinerary", () => {

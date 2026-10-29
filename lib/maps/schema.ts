@@ -19,6 +19,10 @@ export const nearbySearchSchema = z.object({
   vibes: z.array(z.enum(vibes)).max(12).default([]), interests: z.string().max(1000).default(""),
   dislikes: z.string().max(500).default(""), notes: z.string().max(2000).default(""),
   includeFood: z.boolean().default(true), avoidRestaurants: z.boolean().default(false),
+  date: z.union([z.literal(""), z.iso.date()]).default(""), startTime: z.string().default(""), duration: z.number().min(60).max(720).default(180),
+  guests: z.number().int().min(1).max(12).default(2), budget: z.number().nullable().default(null), budgetType: z.enum(["total", "per-person"]).default("total"),
+  includeTransport: z.boolean().default(true), transport: z.enum(["Ride-hailing", "Driving", "Walking"]).default("Ride-hailing"),
+  accessibility: z.boolean().default(false), dietary: z.array(z.string()).default([]),
 });
 export type NearbySearch = z.infer<typeof nearbySearchSchema>;
 export const nearbyPlaceSchema = z.object({
@@ -27,6 +31,13 @@ export const nearbyPlaceSchema = z.object({
   attributions: z.array(z.object({ name: z.string(), url: z.url({ protocol: /^https$/ }).optional() })),
   photo: z.object({ url: z.url({ protocol: /^https$/ }), authors: z.array(z.object({ name: z.string(), url: z.url({ protocol: /^https$/ }).optional() })) }).optional(),
   story: dateStorySchema.optional(),
+  details: z.object({
+    checkedAt: z.iso.datetime(), opening: z.enum(["fits", "unknown"]), hours: z.array(z.string()), timeZone: z.string().optional(),
+    rating: z.number().optional(), reviewCount: z.number().optional(), website: z.url({ protocol: /^https$/ }).optional(), phone: z.string().optional(),
+    price: z.object({ currency: z.string().regex(/^[A-Z]{3}$/), min: z.number().nonnegative().optional(), max: z.number().nonnegative().optional() }).optional(),
+    travelMinutes: z.number(),
+    reviews: z.array(z.object({ author: z.string(), url: z.url({ protocol: /^https$/ }).optional(), text: z.string(), rating: z.number().optional(), when: z.string().optional() })),
+  }).optional(),
 });
 export const nearbyResultSchema = z.object({
   area: z.string(), city: z.string(), country: z.string(), places: z.array(nearbyPlaceSchema).max(3),

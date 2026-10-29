@@ -1,0 +1,25 @@
+.details { --detail-text: var(--charcoal); --detail-muted: var(--muted); --detail-border: var(--border); width: min(900px,100%); margin: 34px auto; text-align: left; color: var(--detail-text); }
+.inverted { --detail-text: #fff; --detail-muted: #ffffffbd; --detail-border: #ffffff38; }
+.facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 22px; padding: 24px 0; border-block: 1px solid var(--detail-border); }
+.facts span { display: block; font-size: 9px; letter-spacing: .12em; color: var(--detail-muted); }
+.facts strong { display: block; font-size: 23px; font-weight: 500; letter-spacing: -.04em; line-height: 1.2; margin: 12px 0 8px; }
+.details p { color: var(--detail-muted); font-size: 13px; line-height: 1.8; }
+.logistics { padding: 28px 0; border-bottom: 1px solid var(--detail-border); }
+.details h3 { color: var(--detail-text); font-size: 24px; font-weight: 500; margin-bottom: 15px; }
+.logistics > p { margin-bottom: 12px; }
+.address { margin-top: 20px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.links a,.reviews a { color: var(--detail-text); font-size: 12px; text-decoration: underline; text-underline-offset: 4px; }
+.links a { min-height: 44px; display: inline-flex; align-items: center; }
+.logistics details { margin-top: 10px; }
+.logistics summary { cursor: pointer; min-height: 44px; padding-block: 10px; font-size: 12px; }
+.reviews { padding-top: 28px; }
+.reviewHeading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.reviewHeading > span,.reviews small { color: var(--detail-muted); font-size: 11px; }
+.reviews article { padding: 20px 0; border-bottom: 1px solid var(--detail-border); }
+.reviews article > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 12px; }
+.reviews article strong { font-weight: 500; }
+.reviews article span { font-size: 11px; color: var(--detail-muted); }
+.reviews summary { cursor: pointer; padding-block: 12px; min-height: 44px; font-size: 12px; }
+.reviews small { display: block; margin-top: 20px; line-height: 1.7; }
+@media(max-width:600px) { .facts { gap: 20px; grid-template-columns: 1fr; } .facts > div { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 8px; } .facts strong { margin: 0; font-size: 21px; } .facts p { grid-column: 2; font-size: 11px; } .facts span { padding-top: 6px; } }

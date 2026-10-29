@@ -61,7 +61,7 @@ export async function createChosenDate(request: Request, sessionId: string, plac
 export async function hydrateDate(record: StoredDate, withPhoto = true): Promise<PublicInvitation> {
   const details = await loadPlaceDetails(record.placeId, withPhoto).catch(() => null);
   return {
-    datePreference: record.datePreference, startTime: record.startTime, city: record.city, country: record.country,
+    date: record.date, duration: record.duration, datePreference: record.datePreference, startTime: record.startTime, city: record.city, country: record.country,
     placeId: record.placeId, place: details?.place ?? null, story: record.story, response: record.response,
     dateStatus: record.dateStatus, createdAt: record.createdAt.toDate().toISOString(),
   };
