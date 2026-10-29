@@ -5,7 +5,7 @@ import { addCalendarDays, calendarDay, scheduleError } from "../lib/planner/sche
 import { generateSinglePlan } from "../lib/planner/engine";
 import { generateSchema, requestSchema } from "../lib/planner/schema";
 import { demoCatalog } from "../lib/planner/demo-catalog";
-import { restoreDiscoverySession } from "../lib/planner/discovery-session";
+import { restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeRejectedPicks } from "../lib/planner/discovery-session";
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Casual date", budget: 60000, vibes: ["Playful"], date: "2026-10-31", startTime: "16:00", duration: 180 });
 const hours = providerFactsSchema.parse({ regularOpeningHours: { periods: [{ open: { day: 6, hour: 10 }, close: { day: 6, hour: 20 } }] } });
@@ -66,4 +66,13 @@ test("accepted discovery recovery validates the flow, expiration and venue recor
   assert.equal(restoreDiscoverySession(stored, "another-flow", 1000), null);
   assert.equal(restoreDiscoverySession(stored, "test-flow", 3000), null);
   assert.equal(restoreDiscoverySession("bad-json", "test-flow"), null);
+});
+test("rejections survive edits and refreshes while separate planning sessions stay independent", () => {
+  const stored = JSON.stringify(mergeRejectedPicks({ excludePlaceIds: ["first-place"], excludeIds: ["catalog-pick"] }));
+  const next = mergeRejectedPicks(readRejectedPicks(stored), { mode: "balanced" });
+  assert.deepEqual(next, { excludeIds: ["catalog-pick"], excludePlaceIds: ["first-place"] });
+  assert.deepEqual(mergeRejectedPicks(next, { excludePlaceIds: ["first-place", "replacement"] }).excludePlaceIds, ["first-place", "replacement"]);
+  assert.notEqual(rejectedPicksKey("first-flow"), rejectedPicksKey("new-flow"));
+  assert.deepEqual(readRejectedPicks("invalid-json"), { excludeIds: [], excludePlaceIds: [] });
+  assert.equal(mergeRejectedPicks({ excludePlaceIds: Array.from({ length: 70 }, (_, index) => `place-${index}`) }).excludePlaceIds.length, 60);
 });

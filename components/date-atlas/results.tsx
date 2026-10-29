@@ -79,8 +79,6 @@ export function Results({
   const [editing, setEditing] = useState(false);
   const [lastRejected, setLastRejected] = useState("");
   const [acceptedCatalog, setAcceptedCatalog] = useState("");
-  const rejectedCatalog = useRef<string[]>([]);
-  const rejectedIds = useRef<string[]>([]);
   const [editError, setEditError] = useState("");
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [locked, setLocked] = useState<string[]>([]);
@@ -121,17 +119,13 @@ export function Results({
   if (plan && acceptedCatalog !== plan.id) {
     const activity = plan.activities[0];
     const place: NearbyResult["places"][number] = { id: activity.experience.id, name: activity.experience.venue, category: activity.experience.category, address: `${activity.experience.area}, ${activity.experience.city}`, distanceKm: activity.distance, reason: activity.reason, mapsUrl: "https://www.google.com/maps/", attributions: [], photo: { url: activity.experience.image, authors: [] } };
-    return <CinematicReveal key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => setAcceptedCatalog(plan.id)} onEdit={onCustomize} onTiming={onChangeTiming} onReject={() => { rejectedCatalog.current = [...new Set([...rejectedCatalog.current, ...plan.activities.map((item) => item.experience.id)])].slice(-30); setLastRejected(plan.id); void onRegenerate(plan.request, { excludeIds: rejectedCatalog.current }); }} />;
+    return <CinematicReveal key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => setAcceptedCatalog(plan.id)} onEdit={onCustomize} onTiming={onChangeTiming} onReject={() => { setLastRejected(plan.id); void onRegenerate(plan.request, { excludeIds: plan.activities.map((item) => item.experience.id) }); }} />;
   }
   if (!plan && result.nearby?.places[0]) {
     const place = result.nearby.places[0];
     return <SinglePlaceJourney key={`${place.id}:${result.nearby.sessionId ?? ""}`} place={place} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} accountRevision={accountRevision} busy={busy} error={requestError} rejected={lastRejected === place.id} onSignIn={onSignIn} onEdit={onCustomize} onTiming={onChangeTiming} onReject={() => {
-      let previous: string[] = [];
-      try { const stored: unknown = JSON.parse(sessionStorage.getItem("date-atlas:rejected-picks") || "[]"); if (Array.isArray(stored)) previous = stored.filter((id): id is string => typeof id === "string"); } catch { /* Current-session exclusions still apply. */ }
-      const excluded = [...new Set([...previous, ...rejectedIds.current, place.id])].slice(-60);
-      rejectedIds.current = excluded; setLastRejected(place.id);
-      try { sessionStorage.setItem("date-atlas:rejected-picks", JSON.stringify(excluded)); } catch { /* In-memory exclusions remain available. */ }
-      void onRegenerate(planningRequest, { excludePlaceIds: excluded });
+      setLastRejected(place.id);
+      void onRegenerate(planningRequest, { excludePlaceIds: [place.id] });
     }} />;
   }
   if (!plan)

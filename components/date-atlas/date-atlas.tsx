@@ -16,7 +16,7 @@ import { AuthScreen } from "./auth-screen";
 import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { AnimatedFeedback } from "@/components/animations/feedback";
 import { recommendationResultSchema } from "@/lib/planner/response-schema";
-import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession } from "@/lib/planner/discovery-session";
+import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeRejectedPicks } from "@/lib/planner/discovery-session";
 import { Homepage } from "./homepage";
 import { Explore, ExperienceCard } from "./explore";
 import { ExperiencePage } from "./experience-page";
@@ -115,6 +115,7 @@ export function DateAtlas({
   const [compactHeader, setCompactHeader] = useState(false);
   const [request, setRequest] = useState<PlanRequest>(defaultRequest);
   const restoredDiscovery = useRef(false);
+  const rejectionMemory = useRef({ flow: "", picks: mergeRejectedPicks() });
   const [plannerStep, setPlannerStep] = useState(0);
   const [draftReady, setDraftReady] = useState(initialView !== "planner");
   const [plannerAppearance, setPlannerAppearance] = useState<PlannerAppearance>("red");
@@ -501,6 +502,19 @@ export function DateAtlas({
     setBusy(true);
     setError("");
     try {
+      const flow = new URLSearchParams(window.location.search).get("flow") ?? "direct";
+      let storedRejections = mergeRejectedPicks();
+      try { storedRejections = readRejectedPicks(sessionStorage.getItem(rejectedPicksKey(flow))); } catch { /* Memory preserves exclusions when storage is unavailable. */ }
+      const exclusions = mergeRejectedPicks(storedRejections, rejectionMemory.current.flow === flow ? rejectionMemory.current.picks : null, extra);
+      rejectionMemory.current = { flow, picks: exclusions };
+      try {
+        sessionStorage.setItem(rejectedPicksKey(flow), JSON.stringify(exclusions));
+        if (extra.excludeIds?.length || extra.excludePlaceIds?.length) {
+          sessionStorage.setItem(draftKey, JSON.stringify({ version: plannerDraftVersion, request: preferences, step: plannerQuestions.length - 1, preferredIds }));
+          sessionStorage.removeItem(activeDiscoveryKey);
+          sessionStorage.removeItem(activePlanKey);
+        }
+      } catch { /* The current request still uses the complete exclusion list. */ }
       setLoadingStage("Preserving your guest session");
       await planningToken();
       if (controller.signal.aborted) return;
@@ -508,7 +522,7 @@ export function DateAtlas({
       const response = await plannerFetch("/api/plans", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-        body: JSON.stringify({ request: preferences, preferredIds, ...extra }),
+        body: JSON.stringify({ request: preferences, preferredIds, ...extra, ...exclusions }),
         signal: controller.signal,
       });
       const data = recommendationResultSchema.parse(await readPlanningResponse(response, (stage) => { if (!controller.signal.aborted) setLoadingStage(stage); }));
