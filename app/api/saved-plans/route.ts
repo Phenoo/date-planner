@@ -5,10 +5,13 @@ import { authenticatedClient } from "@/lib/firebase/server";
 import { savedRecipeSchema } from "@/lib/planner/saved";
 import { apiError, readJson } from "@/lib/planner/http";
 
+import { dateSelectionId } from "@/lib/server/date-invitations";
+import { recordFunnel } from "@/lib/server/funnel";
+
 export async function GET(request: Request) {
   try {
     const auth = await authenticatedClient(request);
-    if (!auth)
+    if (!auth || auth.user.firebase.sign_in_provider === "anonymous")
       return Response.json(
         { error: "Please sign in to load your cloud plans." },
         { status: 401 },
@@ -25,7 +28,7 @@ export async function GET(request: Request) {
         const parsed = decodeRecipe(row.data().recipe);
         return parsed.success ? [parsed.data] : [];
       }),
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return apiError(error);
   }
@@ -33,7 +36,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const auth = await authenticatedClient(request);
-    if (!auth)
+    if (!auth || auth.user.firebase.sign_in_provider === "anonymous")
       return Response.json(
         { error: "Please sign in to sync your plan." },
         { status: 401 },
@@ -59,6 +62,7 @@ export async function POST(request: Request) {
       },
     );
     await batch.commit();
+    await recordFunnel(auth.user.uid, "plan_saved", dateSelectionId("catalog", recipe.data.id));
     return Response.json({ saved: true });
   } catch (error) {
     return apiError(error);
@@ -67,7 +71,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const auth = await authenticatedClient(request);
-    if (!auth)
+    if (!auth || auth.user.firebase.sign_in_provider === "anonymous")
       return Response.json(
         { error: "Please sign in to remove this plan." },
         { status: 401 },

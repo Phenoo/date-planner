@@ -103,6 +103,7 @@
 .exitDialog { background: var(--planner-bg); color: var(--planner-text); border-color: var(--planner-border); }
 .exitDialog p { color: var(--planner-muted); }
 .saveError { margin-top: 18px; font-size: 12px; line-height: 1.6; }
+.clearDraft { min-height: 44px; margin-top: 16px; color: var(--planner-text); text-decoration: underline; text-underline-offset: 4px; }
 @media(max-width:700px) {
   .controls { gap: 8px; }
   .switch > button { min-width: 40px; padding-inline: 10px; font-size: 11px; }

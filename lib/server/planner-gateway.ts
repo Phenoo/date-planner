@@ -30,6 +30,8 @@ export async function plannerAction(action: PlannerAction, request: Request) {
     headers.forEach((value, key) => outgoing.set(key, value));
     outgoing.set("Content-Type", "application/json");
     outgoing.set("Accept", request.headers.get("accept") || "application/json");
+    const requestKey = request.headers.get("idempotency-key");
+    if (requestKey) outgoing.set("idempotency-key", requestKey);
     const userToken = request.headers.get("authorization");
     if (userToken) outgoing.set("x-atlas-user-token", userToken);
     const appCheck = request.headers.get("x-firebase-appcheck");

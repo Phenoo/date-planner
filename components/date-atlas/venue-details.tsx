@@ -16,11 +16,12 @@ export function VenueDetails({ place, request, inverted = false }: { place: Near
     </div>
     <div className={styles.logistics}>
       <h3>A little preparation.</h3>
+      <p>Times shown in {request.timeZone}.</p>
       <p>{details?.opening === "fits" ? "The listed opening hours fit your selected visit. " : "Opening hours for this visit still need confirmation. "}Reservation availability is not connected; confirm your visit directly with the venue.</p>
       {details?.price ? <p>Google Maps typical spend: {details.price.min !== undefined ? `${currency(details.price.min)}${details.price.max !== undefined ? ` – ${currency(details.price.max)}` : "+"}` : `up to ${currency(details.price.max ?? 0)}`} per person. This is a provider estimate, not a quote. Transport, extras and final charges need confirmation.</p> : <p>Venue pricing is unavailable. {budget !== null ? `Keep the complete date within ${money(budget)} and confirm the venue's costs before committing.` : "Ask the venue about costs before committing."}</p>}
       {(request.dietary.length > 0 || request.accessibility || request.quiet) && <p>Confirm your dietary, access and atmosphere requirements with the venue before going.</p>}
       <p className={styles.address}>{place.address}</p>
-      <div className={styles.links}><a href={place.mapsUrl} target="_blank" rel="noreferrer">Directions on Google Maps ↗</a>{details?.website && <a href={details.website} target="_blank" rel="noreferrer">Contact / book with the venue ↗</a>}</div>
+      <div className={styles.links}><a href={place.mapsUrl} target="_blank" rel="noreferrer">Directions on Google Maps ↗</a>{details?.website && <a href={details.website} target="_blank" rel="noreferrer">Visit the venue website ↗</a>}</div>
       {details?.hours.length ? <details><summary>Listed opening hours</summary>{details.hours.map((line) => <p key={line}>{line}</p>)}</details> : null}
     </div>
     <div className={styles.reviews}>

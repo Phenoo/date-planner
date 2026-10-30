@@ -5,10 +5,10 @@ import { recommendationResultSchema } from "./response-schema";
 export const activeDiscoveryKey = "date-atlas:active-discovery:v1";
 export const invitationReturnKey = "date-atlas:invitation-return:v1";
 export const rejectedPicksKey = (flow: string) => `date-atlas:rejected-picks:v2:${flow}`;
-const rejectedPicksSchema = z.object({ excludeIds: z.array(z.string().min(1).max(100)).default([]), excludePlaceIds: z.array(z.string().min(1).max(200)).default([]) });
+const rejectedPicksSchema = z.object({ excludeCategories: z.array(z.string().trim().min(1).max(100)).default([]), excludeIds: z.array(z.string().min(1).max(100)).default([]), excludePlaceIds: z.array(z.string().min(1).max(200)).default([]) });
 export function mergeRejectedPicks(...values: unknown[]) {
   const valid = values.flatMap((value) => { const parsed = rejectedPicksSchema.safeParse(value); return parsed.success ? [parsed.data] : []; });
-  return { excludeIds: [...new Set(valid.flatMap((value) => value.excludeIds))].slice(-30), excludePlaceIds: [...new Set(valid.flatMap((value) => value.excludePlaceIds))].slice(-60) };
+  return { excludeCategories: [...new Set(valid.flatMap((value) => value.excludeCategories))].slice(-20), excludeIds: [...new Set(valid.flatMap((value) => value.excludeIds))].slice(-30), excludePlaceIds: [...new Set(valid.flatMap((value) => value.excludePlaceIds))].slice(-60) };
 }
 export function readRejectedPicks(raw: string | null) {
   try { return mergeRejectedPicks(JSON.parse(raw ?? "null")); } catch { return mergeRejectedPicks(); }

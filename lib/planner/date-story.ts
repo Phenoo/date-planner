@@ -9,6 +9,22 @@ export const dateStorySchema = z.object({
 });
 export type DateStory = z.infer<typeof dateStorySchema>;
 
+export const storyMomentIds = ["easy-hello", "soundtrack", "small-surprise", "shared-memory", "curious-question", "little-keepsake"] as const;
+const storyMoments: Record<typeof storyMomentIds[number], DateStory["moments"][number]> = {
+  "easy-hello": { title: "Start with an easy hello", text: "Put your phones away for a moment. Ask what made them smile this week, and let the conversation find its own pace." },
+  soundtrack: { title: "Give the day a soundtrack", text: "Each pick a song that suits the moment. Compare your choices and tell the story behind them." },
+  "small-surprise": { title: "A little thought goes a long way", text: "Share one small thing you appreciate about them. Keep it personal, simple and unexpected." },
+  "shared-memory": { title: "Trade a favourite memory", text: "Take turns telling a story that still makes you laugh. Find one little detail you never knew about each other." },
+  "curious-question": { title: "Follow a little curiosity", text: "Ask each other what you would try together if you had a free afternoon. Let the answers inspire your next little adventure." },
+  "little-keepsake": { title: "Keep a little of the day", text: "Before you leave, share your favourite moment. Take a photo if you both feel like it, or choose one detail to remember together." },
+};
+
+export function selectedDateStory(category: string, momentIds: readonly typeof storyMomentIds[number][] = []): DateStory {
+  const base = fallbackDateStory(category);
+  const moments = [...new Set(momentIds)].map((id) => storyMoments[id]);
+  return moments.length >= 2 ? { ...base, moments: moments.slice(0, 3) } : base;
+}
+
 export function dateStoryIntroduction(preferences: { datePreference: "weekday" | "weekend"; vibes: readonly string[] }) {
   const moods: Record<string, string> = { Romantic: "a little romance", Adventurous: "a shared sense of adventure", Relaxed: "an unhurried moment together", Playful: "some easy laughter", Luxurious: "a little extra thought", Creative: "a spark of creativity", "Food & dining": "your shared tastes", Outdoors: "a little curiosity", Entertainment: "a playful change of pace", Private: "time focused on each other", Active: "a shared burst of energy", Unexpected: "a welcome surprise" };
   const mood = preferences.vibes.flatMap((vibe) => moods[vibe] ? [moods[vibe]] : []).slice(0, 2).join(" and ") || "a little curiosity";

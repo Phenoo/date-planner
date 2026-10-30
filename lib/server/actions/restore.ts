@@ -1,3 +1,6 @@
+import { ownedPlanRequest } from "@/lib/server/plan-persistence";
+import { authenticatedClient } from "@/lib/firebase/server";
+import { RequestError } from "@/lib/planner/http";
 import { planningOrigin } from "@/lib/maps/google";
 import { savedRecipeSchema } from "@/lib/planner/saved";
 import { recalculateExactPlan } from "@/lib/planner/engine";
@@ -11,6 +14,10 @@ export async function restore(request: Request) {
         { error: "This saved plan is invalid or outdated." },
         { status: 400 },
       );
+    if (await authenticatedClient(request)) {
+      try { parsed.data.request = await ownedPlanRequest(request, parsed.data.id); }
+      catch (error) { if (!(error instanceof RequestError) || error.status !== 404 && error.status !== 410) throw error; }
+    }
     const catalog = await getCatalog();
     const origin = await planningOrigin(parsed.data.request);
     const experiences = parsed.data.experienceIds.map((id) =>

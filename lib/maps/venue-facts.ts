@@ -76,8 +76,8 @@ export function travelEstimate(distanceKm: number, method = "Ride-hailing") {
 export function fitsVenueRequest(facts: ProviderFacts, request: { date: string; startTime: string; duration: number; budget: number | null; budgetType: string; guests: number; includeTransport: boolean; transport: string; accessibility: boolean; dietary: string[] }, distanceKm: number) {
   const travel = travelEstimate(distanceKm, request.transport);
   if (travel * 2 + 30 > request.duration) return false;
-  if (facts.accessibilityOptions?.wheelchairAccessibleEntrance === false && request.accessibility) return false;
-  if (facts.servesVegetarianFood === false && request.dietary.includes("vegetarian")) return false;
+  if (request.accessibility && facts.accessibilityOptions?.wheelchairAccessibleEntrance !== true) return false;
+  if (request.dietary.some((need) => need !== "vegetarian") || request.dietary.includes("vegetarian") && facts.servesVegetarianFood !== true) return false;
   const opening = venueOpeningStatus(facts, request.date, timeMinutes(request.startTime) + travel, Math.max(30, request.duration - travel * 2));
   if (opening === "closed") return false;
   const price = providerPrice(facts);

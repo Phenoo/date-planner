@@ -5,12 +5,14 @@ import { placePhoto } from "./photos";
 import { mapNearbyPlaces, placesResponseSchema, placeTypeGroups } from "./nearby";
 import type { Coordinates, NearbySearch } from "./schema";
 import { RequestError } from "@/lib/planner/http";
+import { venueControls } from "@/lib/server/venue-controls";
 
 type PlaceRecord = ReturnType<typeof placesResponseSchema.parse>["places"][number];
-type SearchOptions = { queries?: string[]; excludeIds?: readonly string[]; signal?: AbortSignal; limit?: number };
+type SearchOptions = { excludeCategories?: readonly string[]; queries?: string[]; excludeIds?: readonly string[]; signal?: AbortSignal; limit?: number };
 const fields = "places.id,places.displayName,places.formattedAddress,places.primaryTypeDisplayName,places.location,places.types,places.businessStatus,places.attributions,places.photos,places.regularOpeningHours,places.currentOpeningHours,places.timeZone,places.priceRange,places.rating,places.userRatingCount,places.accessibilityOptions,places.servesVegetarianFood";
 
 export async function loadPlaceCandidates(request: NearbySearch, center?: Coordinates, options: SearchOptions = {}) {
+  const blocked = await venueControls();
   const origin = center ?? (await geocodeLocation(discoveryQuery(request))).results[0]?.geometry?.location;
   if (!origin) throw new RequestError("Choose an area to find nearby places.", 422);
   const groups = placeTypeGroups(request);
@@ -37,7 +39,7 @@ export async function loadPlaceCandidates(request: NearbySearch, center?: Coordi
   options.signal?.throwIfAborted();
   const fulfilled = results.filter((result) => result.status === "fulfilled");
   if (!fulfilled.length) throw new RequestError("Nearby places couldn't be loaded from Google Maps. Please try again shortly.", 503);
-  const records = fulfilled.flatMap((result) => result.value).filter((record) => !options.excludeIds?.includes(record.id));
+  const records = fulfilled.flatMap((result) => result.value).filter((record) => !blocked.has(record.id) && !options.excludeIds?.includes(record.id) && !options.excludeCategories?.some((category) => category.toLowerCase() === (record.primaryTypeDisplayName?.text ?? "Place").toLowerCase()));
   const result = mapNearbyPlaces({ places: records }, origin, request, options.limit ?? 8);
   if (fulfilled.length < searches.length) result.warnings = ["Some place searches were unavailable. These are the options we could confirm from Google Maps."];
   return { result, records };

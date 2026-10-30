@@ -8,6 +8,7 @@ import {
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { RequestError } from "@/lib/planner/http";
+import { createHash } from "node:crypto";
 
 export function getFirebaseAdmin() {
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
@@ -40,6 +41,8 @@ export async function authenticatedClient(request: Request) {
   const auth = getAuth(getFirebaseAdmin());
   try {
     const user = await auth.verifyIdToken(bearer.slice(7), true);
+    const deletion = await getDatabase().collection("accountDeletionRequests").doc(createHash("sha256").update(user.uid).digest("hex")).get();
+    if (deletion.data()?.status === "processing" || deletion.data()?.status === "complete") return null;
     return { user, db: getDatabase() };
   } catch (error) {
     const code =

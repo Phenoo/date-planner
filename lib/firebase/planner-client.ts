@@ -18,11 +18,12 @@ export async function plannerFetch(url: string, init?: RequestInit) {
   if (token) headers.set("Authorization", `Bearer ${token}`);
   return fetch(url, { ...init, headers });
 }
+export class PlanningRequestError extends Error { constructor(message: string, public status: number) { super(message); } }
 export async function readPlanningResponse(response: Response, progress: (stage: string) => void) {
   if (!response.headers.get("content-type")?.includes("application/x-ndjson")) {
     if (!response.headers.get("content-type")?.includes("application/json")) throw new Error("The planning service is temporarily unavailable. Your answers are safe; please try again shortly.");
     const data: unknown = await response.json();
-    if (!response.ok) throw new Error(data && typeof data === "object" && "error" in data && typeof data.error === "string" ? data.error : "Planning couldn't finish. Please retry.");
+    if (!response.ok) throw new PlanningRequestError(data && typeof data === "object" && "error" in data && typeof data.error === "string" ? data.error : "Planning couldn't finish. Please retry.", response.status);
     return data;
   }
   if (!response.body) throw new Error("Planning was interrupted. Your answers are safe; please retry.");
@@ -38,7 +39,7 @@ export async function readPlanningResponse(response: Response, progress: (stage:
         if (event.type === "stage" && "stage" in event && typeof event.stage === "string") progress(event.stage);
         if (event.type === "result" && "data" in event) {
           if ("status" in event && typeof event.status === "number" && event.status >= 400) {
-            const data = event.data; throw new Error(data && typeof data === "object" && "error" in data && typeof data.error === "string" ? data.error : "Planning couldn't finish. Please retry.");
+            const data = event.data; throw new PlanningRequestError(data && typeof data === "object" && "error" in data && typeof data.error === "string" ? data.error : "Planning couldn't finish. Please retry.", event.status);
           }
           result = event.data;
         }

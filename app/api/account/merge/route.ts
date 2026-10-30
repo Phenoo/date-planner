@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         const linked = invitation ? await tx.get(invitation) : null;
         const { expiresAt: _expiresAt, ...permanent } = data;
         void _expiresAt;
-        if (!existing.exists) tx.set(target, permanent);
+        if (!existing.exists) tx.set(target, collection === "datePlans" || collection === "discoverySessions" ? data : permanent);
         if (invitation && linked?.data()?.ownerId === guest.uid) tx.update(invitation, { ownerId: auth.user.uid });
       });
     }

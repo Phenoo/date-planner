@@ -1,3 +1,4 @@
+import { scheduleError } from "@/lib/planner/schedule";
 import { planningOrigin } from "@/lib/maps/google";
 import { persistPlans, ownedPlanRequest } from "@/lib/server/plan-persistence";
 import { z } from "zod";
@@ -35,6 +36,8 @@ export async function chat(request: Request, progress?: (stage: string) => void)
         },
         { status: 422 },
       );
+    const invalidSchedule = scheduleError(modification.request);
+    if (invalidSchedule) return Response.json({ error: invalidSchedule }, { status: 400 });
     const result = await personalize(
       generateSinglePlan(
         {

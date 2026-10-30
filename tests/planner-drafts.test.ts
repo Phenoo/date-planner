@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { restorePlannerStep, plannerQuestions, plannerQuestionCount, plannerDraftVersion } from "../lib/planner/questions";
+import { clearPlannerDrafts, draftIsCurrent, draftLifetimeMs } from "../lib/planner/draft-retention";
+test("new drafts expire and clearing a draft cannot leave an older version to resurrect", () => {
+  assert.equal(draftIsCurrent({ expiresAt: 1500 }, 1000), true);
+  assert.equal(draftIsCurrent({ expiresAt: 1500 }, 1500), false);
+  for (const expiresAt of [NaN, Infinity, "tomorrow", 1000 + draftLifetimeMs + 1]) assert.equal(draftIsCurrent({ expiresAt }, 1000), false);
+  assert.equal(draftIsCurrent({ request: {} }, 1000), true, "Legacy drafts migrate once without guessing their original age");
+  const removed: string[] = [];
+  clearPlannerDrafts({ removeItem: (key) => { removed.push(key); } }, plannerDraftVersion);
+  assert.ok(removed.includes("date-atlas:planning-draft:v11"));
+  assert.ok(removed.includes(`date-atlas:planning-draft:v${plannerDraftVersion}`));
+  assert.ok(removed.every((key) => key.startsWith("date-atlas:planning-draft:")));
+});
 test("older seven-stage drafts resume at the same semantic question", () => {
   assert.deepEqual([0,1,2,3,4,5,6].map(step => plannerQuestions[restorePlannerStep(step,3)].id), ["city","occasion","budget","vibes","interests","date","interests"]);
 });

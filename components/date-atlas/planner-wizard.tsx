@@ -8,7 +8,7 @@ import { NearbyCities } from "./nearby-cities";
 import { VibeChoices } from "./vibe-choices";
 import { GenderChoices } from "./gender-choices";
 import { DatePicker } from "./date-picker";
-import { calendarDay, calendarLabel, dateValue, scheduleError } from "@/lib/planner/schedule";
+import { calendarDay, calendarLabel, zonedNow, scheduleError } from "@/lib/planner/schedule";
 import { usePlannerConversation } from "./use-planner-conversation";
 import { PlannerReaction } from "./planner-reaction";
 import { conversationAnswerKey, localReaction } from "@/lib/planner/conversation";
@@ -91,6 +91,7 @@ export function PlannerWizard({
   step: requestedStep,
   setStep,
   onGenerate,
+  onCancelGeneration,
   onLocationDetected,
   loading,
   serverError,
@@ -103,6 +104,7 @@ export function PlannerWizard({
   step: number;
   setStep: (step: number) => void;
   onGenerate: () => Promise<void>;
+  onCancelGeneration?: () => void;
   onLocationDetected: (location: DetectedLocation["location"]) => void;
   loading: boolean;
   serverError: string;
@@ -191,8 +193,9 @@ export function PlannerWizard({
   }
   function next(updated = request) {
     if (transitioning || loading) return;
-    if ((stage.id === "date" || stage.id === "review") && (!updated.date || updated.date < dateValue(new Date()))) { setError("Choose today or a future day for your date."); return; }
+    if ((stage.id === "date" || stage.id === "review") && (!updated.date || updated.date < zonedNow(updated.timeZone).date)) { setError("Choose today or a future day for your date."); return; }
     if ((stage.id === "time" || stage.id === "review") && !updated.startTime) { setError("Choose a time for your date."); return; }
+    if (stage.id === "time") { const issue = scheduleError({ ...updated, endTime: "" }); if (issue) { setError(issue); return; } }
     if (stage.id === "review") { const issue = scheduleError(updated); if (issue) { setError(issue); return; } }
     if (stage.id === "city" && (locationMode === "choose" || locating)) {
       setError(locating ? "Finding your area. Please wait a moment." : "Use your location or choose an area manually to continue.");
@@ -348,7 +351,7 @@ export function PlannerWizard({
   ];
   const total =
     (request.budget ?? 0) * (request.budgetType === "per-person" ? request.guests : 1);
-  if (loading) return <GeneratingScreen stage={loadingStage} theme={theme} />;
+  if (loading) return <GeneratingScreen stage={loadingStage} theme={theme} onCancel={onCancelGeneration} />;
   if (feedback) return <PlannerReaction key={feedback.target} line={feedback.line} theme={theme} onComplete={() => { setStep(feedback.target); setFeedback(null); }} />;
   return (
     <main className={`typeform-shell ${styles.wizard} ${stage.id === "review" ? "planner-review" : ""}`}>
@@ -518,7 +521,7 @@ export function PlannerWizard({
                 onChoose={(value) => value === "no" ? choose("budget", null) : openBudget()}
               />
               {request.budget !== null && <div className="typeform-answer" aria-label="Your budget range">
-                <label className="field"><span>Budget: {money(request.budget)}</span><input className="budget-slider" type="range" min="1000" max="300000" step="1000" value={Math.min(request.budget, 300000)} onChange={(event) => update("budget", Number(event.target.value))} aria-label="Budget slider" /></label>
+                <label className="field"><span>{request.budgetType === "per-person" ? "Budget per person" : request.guests === 2 ? "Total budget for both of you" : `Total budget for ${request.guests} people`}: {money(request.budget)}</span><input className="budget-slider" type="range" min="1000" max="300000" step="1000" value={Math.min(request.budget, 300000)} onChange={(event) => update("budget", Number(event.target.value))} aria-label={request.budgetType === "per-person" ? "Budget per person" : `Total budget for ${request.guests} people`} /></label>
                 <div className="budget-presets">{budgetOptions.map((option) => <button type="button" className={`filter-pill ${request.budget === option.value ? "active" : ""}`} aria-pressed={request.budget === option.value} key={option.value} onClick={() => update("budget", option.value)}>{option.label}</button>)}</div>
                 <Field label="Or your own amount (₦)">
                   <input type="number" min={1000} max={10000000} value={request.budget || ""} onChange={(event) => update("budget", Number(event.target.value))} />
@@ -563,7 +566,7 @@ export function PlannerWizard({
                       </label>
                     ))}
                     <p className="answer-help">
-                      Every plan stays within {money(total)}.
+                      Your total spending ceiling is {money(total)}. Confirm estimated venue and transport costs before committing.
                     </p>
                   </div>
                 </details>
@@ -703,7 +706,7 @@ export function PlannerWizard({
             </div>
           )}
           {stage.id === "date" && (
-            <DatePicker value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
+            <DatePicker timeZone={request.timeZone} value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
           )}
           {stage.id === "time" && (
             <>

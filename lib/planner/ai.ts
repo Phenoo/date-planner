@@ -29,6 +29,7 @@ const proseSchema = z.object({
 });
 export async function personalize(
   result: RecommendationResult,
+  signal?: AbortSignal,
 ): Promise<RecommendationResult> {
   const ai = getAI();
   if (!ai || !result.plans.length) return result;
@@ -36,7 +37,7 @@ export async function personalize(
     const response = await generateText({
       ...generationOptions,
       model: ai,
-      abortSignal: AbortSignal.timeout(20000),
+      abortSignal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000),
       messages: [
         {
           role: "system",

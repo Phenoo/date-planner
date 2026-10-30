@@ -12,3 +12,9 @@ export async function PATCH(request: Request) {
     return plannerAction("dateHistory", new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify({ action: "complete", id }), signal: request.signal }));
   } catch (error) { return apiError(error); }
 }
+export async function POST(request: Request) {
+  try {
+    const body = await readJson(request);
+    return plannerAction("dateHistory", new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify(body), signal: request.signal }));
+  } catch (error) { return apiError(error); }
+}

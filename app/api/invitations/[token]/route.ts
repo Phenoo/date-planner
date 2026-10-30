@@ -9,7 +9,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   try {
     const { token } = await params;
     const body = await readJson(request);
-    const response = body && typeof body === "object" && "response" in body ? body.response : undefined;
-    return plannerAction("invitations", new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify({ action: "reply", token, response }), signal: request.signal }));
+    const input = body && typeof body === "object" ? body : {};
+    const action = "action" in input && input.action === "suggest" ? "suggest" : "reply";
+    return plannerAction("invitations", new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify({ ...input, action, token }), signal: request.signal }));
   } catch (error) { return apiError(error); }
 }

@@ -22,8 +22,56 @@
       "collectionGroup": "dateHistory",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "dateStatus", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "dateStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "venueReports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "resolved",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "funnelEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "event",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "accountDeletionRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "requestedAt",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],
@@ -42,6 +90,72 @@
       "collectionGroup": "plannerLimits",
       "fieldPath": "expiresAt",
       "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "venueReports",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "generationRequests",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "datePlans",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "discoverySessions",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "funnelEvents",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "datePlans",
+      "fieldPath": "record",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "discoverySessions",
+      "fieldPath": "privateRequest",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "discoverySessions",
+      "fieldPath": "candidates",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "generationRequests",
+      "fieldPath": "result",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "accountDeletionRequests",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dateHistory",
+      "fieldPath": "planningRequest",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dateHistory",
+      "fieldPath": "story",
       "indexes": []
     }
   ]

@@ -1,4 +1,5 @@
 "use client";
+import { coverScreenSiblings } from "@/lib/planner/focus-screen";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -11,11 +12,19 @@ import { VenueDetails } from "./venue-details";
 import { GeneratingScreen } from "./generating-screen";
 import styles from "./cinematic-reveal.module.css";
 
-type Props = { place: NearbyResult["places"][number]; request: PlanRequest; catalogPlan?: DatePlan; busy: boolean; error: string; rejected: boolean; initialChapter?: number; onAccept: () => void; onReject: () => void; onEdit: () => void; onTiming: () => void };
+import { RejectionDialog, type RejectionReason } from "./rejection-dialog";
+import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
+
+type Props = { place: NearbyResult["places"][number]; request: PlanRequest; catalogPlan?: DatePlan; busy: boolean; error: string; rejected: boolean; initialChapter?: number; onAccept: () => void; onCancelGeneration?: () => void; onReject: (reason: RejectionReason) => void; onEdit: () => void; onTiming: () => void };
 const chapterNames = ["We heard you", "Your kind of together", "Comfort comes first", "The moment", "Our one pick", "The little details"];
 const poses = ["discover", "preferences", "budget", "calendar", "celebration", "review"] as const;
 
-export function CinematicReveal({ place, request, catalogPlan, busy, error, rejected, initialChapter = 0, onAccept, onReject, onEdit, onTiming }: Props) {
+export function CinematicReveal({ place, request, catalogPlan, busy, error, rejected, initialChapter = 0, onAccept, onCancelGeneration, onReject, onEdit, onTiming }: Props) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const lastReason = useRef<RejectionReason>("place");
+  const eventScope = useRef(funnelScope(`recommendation:${place.id}`));
+  function acceptPick() { trackFunnel("recommendation_accepted", eventScope.current); onAccept(); }
+  function rejectPick(reason: RejectionReason) { lastReason.current = reason; trackFunnel("recommendation_rejected", eventScope.current, reason); onReject(reason); }
   const [chapter, setChapter] = useState(initialChapter);
   const [photoFailed, setPhotoFailed] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -34,8 +43,9 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
   useEffect(() => {
     if (busy) return;
     const overflow = document.body.style.overflow;
+    const uncover = coverScreenSiblings(screen.current);
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = overflow; };
+    return () => { document.body.style.overflow = overflow; uncover(); };
   }, [busy]);
   useEffect(() => {
     screen.current?.scrollTo({ top: 0 });
@@ -47,14 +57,15 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
     if (event.key === "ArrowRight") { event.preventDefault(); move(chapter + 1); }
     if (event.key === "ArrowLeft") { event.preventDefault(); move(chapter - 1); }
   }
-  if (busy) return <GeneratingScreen stage="Finding one different place, with your preferences intact" theme="red" />;
+  if (busy) return <GeneratingScreen stage="Finding one different place, with your preferences intact" theme="red" onCancel={onCancelGeneration} />;
   return <main ref={screen} className={styles.screen} data-chapter={chapter} aria-label="Your one perfect pick" onKeyDown={keyDown}
     onPointerDown={(event) => { if (!(event.target instanceof Element && event.target.closest("button,a,input,summary"))) pointer.current = { x: event.clientX, y: event.clientY }; }}
     onPointerUp={(event) => { const start = pointer.current; pointer.current = null; if (start && Math.abs(event.clientX - start.x) > 70 && Math.abs(event.clientX - start.x) > Math.abs(event.clientY - start.y) * 1.5) move(chapter + (event.clientX < start.x ? 1 : -1)); }} onPointerCancel={() => { pointer.current = null; }}>
+    <RejectionDialog open={rejectOpen} onOpenChange={setRejectOpen} radius={Math.max(1, Math.floor(request.maxDistance / 2))} onConfirm={rejectPick} />
     <div className={styles.backdrop} aria-hidden="true"><div className={styles.morph} /><svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice"><path d="M-80 710C280 900 760 700 540 400S180 70 500 90 1070 290 1320 70" /></svg><span>together.</span></div>
-    <header className={styles.header}><span className={styles.logo}>adal<span>.</span></span><span className={styles.headerNote}>ONE PLACE. THOUGHTFULLY CHOSEN.</span><button type="button" onClick={onEdit}>Edit answers ↗</button></header>
+    <header className={styles.header}><span className={styles.logo}>adal<span>.</span></span><span className={styles.headerNote}>ONE PLACE. THOUGHTFULLY CHOSEN.</span><div className={styles.headerActions}>{chapter < 5 && <button type="button" onClick={() => move(5)}>Skip to details</button>}<button type="button" onClick={onEdit}>Edit answers ↗</button></div></header>
     <nav className={styles.progress} aria-label="Your reveal chapters">{chapterNames.map((name, index) => <button type="button" key={name} aria-label={name} aria-current={chapter === index ? "step" : undefined} data-complete={chapter >= index} onClick={() => move(index)}><span /></button>)}</nav>
-    {rejected && error ? <section className={`${styles.scene} ${styles.errorScene}`}><span className={styles.eyebrow}>A LITTLE MORE THOUGHT</span><h1 ref={heading} tabIndex={-1}>Let&apos;s find your kind of yes.</h1><p role="alert">{error}</p><div className={styles.actions}><Button className={styles.primary} onClick={onReject}>Try one replacement</Button><Button className={styles.secondary} variant="outline" onClick={onEdit}>Change preferences</Button></div></section> : <>
+    {rejected && error ? <section className={`${styles.scene} ${styles.errorScene}`}><span className={styles.eyebrow}>A LITTLE MORE THOUGHT</span><h1 ref={heading} tabIndex={-1}>Let&apos;s find your kind of yes.</h1><p role="alert">{error}</p><div className={styles.actions}><Button className={styles.primary} onClick={() => rejectPick(lastReason.current)}>Try one replacement</Button><Button className={styles.secondary} variant="outline" onClick={onEdit}>Change preferences</Button></div></section> : <>
       <section key={chapter} className={`${styles.scene} ${chapter >= 4 ? styles.revealScene : ""} ${chapter === 5 ? styles.detailScene : ""}`}>
         <div className={styles.copy}><span className={styles.eyebrow}>{chapterNames[chapter]}</span><h1 ref={heading} tabIndex={-1} aria-label={titles[chapter]}>{titles[chapter].split(" ").map((word, index) => <span className={styles.word} aria-hidden="true" key={`${word}:${index}`}><span style={{ "--word": index } as CSSProperties}>{word}&nbsp;</span></span>)}</h1><p>{descriptions[chapter]}</p>
           {chapter === 1 && <div className={styles.vibes}>{request.vibes.slice(0, 4).map((vibe, index) => <span key={vibe} style={{ "--word": index } as CSSProperties}>{vibe}</span>)}</div>}
@@ -66,9 +77,9 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
           <div className={styles.placeName}><span>{place.category} · {request.city}</span><h2>{place.name}</h2>{place.details?.rating !== undefined && <small>{place.details.rating.toFixed(1)} / 5 · {place.details.reviewCount ?? 0} Google reviews</small>}</div>
         </div>}
         {chapter < 4 && <div className={styles.companion} aria-hidden="true"><span className={styles.companionHalo} /><AtlasCompanion pose={poses[chapter]} theme="red" lively reactionKey={chapter} width="100%" height="100%" /></div>}
-        {chapter === 5 && <div className={styles.detailContent}>{catalogPlan ? <section className={styles.catalogFacts} aria-label="Catalog experience details"><h3>{catalogPlan.activities[0].experience.name}</h3><p>{catalogPlan.activities[0].experience.description}</p><div><span>Experience <strong>{money(catalogPlan.activityCost)}</strong></span><span>Transport estimate <strong>{money(catalogPlan.transportCost)}</strong></span><span>Contingency <strong>{money(catalogPlan.contingencyCost)}</strong></span><span>Estimated total <strong>{money(catalogPlan.total)}</strong></span></div><p>{catalogPlan.demo ? "Fictional demonstration venue and sample prices. No real-world bookings or reviews." : `Catalog source checked ${catalogPlan.activities[0].experience.verifiedAt ?? "date unavailable"}. ${catalogPlan.activities[0].experience.reservation} Reservation availability still needs venue confirmation.`}</p><p>Reviews are not available for this catalog record.</p>{!catalogPlan.demo && catalogPlan.activities[0].experience.sourceUrl && <a href={catalogPlan.activities[0].experience.sourceUrl} target="_blank" rel="noreferrer">View the venue source ↗</a>}</section> : <VenueDetails place={place} request={request} inverted />}{error && <p role="alert" className={styles.error}>{error}</p>}<div className={styles.decision}><span>THERE&apos;S NO COMMITMENT YET.</span><h2>Your kind of yes?</h2><div className={styles.actions}><Button className={styles.primary} onClick={onAccept}>I love it</Button><Button className={styles.secondary} variant="outline" onClick={onReject}>Not my vibe</Button></div><button type="button" onClick={onTiming}>Change the date or time ↗</button></div></div>}
+        {chapter === 5 && <div className={styles.detailContent}>{catalogPlan ? <section className={styles.catalogFacts} aria-label="Catalog experience details"><h3>{catalogPlan.activities[0].experience.name}</h3><p>{catalogPlan.activities[0].experience.description}</p><div><span>Experience <strong>{money(catalogPlan.activityCost)}</strong></span><span>Transport estimate <strong>{money(catalogPlan.transportCost)}</strong></span><span>Contingency <strong>{money(catalogPlan.contingencyCost)}</strong></span><span>Estimated total <strong>{money(catalogPlan.total)}</strong></span></div><p>{catalogPlan.demo ? "Fictional demonstration venue and sample prices. No real-world bookings or reviews." : `Catalog source checked ${catalogPlan.activities[0].experience.verifiedAt ?? "date unavailable"}. ${catalogPlan.activities[0].experience.reservation} Reservation availability still needs venue confirmation.`}</p><p>Reviews are not available for this catalog record.</p>{!catalogPlan.demo && catalogPlan.activities[0].experience.sourceUrl && <a href={catalogPlan.activities[0].experience.sourceUrl} target="_blank" rel="noreferrer">View the venue source ↗</a>}</section> : <VenueDetails place={place} request={request} inverted />}{error && <p role="alert" className={styles.error}>{error}</p>}<div className={styles.decision}><span>THERE&apos;S NO COMMITMENT YET.</span><h2>Your kind of yes?</h2><div className={styles.actions}><Button className={styles.primary} onClick={acceptPick}>I love it</Button><Button className={styles.secondary} variant="outline" onClick={() => setRejectOpen(true)}>Not my vibe</Button></div><button type="button" onClick={onTiming}>Change the date or time ↗</button></div></div>}
       </section>
-      <footer className={styles.footer}><button type="button" className={styles.previous} disabled={chapter === 0} aria-label="Previous chapter" onClick={() => move(chapter - 1)}>←</button><span>{chapter === 5 ? "One place. Your decision." : "A little thought, every step of the way."}</span>{chapter < 5 ? <Button className={styles.primary} onClick={() => move(chapter + 1)}>{chapter === 3 ? "Reveal our pick" : chapter === 4 ? "Take a closer look" : "Keep going"}<span aria-hidden="true">→</span></Button> : <Button className={styles.primary} onClick={onAccept}>I love it</Button>}</footer>
+      <footer className={styles.footer}><button type="button" className={styles.previous} disabled={chapter === 0} aria-label="Previous chapter" onClick={() => move(chapter - 1)}>←</button><span>{chapter === 5 ? "One place. Your decision." : "A little thought, every step of the way."}</span>{chapter < 5 ? <Button className={styles.primary} onClick={() => move(chapter + 1)}>{chapter === 3 ? "Reveal our pick" : chapter === 4 ? "Take a closer look" : "Keep going"}<span aria-hidden="true">→</span></Button> : <Button className={styles.primary} onClick={acceptPick}>I love it</Button>}</footer>
     </>}
   </main>;
 }

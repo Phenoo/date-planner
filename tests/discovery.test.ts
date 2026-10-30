@@ -36,6 +36,13 @@ test("unknown, excluded, duplicate IDs and invented preference explanations are 
   assert.equal(applyDiscoveryRanking(result, request, ranked, [pick.id]), null);
   assert.equal(applyDiscoveryRanking(result, request, {}), null);
 });
+test("AI can choose story moments without inventing venue facilities or services", () => {
+  const pick = ranked.picks[0];
+  const output = applyDiscoveryRanking(result, request, { ...ranked, picks: [{ ...pick, momentIds: ["soundtrack", "shared-memory"], story: { title: "An invented waterfront path", moments: [{ text: "Your reservation is confirmed" }] } }] });
+  assert.deepEqual(output?.places[0].story?.moments.map((moment) => moment.title), ["Give the day a soundtrack", "Trade a favourite memory"]);
+  assert.doesNotMatch(JSON.stringify(output?.places[0].story), /waterfront|reservation is confirmed/);
+  assert.equal(applyDiscoveryRanking(result, request, { ...ranked, picks: [{ ...pick, momentIds: ["soundtrack", "invented-service"] }] }), null);
+});
 test("valid empty AI matches stay empty rather than filling a quota", () => {
   const output = applyDiscoveryRanking(result, request, { ...ranked, picks: [] });
   assert.equal(output?.places.length, 0);

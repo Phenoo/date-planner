@@ -17,8 +17,13 @@ import {
   type Experience,
   type RecommendationResult,
 } from "@/lib/planner/schema";
+import { planningToken } from "@/lib/firebase/planner-client";
+import { requestGeneration } from "@/lib/planner/generation-client";
 import { getAuthToken } from "@/lib/firebase/client";
+import { recommendationResultSchema } from "@/lib/planner/response-schema";
 import { money, nextSaturday } from "@/lib/utils";
+import { PrivacyOperations } from "./privacy-operations";
+import { VenueOperations } from "./venue-operations";
 export function RecommendationLab() {
   const [profile, setProfile] = useState(() =>
     JSON.stringify(
@@ -49,14 +54,10 @@ export function RecommendationLab() {
     setMessage("");
     try {
       const input = generateSchema.parse({ request: JSON.parse(profile) });
-      const response = await fetch("/api/plans", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      setResult(data);
+      await planningToken();
+      const data = await requestGeneration(JSON.stringify(input), crypto.randomUUID(), AbortSignal.timeout(75000), () => {});
+      const parsedResult = recommendationResultSchema.parse(data);
+      setResult(parsedResult);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Test failed.");
     } finally {
@@ -156,6 +157,7 @@ export function RecommendationLab() {
           {message}
         </p>
       )}
+      {admin && <><VenueOperations /><PrivacyOperations /></>}
       <div className="admin-columns">
         <section>
           <h2>A sample couple</h2>

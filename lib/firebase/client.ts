@@ -6,11 +6,10 @@ import {
   isSignInWithEmailLink,
   sendSignInLinkToEmail,
   signInWithEmailLink,
-  EmailAuthProvider,
-  linkWithCredential,
 } from "firebase/auth";
 
 const emailKey = "date-atlas:sign-in-email";
+let pendingEmailTransfer: { guestToken: string; uid: string } | null = null;
 let completingLink: Promise<void> | null = null;
 
 export function getBrowserAuth() {
@@ -57,6 +56,12 @@ export function storedSignInEmail() {
   }
 }
 
+function clearEmailLink() {
+  const clean = new URL(window.location.href);
+  for (const key of ["apiKey", "oobCode", "mode", "lang", "auth"]) clean.searchParams.delete(key);
+  window.history.replaceState(window.history.state, "", clean);
+}
+
 export async function completeEmailSignIn(email: string) {
   const auth = getBrowserAuth();
   if (!auth || !hasEmailSignInLink()) return false;
@@ -66,29 +71,31 @@ export async function completeEmailSignIn(email: string) {
       await auth.authStateReady();
       const guest = auth.currentUser?.isAnonymous ? auth.currentUser : null;
       const guestToken = guest ? await guest.getIdToken() : null;
-      if (guest) {
-        try { await linkWithCredential(guest, EmailAuthProvider.credentialWithLink(email, url)); }
-        catch (failure) {
-          const code = failure && typeof failure === "object" && "code" in failure ? failure.code : "";
-          if (code !== "auth/email-already-in-use" && code !== "auth/credential-already-in-use") throw failure;
-          await signInWithEmailLink(auth, email, url);
-        }
-      } else await signInWithEmailLink(auth, email, url);
-      if (guestToken && auth.currentUser?.uid !== guest?.uid) {
+      const retryTransfer = !!pendingEmailTransfer && !auth.currentUser?.isAnonymous;
+      if (!retryTransfer) {
+        // Linking a used email can consume its one-time code before reporting a collision.
+        // Sign in once, then transfer the authenticated guest's private records.
+        if (guestToken && guest) pendingEmailTransfer = { guestToken, uid: guest.uid };
+        await signInWithEmailLink(auth, email, url);
+      }
+      if (pendingEmailTransfer && auth.currentUser?.uid !== pendingEmailTransfer.uid) {
         const token = await auth.currentUser?.getIdToken();
-        const merge = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken }) });
-        if (!merge.ok) throw new Error("Signed in, but your chosen date couldn't be transferred. Reopen the original planning tab to retry.");
+        const merge = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken: pendingEmailTransfer.guestToken }) });
+        if (!merge.ok) throw new Error("Signed in, but your chosen date couldn't be transferred. Keep this tab open and retry.");
+        pendingEmailTransfer = null;
       }
         try {
           localStorage.removeItem(emailKey);
         } catch {
           /* Sign-in can finish without storage. */
         }
-        const clean = new URL(window.location.href);
-        for (const key of ["apiKey", "oobCode", "mode", "lang", "auth"])
-          clean.searchParams.delete(key);
-        window.history.replaceState(window.history.state, "", clean);
+        clearEmailLink();
       })()
+      .catch((failure: unknown) => {
+        const code = failure && typeof failure === "object" && "code" in failure ? failure.code : "";
+        if (code === "auth/expired-action-code" || code === "auth/invalid-action-code") clearEmailLink();
+        throw failure;
+      })
       .finally(() => {
         completingLink = null;
       });
@@ -101,7 +108,7 @@ export async function sendEmailSignIn(email: string) {
   const auth = getBrowserAuth();
   if (!auth)
     throw new Error(
-      "Account sign-in is being connected. You can still plan and save on this device.",
+      "Account sign-in is unavailable. You can still plan; sign in when account services return to save your date.",
     );
   const returnUrl = new URL(window.location.href);
   for (const key of ["apiKey", "oobCode", "mode", "lang"]) returnUrl.searchParams.delete(key);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { NearbyResult } from "@/lib/maps/schema";
+import { defaultTimeZone, validTimeZone } from "./schedule";
 
 export const vibes = [
   "Romantic",
@@ -79,6 +80,7 @@ export const requestSchema = z.object({
   quiet: z.boolean().default(false),
   surprises: z.boolean().default(true),
   datePreference: z.enum(["weekday", "weekend"]).default("weekend"),
+  timeZone: z.string().min(1).max(80).refine(validTimeZone, "Choose a valid timezone.").default(defaultTimeZone),
   date: z.union([z.literal(""), z.iso.date()]).default(""),
   startTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
   duration: z.number().int().min(60).max(720),
@@ -92,6 +94,7 @@ export const requestSchema = z.object({
 });
 export type PlanRequest = z.infer<typeof requestSchema>;
 export const generateSchema = z.object({
+  flowId: z.uuid().optional(),
   request: requestSchema,
   lockedIds: z.array(z.string().max(100)).max(4).default([]),
   excludeIds: z.array(z.string().max(100)).max(30).default([]),
@@ -101,6 +104,7 @@ export const generateSchema = z.object({
     .default("balanced"),
   variation: z.number().int().min(0).max(1000).default(0),
   excludePlaceIds: z.array(z.string().min(1).max(200)).max(60).default([]),
+  excludeCategories: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
   likedPlaceCategories: z.array(z.string().trim().min(1).max(100)).max(12).default([]),
 });
 export type GenerateInput = z.infer<typeof generateSchema>;

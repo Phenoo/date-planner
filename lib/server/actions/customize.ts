@@ -1,3 +1,4 @@
+import { scheduleError } from "@/lib/planner/schedule";
 import { planningOrigin } from "@/lib/maps/google";
 import { z } from "zod";
 import { requestSchema } from "@/lib/planner/schema";
@@ -22,6 +23,8 @@ export async function customize(request: Request) {
         },
         { status: 400 },
       );
+    const invalidSchedule = scheduleError(parsed.data.request);
+    if (invalidSchedule) return Response.json({ error: invalidSchedule }, { status: 400 });
     const catalog = await getCatalog();
     const origin = await planningOrigin(parsed.data.request);
     const experiences = parsed.data.experienceIds.map((id) =>

@@ -29,6 +29,7 @@ export const datePlanner = onRequest({ region: "europe-west1", invoker: ["date-a
   }
   const headers = new Headers({ "Content-Type": "application/json", "x-atlas-client-ip": req.get("x-atlas-client-ip") || "unknown" });
   const token = req.get("x-atlas-user-token"); if (token) headers.set("authorization", token);
+  const requestKey = req.get("idempotency-key"); if (requestKey) headers.set("idempotency-key", requestKey);
   const request = new Request("https://internal/planner", { method: "POST", headers, body: req.rawBody.toString("utf8") });
   const stream = action === "generate" && req.get("accept")?.includes("application/x-ndjson");
   if (stream) { res.setHeader("Content-Type", "application/x-ndjson"); res.setHeader("Cache-Control", "no-store, no-transform"); res.flushHeaders(); }

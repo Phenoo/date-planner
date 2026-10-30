@@ -4,7 +4,7 @@ import { ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { intakeNextField, intakeReplySchema, intakeSummary, type ChatSession, type IntakeField } from "@/lib/planner/intake";
-import { dateValue } from "@/lib/planner/schedule";
+import { zonedNow } from "@/lib/planner/schedule";
 import type { PlanRequest } from "@/lib/planner/schema";
 import { DatePicker } from "./date-picker";
 import { GeneratingScreen } from "./generating-screen";
@@ -16,9 +16,9 @@ const quickReplies: Record<IntakeField, string[]> = {
   date: [], time: ["Morning at 10:00", "Afternoon at 14:00", "Evening at 18:00"], duration: ["2 hours", "4 hours", "A full day"],
 };
 
-export function PlannerChat({ request, setRequest, session, setSession, onGenerate, loading, loadingStage, serverError }: {
+export function PlannerChat({ request, setRequest, session, setSession, onGenerate, onCancelGeneration, loading, loadingStage, serverError }: {
   request: PlanRequest; setRequest: Dispatch<SetStateAction<PlanRequest>>; session: ChatSession; setSession: Dispatch<SetStateAction<ChatSession>>;
-  onGenerate: () => Promise<void>; loading: boolean; loadingStage: string; serverError: string;
+  onGenerate: () => Promise<void>; onCancelGeneration?: () => void; loading: boolean; loadingStage: string; serverError: string;
 }) {
   const pendingMessage = session.messages.at(-1);
   const [message, setMessage] = useState("");
@@ -47,7 +47,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
     try {
       await planningToken();
       if (abort.signal.aborted) return;
-      const response = await plannerFetch("/api/planner-intake", { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30000)]), body: JSON.stringify({ request, message: trimmed, answered: session.answered, nextField: focus, today: dateValue(new Date()), history }) });
+      const response = await plannerFetch("/api/planner-intake", { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30000)]), body: JSON.stringify({ request, message: trimmed, answered: session.answered, nextField: focus, today: zonedNow(request.timeZone).date, history }) });
       const reply = intakeReplySchema.parse(await readPlanningResponse(response, () => {}));
       if (abort.signal.aborted) return;
       setRequest(reply.request);
@@ -59,7 +59,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       if (!abort.signal.aborted) { setSending(false); controller.current = null; }
     }
   }
-  if (loading) return <GeneratingScreen stage={loadingStage} />;
+  if (loading) return <GeneratingScreen stage={loadingStage} onCancel={onCancelGeneration} />;
   return <main className={styles.chat}>
     <header className={styles.chatHeading}><span className="eyebrow">A DATE AT LAS · YOUR PLANNER</span><h1>Let’s make it<br />your kind of date.</h1><p>Tell me what you have in mind. A little or a lot — we’ll take it from there.</p></header>
     <div className={styles.messages} role="log" aria-label="Conversation with your date planner" aria-live="polite" aria-relevant="additions">

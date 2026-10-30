@@ -20,15 +20,19 @@ import {
   MapPin,
   RefreshCw,
   Send,
-  Share2,
   ShieldCheck,
   UnlockKeyhole,
 } from "lucide-react";
+import { RejectionDialog } from "./rejection-dialog";
+import { rejectedPicksKey, readRejectedPicks } from "@/lib/planner/discovery-session";
+import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
+import { ReportVenue } from "./report-venue";
 import { Button } from "@/components/ui/button";
 import { plannerFetch } from "@/lib/firebase/planner-client";
 import { LottieAnimation } from "@/components/animations/lottie-animation";
 import { DateMap } from "./date-map";
 import { SinglePlaceJourney } from "./single-place-journey";
+import { GeneratingScreen } from "./generating-screen";
 import { CinematicReveal } from "./cinematic-reveal";
 import type { NearbyResult } from "@/lib/maps/schema";
 import { Dialog } from "@/components/ui/dialog";
@@ -54,6 +58,7 @@ export function Results({
   onSave,
   onShare,
   onRegenerate,
+  onCancelGeneration,
   busy,
   requestError,
 }: {
@@ -68,17 +73,20 @@ export function Results({
   onChangeTiming: () => void;
   onBack: () => void;
   onSave: (plan: DatePlan) => void;
-  onShare: (plan: DatePlan, whatsapp?: boolean) => void;
+  onShare: (plan: DatePlan) => void;
   onRegenerate: (
     request: PlanRequest,
     extra?: Partial<GenerateInput>,
   ) => Promise<void>;
   busy: boolean;
+  onCancelGeneration?: () => void;
   requestError: string;
 }) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  function exclusions() { try { return readRejectedPicks(sessionStorage.getItem(rejectedPicksKey(new URLSearchParams(window.location.search).get("flow") ?? "direct"))); } catch { return readRejectedPicks(null); } }
   const [editing, setEditing] = useState(false);
   const [lastRejected, setLastRejected] = useState("");
-  const [acceptedCatalog, setAcceptedCatalog] = useState("");
+  const [acceptedCatalog, setAcceptedCatalog] = useState(() => { try { return sessionStorage.getItem("date-atlas:accepted-catalog:v1") ?? ""; } catch { return ""; } });
   const [editError, setEditError] = useState("");
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [locked, setLocked] = useState<string[]>([]);
@@ -112,20 +120,24 @@ export function Results({
   const rememberPlan = useEffectEvent(onActivePlan);
   useEffect(() => {
     if (plan) rememberPlan(plan);
+    let active = true;
+    void Promise.resolve().then(() => { try { if (active && plan && sessionStorage.getItem("date-atlas:accepted-catalog:v1") === plan.id) setAcceptedCatalog(plan.id); } catch { /* The current choice still works in memory. */ } });
+    return () => { active = false; };
   }, [plan]);
   const activeLocked = locked.filter((id) =>
     plan?.activities.some((activity) => activity.experience.id === id),
   );
+  if (plan && acceptedCatalog === plan.id && busy) return <GeneratingScreen stage="Preparing one replacement with your other answers intact" onCancel={onCancelGeneration} />;
   if (plan && acceptedCatalog !== plan.id) {
     const activity = plan.activities[0];
     const place: NearbyResult["places"][number] = { id: activity.experience.id, name: activity.experience.venue, category: activity.experience.category, address: `${activity.experience.area}, ${activity.experience.city}`, distanceKm: activity.distance, reason: activity.reason, mapsUrl: "https://www.google.com/maps/", attributions: [], photo: { url: activity.experience.image, authors: [] } };
-    return <CinematicReveal key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => setAcceptedCatalog(plan.id)} onEdit={onCustomize} onTiming={onChangeTiming} onReject={() => { setLastRejected(plan.id); void onRegenerate(plan.request, { excludeIds: plan.activities.map((item) => item.experience.id) }); }} />;
+    return <CinematicReveal onCancelGeneration={onCancelGeneration} key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => { try { sessionStorage.setItem("date-atlas:accepted-catalog:v1", plan.id); } catch { /* The accepted state remains in memory. */ } setAcceptedCatalog(plan.id); }} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => { setLastRejected(plan.id); void onRegenerate(reason === "distance" ? { ...plan.request, maxDistance: Math.max(1, Math.floor(plan.request.maxDistance / 2)) } : plan.request, { excludeIds: plan.activities.map((item) => item.experience.id), ...(reason === "activity" ? { excludeCategories: [activity.experience.category] } : {}) }); }} />;
   }
   if (!plan && result.nearby?.places[0]) {
     const place = result.nearby.places[0];
-    return <SinglePlaceJourney key={`${place.id}:${result.nearby.sessionId ?? ""}`} place={place} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} accountRevision={accountRevision} busy={busy} error={requestError} rejected={lastRejected === place.id} onSignIn={onSignIn} onEdit={onCustomize} onTiming={onChangeTiming} onReject={() => {
+    return <SinglePlaceJourney onCancelGeneration={onCancelGeneration} key={`${place.id}:${result.nearby.sessionId ?? ""}`} place={place} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} accountRevision={accountRevision} busy={busy} error={requestError} rejected={lastRejected === place.id} onSignIn={onSignIn} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => {
       setLastRejected(place.id);
-      void onRegenerate(planningRequest, { excludePlaceIds: [place.id] });
+      void onRegenerate(reason === "distance" ? { ...planningRequest, maxDistance: Math.max(1, Math.floor(planningRequest.maxDistance / 2)) } : planningRequest, { excludePlaceIds: [place.id], ...(reason === "activity" ? { excludeCategories: [place.category] } : {}) });
     }} />;
   }
   if (!plan)
@@ -171,7 +183,7 @@ export function Results({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ request: plan.request, experienceIds: ids }),
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
       });
       const data = await response.json();
       if (!response.ok)
@@ -213,17 +225,18 @@ export function Results({
         body: JSON.stringify({
           ...(plan.demo ? {} : { planId: plan.id }),
           request: plan.request,
+          ...exclusions(),
           experienceIds: plan.activities.map(
             (activity) => activity.experience.id,
           ),
           index,
         }),
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
       });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "We couldn't find alternatives.");
-      setAlternatives(data.alternatives);
+      if (!controller.signal.aborted) setAlternatives(data.alternatives);
     } catch (error) {
       if (!controller.signal.aborted)
         setSwapError(
@@ -251,10 +264,11 @@ export function Results({
         body: JSON.stringify({
           ...(plan.demo ? {} : { planId: plan.id }),
           request: plan.request,
+          ...exclusions(),
           message,
           lockedIds: activeLocked,
         }),
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
       });
       const data = await response.json();
       if (!response.ok)
@@ -569,6 +583,7 @@ export function Results({
                     {activity.experience.venue} · {activity.experience.area}
                   </p>
                   <p>{activity.experience.description}</p>
+                  {!activity.experience.demo && <ReportVenue placeId={activity.experience.id} />}
                   <div className="why-match">
                     <span>{activity.reason}</span>
                   </div>
@@ -789,17 +804,10 @@ export function Results({
                 onClick={() => onShare(plan)}
               >
                 <Copy size={14} />
-                Copy share link
-              </Button>
-              <Button
-                variant="outline"
-                size="small"
-                onClick={() => onShare(plan, true)}
-              >
-                <Share2 size={14} />
-                WhatsApp
+                Create invitation
               </Button>
             </div>
+            <p className="private-note">Creating an invitation makes the chosen venue, day, time and date story viewable to anyone with its link. Your private preferences stay private. You can revoke the link.</p>
             <p className="private-note">
               <ShieldCheck size={12} />
               No reservation or payment has been made.
@@ -841,6 +849,11 @@ export function Results({
           </div>
         </aside>
       </div>
+      <RejectionDialog open={rejectOpen} onOpenChange={setRejectOpen} radius={Math.max(1, Math.floor(plan.request.maxDistance / 2))} onConfirm={(reason) => {
+        trackFunnel("recommendation_rejected", funnelScope(`recommendation:${plan.activities[0].experience.id}`), reason);
+        setLastRejected(plan.id);
+        void onRegenerate(reason === "distance" ? { ...plan.request, maxDistance: Math.max(1, Math.floor(plan.request.maxDistance / 2)) } : plan.request, { excludeIds: plan.activities.map((item) => item.experience.id), ...(reason === "activity" ? { excludeCategories: [plan.activities[0].experience.category] } : {}) });
+      }} />
       <div className="optimization-bar">
         <div>
           <span>A different take on a lovely day?</span>
@@ -866,12 +879,7 @@ export function Results({
             variant="dark"
             size="small"
             disabled={changing}
-            onClick={() =>
-              void onRegenerate(plan.request, {
-                lockedIds: activeLocked,
-                variation: 1 + Math.floor(Math.random() * 100),
-              })
-            }
+            onClick={() => setRejectOpen(true)}
           >
             {busy ? (
               <LoaderCircle className="spin" size={14} />

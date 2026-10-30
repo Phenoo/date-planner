@@ -13,6 +13,8 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
   const [reset, setReset] = useState(false); const [resetSent, setResetSent] = useState(false);
   const emailInput = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
+  const authenticating = useRef(false);
+  const pendingGuest = useRef<{ uid: string; token: string } | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function requestPasswordReset() {
     if (busy || resetSent) return;
@@ -32,12 +34,26 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
     } finally { if (mounted.current) setBusy(false); }
   }
   async function authenticate(google = false, emailLink = false) {
-    const auth = getBrowserAuth(); if (!auth) { setError("Account services aren't configured yet. Your device plans remain available."); return; }
+    if (authenticating.current) return;
+    const auth = getBrowserAuth(); if (!auth) { setError("Account services aren't available yet. You can still plan your date and try signing in later."); return; }
+    authenticating.current = true;
     setBusy(true); setError("");
+    async function transferGuest() {
+      const guest = pendingGuest.current;
+      const user = auth?.currentUser;
+      if (!guest || !user || user.isAnonymous) return;
+      if (user.uid !== guest.uid) {
+        const token = await user.getIdToken();
+        const response = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken: guest.token }), signal: AbortSignal.timeout(30000) });
+        if (!response.ok) throw new Error("You're signed in, but your date couldn't be transferred. Retry sign-in to finish keeping it with your account.");
+      }
+      pendingGuest.current = null;
+    }
     try {
       const guest = auth.currentUser?.isAnonymous ? auth.currentUser : null;
-      const guestToken = guest ? await guest.getIdToken() : null;
-      if (await completeEmailSignIn(email)) { onDone(); return; }
+      if (guest) pendingGuest.current = { uid: guest.uid, token: await guest.getIdToken() };
+      else if (pendingGuest.current && auth.currentUser) { await transferGuest(); if (mounted.current) onDone(); return; }
+      if (await completeEmailSignIn(email)) { pendingGuest.current = null; if (mounted.current) onDone(); return; }
       if (emailLink) { await sendEmailSignIn(email); setError("Your secure link is on its way. Check your email."); return; }
       if (google) {
         const provider = new GoogleAuthProvider();
@@ -51,15 +67,11 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
         if (guest) await linkWithCredential(guest, EmailAuthProvider.credential(email, password));
         else await createUserWithEmailAndPassword(auth, email, password);
       } else await signInWithEmailAndPassword(auth, email, password);
-      if (guestToken && auth.currentUser?.uid !== guest?.uid) {
-        const token = await auth.currentUser?.getIdToken();
-        const response = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken }) });
-        if (!response.ok) throw new Error("Signed in, but guest cloud plans couldn't be transferred. Device saves are still available.");
-      }
-      onDone();
+      await transferGuest();
+      if (mounted.current) onDone();
     } catch (failure) {
-      setError(failure instanceof FirebaseError ? authErrorMessage(failure) : failure instanceof Error ? failure.message : "Sign-in couldn't finish. Please retry.");
-    } finally { setBusy(false); }
+      if (mounted.current) setError(failure instanceof FirebaseError ? authErrorMessage(failure) : failure instanceof Error ? failure.message : "Sign-in couldn't finish. Please retry.");
+    } finally { authenticating.current = false; if (mounted.current) setBusy(false); }
   }
   return <div className={styles.account}>
     <span className={styles.eyebrow}>YOUR NEXT CHAPTER</span>

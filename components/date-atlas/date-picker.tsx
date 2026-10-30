@@ -1,10 +1,10 @@
 "use client";
 import { useRef, useState } from "react";
-import { addCalendarDays, calendarDay, calendarLabel, dateValue } from "@/lib/planner/schedule";
+import { addCalendarDays, calendarDay, calendarLabel, zonedNow } from "@/lib/planner/schedule";
 import styles from "./date-picker.module.css";
 
-export function DatePicker({ value, onChange, disabled = false }: { value: string; onChange: (value: string) => void; disabled?: boolean }) {
-  const [today] = useState(() => dateValue(new Date()));
+export function DatePicker({ value, onChange, disabled = false, timeZone }: { value: string; onChange: (value: string) => void; disabled?: boolean; timeZone?: string }) {
+  const [today] = useState(() => zonedNow(timeZone).date);
   const [week, setWeek] = useState(() => value && value >= today ? value : today);
   const [weekend, setWeekend] = useState(false);
   const calendar = useRef<HTMLInputElement>(null);

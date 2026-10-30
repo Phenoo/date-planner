@@ -19,12 +19,10 @@ export async function readJson(request: Request) {
 export function apiError(error: unknown) {
   if (error instanceof RequestError)
     return Response.json({ error: error.message }, { status: error.status });
-  console.error(
-    "Date Atlas request failed:",
-    error instanceof Error ? error.message : "Unknown error",
-  );
+  const requestId = crypto.randomUUID();
+  console.error("Date Atlas request failed", { requestId, category: error instanceof TypeError ? "type_error" : "unexpected_error" });
   return Response.json(
-    { error: "We couldn't complete that request. Please try again." },
+    { error: "We couldn't complete that request. Please try again.", requestId },
     { status: 503 },
   );
 }

@@ -13,6 +13,7 @@ import {
 } from "@/lib/planner/preferences-storage";
 import { LottieAnimation } from "@/components/animations/lottie-animation";
 import { money } from "@/lib/utils";
+import { LegacyPlans } from "./legacy-plans";
 import { DateHistory } from "./date-history";
 
 export function Dashboard({
@@ -26,6 +27,8 @@ export function Dashboard({
   onRemove,
   onFavorites,
   onProfile,
+  onLegacyImported,
+  onHistoryChanged,
   historyRevision = 0,
 }: {
   saved: SavedRecipe[];
@@ -38,6 +41,8 @@ export function Dashboard({
   onRemove: (id: string) => void;
   onFavorites: () => void;
   onProfile: () => void;
+  onLegacyImported: (recipe: SavedRecipe) => void;
+  onHistoryChanged: () => void;
   historyRevision?: number;
 }) {
   const [tab, setTab] = useState("All plans");
@@ -64,7 +69,7 @@ export function Dashboard({
           <p>
             {signedIn
               ? "Your plans, in one lovely place."
-              : "Your device collection. Sign in to sync new plans across devices."}
+              : "Sign in to see your saved plans across devices."}
           </p>
           <Button onClick={onPlan}>
             Plan a date
@@ -75,12 +80,14 @@ export function Dashboard({
           <Image
             src="/images/date-atlas-hero.png"
             alt="Illustrative creative date inspiration"
+            loading="eager"
             fill
             sizes="300px"
           />
         </div>
       </div>
-      {signedIn && <DateHistory key={historyRevision} onPlan={onPlan} />}
+      {signedIn && <LegacyPlans onImported={onLegacyImported} />}
+      {signedIn && <DateHistory key={historyRevision} onPlan={onPlan} onChanged={onHistoryChanged} />}
       {(saved.length > 0 || !signedIn) && <>
       <div className="dashboard-stats">
         <div>

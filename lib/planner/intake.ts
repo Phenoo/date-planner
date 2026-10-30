@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requestSchema, type PlanRequest } from "./schema";
 import { plannerQuestions, type PlannerQuestionId } from "./questions";
-import { calendarDay, calendarLabel, clockLabel, dateValue, scheduleError, timeMinutes } from "./schedule";
+import { calendarDay, calendarLabel, clockLabel, zonedNow, scheduleError, timeMinutes } from "./schedule";
 
 export const intakeFields = ["location", "occasion", "people", "vibe", "budget", "date", "time", "duration"] as const;
 export type IntakeField = typeof intakeFields[number];
@@ -35,11 +35,12 @@ const questionFields: Partial<Record<PlannerQuestionId, IntakeField>> = { city: 
 export function answeredThroughStep(step: number): IntakeField[] {
   return [...new Set(plannerQuestions.slice(0, step).flatMap(({ id }) => questionFields[id] ? [questionFields[id]!] : []))];
 }
-export function intakeNextField(request: PlanRequest, answered: readonly IntakeField[], today = dateValue(new Date())): IntakeField | null {
+export function intakeNextField(request: PlanRequest, answered: readonly IntakeField[], today = zonedNow(request.timeZone).date): IntakeField | null {
   const missing = intakeFields.find((field) => !answered.includes(field));
   if (missing) return missing;
   if (!request.date || request.date < today) return "date";
-  if (!request.startTime) return "time";
+  const current = zonedNow(request.timeZone);
+  if (!request.startTime || today === current.date && request.date === current.date && request.startTime <= current.time) return "time";
   if (scheduleError(request, today)) return "duration";
   return null;
 }

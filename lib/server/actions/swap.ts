@@ -1,11 +1,14 @@
+import { scheduleError } from "@/lib/planner/schedule";
 import { planningOrigin } from "@/lib/maps/google";
 import { z } from "zod";
-import { requestSchema } from "@/lib/planner/schema";
+import { requestSchema, generateSchema } from "@/lib/planner/schema";
 import { recalculateExactPlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
 const swapSchema = z.object({
   request: requestSchema,
+  excludeIds: generateSchema.shape.excludeIds,
+  excludeCategories: generateSchema.shape.excludeCategories,
   experienceIds: z.array(z.string()).min(1).max(4),
   index: z.number().int().min(0).max(3),
 });
@@ -23,6 +26,8 @@ export async function swap(request: Request) {
         { error: "That activity no longer exists." },
         { status: 400 },
       );
+    const invalidSchedule = scheduleError(parsed.data.request);
+    if (invalidSchedule) return Response.json({ error: invalidSchedule }, { status: 400 });
     const catalog = await getCatalog();
     const origin = await planningOrigin(preferences);
     const existing = experienceIds.map((id) =>
@@ -34,7 +39,7 @@ export async function swap(request: Request) {
         { status: 409 },
       );
     const alternatives = catalog
-      .filter((item) => !experienceIds.includes(item.id))
+      .filter((item) => !experienceIds.includes(item.id) && !parsed.data.excludeIds.includes(item.id) && !parsed.data.excludeCategories.some((category) => category.toLowerCase() === item.category.toLowerCase()))
       .flatMap((replacement) => {
         const experiences = existing.flatMap((item, position) =>
           position === index ? [replacement] : item ? [item] : [],
@@ -49,7 +54,7 @@ export async function swap(request: Request) {
         return plan ? [plan] : [];
       })
       .sort((a, b) => b.score - a.score)
-      .slice(0, 8);
+      .slice(0, 1);
     return Response.json({ alternatives });
   } catch (error) {
     return apiError(error);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { providerFactsSchema, venueOpeningStatus, fitsVenueRequest, providerPrice } from "../lib/maps/venue-facts";
-import { addCalendarDays, calendarDay, scheduleError } from "../lib/planner/schedule";
+import { addCalendarDays, calendarDay, scheduleError, zonedNow } from "../lib/planner/schedule";
 import { generateSinglePlan } from "../lib/planner/engine";
 import { generateSchema, requestSchema } from "../lib/planner/schema";
 import { demoCatalog } from "../lib/planner/demo-catalog";
@@ -9,6 +9,17 @@ import { restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeReje
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Casual date", budget: 60000, vibes: ["Playful"], date: "2026-10-31", startTime: "16:00", duration: 180 });
 const hours = providerFactsSchema.parse({ regularOpeningHours: { periods: [{ open: { day: 6, hour: 10 }, close: { day: 6, hour: 20 } }] } });
+test("Lagos dates use the explicit venue timezone and reject past times without changing the request", () => {
+  const now = new Date("2026-10-30T23:30:00Z");
+  assert.deepEqual(zonedNow("Africa/Lagos", now), { date: "2026-10-31", time: "00:30" });
+  assert.equal(request.timeZone, "Africa/Lagos");
+  assert.equal(requestSchema.safeParse({ ...request, timeZone: "Mars/Nowhere" }).success, false);
+  const selected = { ...request, date: "2026-10-31", startTime: "00:15" };
+  assert.match(scheduleError(selected, undefined, now), /already passed/);
+  assert.match(scheduleError({ ...selected, date: "2026-10-30" }, undefined, now), /future/);
+  assert.equal(scheduleError({ ...selected, startTime: "00:45" }, undefined, now), "");
+  assert.equal(selected.startTime, "00:15");
+});
 test("calendar dates survive month/year boundaries and schedule validation never chooses a day or time", () => {
   assert.equal(addCalendarDays("2026-12-31", 1), "2027-01-01");
   assert.equal(calendarDay("2026-10-31"), 6);
@@ -42,6 +53,10 @@ test("known budget, access, dietary, schedule and travel conflicts cannot reach 
   assert.equal(fitsVenueRequest(hours, { ...request, duration: 60, transport: "Walking" }, 20), false);
   assert.equal(fitsVenueRequest(providerFactsSchema.parse({ ...hours, accessibilityOptions: { wheelchairAccessibleEntrance: false } }), { ...request, accessibility: true }, 1), false);
   assert.equal(fitsVenueRequest(providerFactsSchema.parse({ ...hours, servesVegetarianFood: false }), { ...request, dietary: ["vegetarian"] }, 1), false);
+  assert.equal(fitsVenueRequest(hours, { ...request, accessibility: true }, 1), false, "Unknown accessibility is not verified access");
+  assert.equal(fitsVenueRequest(hours, { ...request, dietary: ["vegetarian"] }, 1), false, "Unknown dietary support is not verified support");
+  assert.equal(fitsVenueRequest(providerFactsSchema.parse({ ...hours, accessibilityOptions: { wheelchairAccessibleEntrance: true }, servesVegetarianFood: true }), { ...request, accessibility: true, dietary: ["vegetarian"] }, 1), true);
+  for (const need of ["vegan", "halal", "gluten-free"] as const) assert.equal(fitsVenueRequest(hours, { ...request, dietary: [need] }, 1), false);
   const expensive = providerFactsSchema.parse({ ...hours, priceRange: { startPrice: { currencyCode: "NGN", units: "40000" } } });
   assert.equal(fitsVenueRequest(expensive, request, 1), false);
   assert.equal(fitsVenueRequest(expensive, { ...request, budgetType: "per-person" }, 1), true);
@@ -70,9 +85,15 @@ test("accepted discovery recovery validates the flow, expiration and venue recor
 test("rejections survive edits and refreshes while separate planning sessions stay independent", () => {
   const stored = JSON.stringify(mergeRejectedPicks({ excludePlaceIds: ["first-place"], excludeIds: ["catalog-pick"] }));
   const next = mergeRejectedPicks(readRejectedPicks(stored), { mode: "balanced" });
-  assert.deepEqual(next, { excludeIds: ["catalog-pick"], excludePlaceIds: ["first-place"] });
+  assert.deepEqual(next, { excludeCategories: [], excludeIds: ["catalog-pick"], excludePlaceIds: ["first-place"] });
   assert.deepEqual(mergeRejectedPicks(next, { excludePlaceIds: ["first-place", "replacement"] }).excludePlaceIds, ["first-place", "replacement"]);
   assert.notEqual(rejectedPicksKey("first-flow"), rejectedPicksKey("new-flow"));
-  assert.deepEqual(readRejectedPicks("invalid-json"), { excludeIds: [], excludePlaceIds: [] });
+  assert.deepEqual(readRejectedPicks("invalid-json"), { excludeCategories: [], excludeIds: [], excludePlaceIds: [] });
   assert.equal(mergeRejectedPicks({ excludePlaceIds: Array.from({ length: 70 }, (_, index) => `place-${index}`) }).excludePlaceIds.length, 60);
+});
+
+test("activity rejections filter candidates before ranking and survive draft exclusions", () => {
+  const result = generateSinglePlan(generateSchema.parse({ request, excludeCategories: ["Art & culture"] }), demoCatalog);
+  assert.ok(result.plans.every((plan) => plan.activities.every((activity) => activity.experience.category !== "Art & culture")));
+  assert.deepEqual(readRejectedPicks(JSON.stringify(mergeRejectedPicks({ excludeCategories: ["Art & culture"] }))).excludeCategories, ["Art & culture"]);
 });
