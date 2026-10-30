@@ -72,12 +72,12 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
     {summary.length > 0 && <details className={styles.summary} open={ready}><summary>Your date preferences <span>{summary.length} of 8 details</span></summary><dl>{summary.map(({ field, value }) => <div key={field}><dt>{field === "vibe" ? "Vibe" : field === "people" ? "Guests" : field.charAt(0).toUpperCase() + field.slice(1)}</dt><dd>{value}</dd></div>)}</dl></details>}
     {(error || serverError) && <div className={styles.error} role="alert"><p>{error || serverError}</p>{retryMessage && <button type="button" disabled={sending} onClick={() => void send(retryMessage, true)}>Try that message again</button>}</div>}
     {ready && !sending && !error && <div className={styles.ready}><Button onClick={() => void onGenerate()}>Find my date <span aria-hidden="true">↗</span></Button></div>}
-    <div ref={bottom} />
     <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void send(message); }}>
       <label className="sr-only" htmlFor="planner-chat-message">Message your date planner</label>
       <textarea ref={input} id="planner-chat-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={1200} rows={2} disabled={sending} placeholder="Tell me about your date…" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && window.matchMedia("(hover: hover) and (pointer: fine)").matches) { event.preventDefault(); void send(message); } }} />
       <button type="submit" aria-label="Send message" disabled={sending || !message.trim()}><ArrowUp size={20} aria-hidden="true" /></button>
       <span>{sending ? "Thinking about the details…" : "Your preferences stay with you when you switch interfaces."}</span>
     </form>
+    <div ref={bottom} />
   </main>;
 }
