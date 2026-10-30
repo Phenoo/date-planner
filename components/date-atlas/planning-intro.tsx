@@ -108,7 +108,7 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
       <div className={styles.copy} aria-live="polite" aria-atomic="true">
         <span className={styles.eyebrow}>{ready ? "YOUR TURN TO MAKE IT PERSONAL" : current.label}</span>
         <h1 ref={heading} tabIndex={-1}><span key={chapter}><Title text={ready ? "Ready to make their day?" : current.title} /></span></h1>
-        <p key={`description-${chapter}`}>{ready ? "A few details from you. A thoughtful plan from us. One question at a time." : current.description}</p>
+        <p key={`description-${chapter}`}>{ready ? "A few details from you. A thoughtful plan from us." : current.description}</p>
       </div>
 
       <div className={styles.artboard} aria-hidden="true">

@@ -10,8 +10,9 @@ import { places } from "./actions/places";
 import { invitations } from "./actions/invitations";
 import { dateHistory } from "./actions/date-history";
 import { conversation } from "./actions/conversation";
+import { intake } from "./actions/intake";
 import { apiError, RequestError } from "@/lib/planner/http";
-export const plannerActions = { generate, chat, customize, swap, restore, locate, places, invitations, dateHistory, conversation };
+export const plannerActions = { generate, chat, customize, swap, restore, locate, places, invitations, dateHistory, conversation, intake };
 export type PlannerAction = keyof typeof plannerActions;
 let googleAuth: GoogleAuth | null = null;
 export async function plannerAction(action: PlannerAction, request: Request) {

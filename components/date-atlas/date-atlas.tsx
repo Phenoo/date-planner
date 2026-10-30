@@ -22,6 +22,8 @@ import { Explore, ExperienceCard } from "./explore";
 import { ExperiencePage } from "./experience-page";
 import { Dashboard, ProfilePreferences } from "./dashboard";
 import { preferenceSchema } from "@/lib/planner/preferences-storage";
+import { chatSessionSchema, emptyChatSession, answeredThroughStep, intakeFields, intakeNextField, stepForIntake, type PlannerMode } from "@/lib/planner/intake";
+import { PlannerModeChoice, PlannerModeSwitch } from "./planner-mode-choice";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
@@ -60,6 +62,7 @@ import {
 const PlannerWizard = dynamic(() =>
   import("./planner-wizard").then((module) => module.PlannerWizard),
 );
+const PlannerChat = dynamic(() => import("./planner-chat").then((module) => module.PlannerChat));
 const Results = dynamic(() =>
   import("./results").then((module) => module.Results),
 );
@@ -118,6 +121,8 @@ export function DateAtlas({
   const rejectionMemory = useRef({ flow: "", picks: mergeRejectedPicks() });
   const [plannerStep, setPlannerStep] = useState(0);
   const [editingPlan, setEditingPlan] = useState(false);
+  const [plannerMode, setPlannerMode] = useState<PlannerMode | null>(null);
+  const [chatSession, setChatSession] = useState(emptyChatSession);
   const [draftReady, setDraftReady] = useState(initialView !== "planner");
   const [plannerAppearance, setPlannerAppearance] = useState<PlannerAppearance>("red");
   const [exitOpen, setExitOpen] = useState(false);
@@ -262,6 +267,11 @@ export function DateAtlas({
             if (parsed.success) {
               setRequest(parsed.data);
               setEditingPlan("editingPlan" in draft && draft.editingPlan === true);
+              setPlannerMode("plannerMode" in draft && (draft.plannerMode === "chat" || draft.plannerMode === "steps" || draft.plannerMode === null) ? draft.plannerMode : "steps");
+              if ("chatSession" in draft) {
+                const chat = chatSessionSchema.safeParse(draft.chatSession);
+                if (chat.success) setChatSession(chat.data);
+              }
               setPlannerStep(
                 restorePlannerStep(
                   "step" in draft ? draft.step : 0,
@@ -386,13 +396,15 @@ export function DateAtlas({
           step: plannerStep,
           preferredIds,
           editingPlan,
+          plannerMode,
+          chatSession,
         }),
       );
       for (const version of [2, 3, 4, 5, 6, 7, 8, 9, 10]) sessionStorage.removeItem(`date-atlas:planning-draft:v${version}`);
     } catch {
       /* The current session still works when storage is unavailable. */
     }
-  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan]);
+  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan, plannerMode, chatSession]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => { setToast(""); setFeedbackState(null); }, 6000);
@@ -405,7 +417,7 @@ export function DateAtlas({
   }
   function saveAndExit(event: MouseEvent<HTMLButtonElement>) {
     try {
-      sessionStorage.setItem(draftKey, JSON.stringify({ version: plannerDraftVersion, request, step: plannerStep, preferredIds, editingPlan }));
+      sessionStorage.setItem(draftKey, JSON.stringify({ version: plannerDraftVersion, request, step: plannerStep, preferredIds, editingPlan, plannerMode, chatSession }));
     } catch {
       event.preventDefault();
       setExitError("We couldn't save your answers. Keep this tab open and try again.");
@@ -425,6 +437,7 @@ export function DateAtlas({
             request: { ...request, ...patch },
             step: 0,
             preferredIds: preferred ? [preferred] : [],
+            plannerMode: null,
           }),
         );
       } catch {
@@ -470,6 +483,7 @@ export function DateAtlas({
     const step = plannerQuestions.findIndex((question) => question.id === "review");
     setError("");
     setEditingPlan(true);
+    setPlannerMode("steps");
     try {
       sessionStorage.removeItem(activePlanKey);
       sessionStorage.removeItem(activeDiscoveryKey);
@@ -489,6 +503,8 @@ export function DateAtlas({
             step,
             preferredIds,
             editingPlan: true,
+            plannerMode: "steps",
+            chatSession,
           }),
         );
       } catch {
@@ -496,6 +512,20 @@ export function DateAtlas({
       }
       planDate();
     }
+  }
+  function choosePlannerMode(mode: PlannerMode) {
+    if (mode === "chat" && !requestSchema.safeParse(request).success) { setError("Please finish this answer before switching to chat. Your other preferences are kept."); return; }
+    const answered = [...new Set([...chatSession.answered, ...(plannerMode === "steps" ? answeredThroughStep(plannerStep) : []), ...(editingPlan ? intakeFields : [])])];
+    const nextField = intakeNextField(request, answered);
+    setChatSession((previous) => ({ ...previous, answered, nextField }));
+    if (mode === "steps" && plannerMode === "chat") setPlannerStep(stepForIntake(nextField));
+    setPlannerMode(mode);
+    setError("");
+    window.scrollTo({ top: 0 });
+  }
+  function changePlannerStep(step: number) {
+    if (step > plannerStep) setChatSession((previous) => ({ ...previous, answered: [...new Set([...previous.answered, ...answeredThroughStep(step)])] }));
+    setPlannerStep(step);
   }
   async function generate(
     preferences = request,
@@ -516,7 +546,7 @@ export function DateAtlas({
       try {
         sessionStorage.setItem(rejectedPicksKey(flow), JSON.stringify(exclusions));
         if (extra.excludeIds?.length || extra.excludePlaceIds?.length) {
-          sessionStorage.setItem(draftKey, JSON.stringify({ version: plannerDraftVersion, request: preferences, step: plannerQuestions.length - 1, preferredIds }));
+          sessionStorage.setItem(draftKey, JSON.stringify({ version: plannerDraftVersion, request: preferences, step: plannerQuestions.length - 1, preferredIds, plannerMode, chatSession }));
           sessionStorage.removeItem(activeDiscoveryKey);
           sessionStorage.removeItem(activePlanKey);
         }
@@ -887,15 +917,18 @@ export function DateAtlas({
             </small>
           </div>
         )}
-        {planning &&
-          (draftReady ? (
+        {planning && draftReady && plannerMode !== null && !busy && <PlannerModeSwitch mode={plannerMode} onChange={choosePlannerMode} disabled={busy} />}
+        {planning && (!draftReady || plannerMode === null && busy) && <main className="planning-loader"><p>{busy ? "Opening your date plan…" : "Getting your questions ready…"}</p></main>}
+        {planning && draftReady && plannerMode === null && !busy && <PlannerModeChoice onChoose={choosePlannerMode} />}
+        {planning && draftReady && plannerMode === "chat" && <PlannerChat request={request} setRequest={setRequest} session={chatSession} setSession={setChatSession} onGenerate={() => generate()} loading={busy} loadingStage={loadingStage} serverError={error} />}
+        {planning && draftReady && plannerMode === "steps" && (
             <PlannerWizard
               request={request}
               setRequest={setRequest}
               step={plannerStep}
               editingPlan={editingPlan}
               theme={plannerAppearance}
-              setStep={setPlannerStep}
+              setStep={changePlannerStep}
               onGenerate={() => generate()}
               onLocationDetected={({ area, city }) => {
                 setFeedbackState(null);
@@ -906,11 +939,7 @@ export function DateAtlas({
               serverError={error}
               loadingStage={loadingStage}
             />
-          ) : (
-            <main className="planning-loader">
-              <p>Getting your questions ready…</p>
-            </main>
-          ))}
+          )}
         {view === "results" && result && (
           <Results
             result={result}
