@@ -96,6 +96,7 @@ export function PlannerWizard({
   serverError,
   loadingStage,
   theme = "red",
+  editingPlan = false,
 }: {
   request: PlanRequest;
   setRequest: Dispatch<SetStateAction<PlanRequest>>;
@@ -107,6 +108,7 @@ export function PlannerWizard({
   serverError: string;
   loadingStage?: string;
   theme?: CompanionTheme;
+  editingPlan?: boolean;
 }) {
   const step = Math.max(0, Math.min(requestedStep, plannerQuestionCount - 1));
   const [error, setError] = useState("");
@@ -114,7 +116,7 @@ export function PlannerWizard({
   const [feedback, setFeedback] = useState<{ line: string; target: number } | null>(null);
   const transitioning = pending !== null || feedback !== null;
   const heading = useRef<HTMLHeadingElement>(null);
-  const [reviewing, setReviewing] = useState(false);
+  const [reviewing, setReviewing] = useState(editingPlan && step !== plannerQuestionCount - 1);
   const [locating, setLocating] = useState(false);
   const [resolvingArea, setResolvingArea] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
@@ -147,6 +149,8 @@ export function PlannerWizard({
     }, (failure) => { if (!controller.signal.aborted) { setLocating(false); setLocationMessage(browserLocationError(failure.code)); } }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
   }
   const stage = plannerQuestions[step];
+  const title = editingPlan && stage.id === "review" ? "Edit your plan" : stage.title;
+  const description = editingPlan && stage.id === "review" ? "Change any detail below, then update your date plan." : stage.description;
   const dialogue = usePlannerConversation(stage.id, request);
   const selectedCity = stage.id === "city" && locationMode === "selected";
   useEffect(() => {
@@ -338,7 +342,8 @@ export function PlannerWizard({
     { id: "interests", label: "Interests & preferences", value: [request.interests, request.notes, request.surprises ? "Surprises welcome" : "No surprises"].filter(Boolean).join(" · ") },
     { id: "requirements", label: "Requirements", value: [...request.dietary, request.quiet ? "Quiet places" : "", request.accessibility ? "Step-free access" : "", request.dislikes ? `Avoid: ${request.dislikes}` : ""].filter(Boolean).join(" · ") || "None specified" },
     { id: "budget", label: "Spending limit", value: request.budget === null ? "No spending limit set" : `${money(request.budget)} ${request.budgetType === "total" ? "total" : "per person"} · ${request.includeFood ? "Food included" : "Food excluded"} · ${request.includeTransport ? "Transport included" : "Transport excluded"}` },
-    { id: "date", label: "Date & time", value: `${request.date ? calendarLabel(request.date) : "Choose a day"} · ${request.startTime || "Choose a time"}` },
+    { id: "date", label: "Date", value: request.date ? calendarLabel(request.date) : "Choose a day" },
+    { id: "time", label: "Starting time", value: request.startTime || "Choose a time" },
     { id: "duration", label: "Duration", value: `${request.duration / 60} hours${request.endTime ? ` · Be back by ${request.endTime}` : ""}` },
   ];
   const total =
@@ -347,14 +352,14 @@ export function PlannerWizard({
   if (feedback) return <PlannerReaction key={feedback.target} line={feedback.line} theme={theme} onComplete={() => { setStep(feedback.target); setFeedback(null); }} />;
   return (
     <main className={`typeform-shell ${styles.wizard} ${stage.id === "review" ? "planner-review" : ""}`}>
-      {step > 0 && <div className="typeform-stage-bar">
+      {(step > 0 || reviewing) && !(editingPlan && stage.id === "review") && <div className="typeform-stage-bar">
         <button
           type="button"
           className="typeform-back"
-          disabled={step === 0 || transitioning}
+          disabled={transitioning}
           onClick={() => { if (reviewing) { setReviewing(false); move(plannerQuestionCount - 1); } else move(step - 1); }}
         >
-          Back
+          {reviewing ? editingPlan ? "Back to edit plan" : "Back to review" : "Back"}
         </button>
       </div>}
       <div
@@ -388,10 +393,10 @@ export function PlannerWizard({
         <div className="question-intro">
           <div className="question-heading">
             <span className="eyebrow">YOUR DATE, YOUR WAY</span>
-            <h1 ref={heading} tabIndex={-1} aria-label={stage.title}>{stage.title.split(/\s+/).map((word, index) => <Fragment key={`${word}-${index}`}><span className={styles.questionWord}><span style={{ "--question-delay": `${index * 35}ms` } as CSSProperties}>{word}</span></span>{" "}</Fragment>)}</h1>
+            <h1 ref={heading} tabIndex={-1} aria-label={title}>{title.split(/\s+/).map((word, index) => <Fragment key={`${word}-${index}`}><span className={styles.questionWord}><span style={{ "--question-delay": `${index * 35}ms` } as CSSProperties}>{word}</span></span>{" "}</Fragment>)}</h1>
           </div>
         </div>
-        <p className="typeform-description">{stage.description}</p>
+        <p className="typeform-description">{description}</p>
         <fieldset className="typeform-answer" disabled={transitioning}>
           {selectedCity && <div className="detected-location" role="status"><strong>{currentCity}</strong><p>{request.country}</p></div>}
           {stage.id === "review" && <div className="review-answers">{reviewGroups.map((item) => <div className="review-answer" key={item.id}><div><small>{item.label}</small><p>{item.value}</p></div><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex((question) => question.id === item.id)); }}>Edit {item.label.toLowerCase()}</button></div>)}</div>}
@@ -775,7 +780,7 @@ export function PlannerWizard({
         )}
         {(stage.id !== "city" || locationMode !== "choose") && <div className="typeform-confirm">
           <Button type="submit" disabled={transitioning || locating}>
-            {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? "Create My Date Plan" : reviewing ? "Back to review" : "Continue"}
+            {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? editingPlan ? "Update My Date Plan" : "Create My Date Plan" : reviewing ? editingPlan ? "Back to edit plan" : "Back to review" : "Continue"}
           </Button>
           {selectedCity ? <Button type="button" variant="outline" disabled={pending !== null} onClick={() => editLocation("choose")}>Change</Button> : <span>
             press <strong>Enter</strong>

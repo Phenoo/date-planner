@@ -117,6 +117,7 @@ export function DateAtlas({
   const restoredDiscovery = useRef(false);
   const rejectionMemory = useRef({ flow: "", picks: mergeRejectedPicks() });
   const [plannerStep, setPlannerStep] = useState(0);
+  const [editingPlan, setEditingPlan] = useState(false);
   const [draftReady, setDraftReady] = useState(initialView !== "planner");
   const [plannerAppearance, setPlannerAppearance] = useState<PlannerAppearance>("red");
   const [exitOpen, setExitOpen] = useState(false);
@@ -260,6 +261,7 @@ export function DateAtlas({
             const parsed = requestSchema.safeParse(draft.request);
             if (parsed.success) {
               setRequest(parsed.data);
+              setEditingPlan("editingPlan" in draft && draft.editingPlan === true);
               setPlannerStep(
                 restorePlannerStep(
                   "step" in draft ? draft.step : 0,
@@ -383,13 +385,14 @@ export function DateAtlas({
           request,
           step: plannerStep,
           preferredIds,
+          editingPlan,
         }),
       );
       for (const version of [2, 3, 4, 5, 6, 7, 8, 9, 10]) sessionStorage.removeItem(`date-atlas:planning-draft:v${version}`);
     } catch {
       /* The current session still works when storage is unavailable. */
     }
-  }, [request, plannerStep, view, draftReady, preferredIds]);
+  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => { setToast(""); setFeedbackState(null); }, 6000);
@@ -402,7 +405,7 @@ export function DateAtlas({
   }
   function saveAndExit(event: MouseEvent<HTMLButtonElement>) {
     try {
-      sessionStorage.setItem(draftKey, JSON.stringify({ version: plannerDraftVersion, request, step: plannerStep, preferredIds }));
+      sessionStorage.setItem(draftKey, JSON.stringify({ version: plannerDraftVersion, request, step: plannerStep, preferredIds, editingPlan }));
     } catch {
       event.preventDefault();
       setExitError("We couldn't save your answers. Keep this tab open and try again.");
@@ -463,8 +466,10 @@ export function DateAtlas({
       experience.id,
     );
   }
-  function customize(step = 0) {
+  function customize() {
+    const step = plannerQuestions.findIndex((question) => question.id === "review");
     setError("");
+    setEditingPlan(true);
     try {
       sessionStorage.removeItem(activePlanKey);
       sessionStorage.removeItem(activeDiscoveryKey);
@@ -483,6 +488,7 @@ export function DateAtlas({
             request,
             step,
             preferredIds,
+            editingPlan: true,
           }),
         );
       } catch {
@@ -531,6 +537,7 @@ export function DateAtlas({
         throw new Error("No new place matched these preferences. Try changing the location, time or vibe.");
       setRequest(data.plans[0]?.request ?? preferences);
       setResult(data);
+      setEditingPlan(false);
       try {
         if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify({ flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", request: preferences, result: data, expiresAt: Date.now() + 3600000, accepted: false }));
         else sessionStorage.removeItem(activeDiscoveryKey);
@@ -886,6 +893,7 @@ export function DateAtlas({
               request={request}
               setRequest={setRequest}
               step={plannerStep}
+              editingPlan={editingPlan}
               theme={plannerAppearance}
               setStep={setPlannerStep}
               onGenerate={() => generate()}
@@ -916,7 +924,7 @@ export function DateAtlas({
               if (next.plans.length) setRequest(next.plans[0].request);
             }}
             onCustomize={() => customize()}
-            onChangeTiming={() => customize(plannerQuestions.findIndex((question) => question.id === "date"))}
+            onChangeTiming={() => customize()}
             onBack={() => router.push("/")}
             onSave={(plan) => void savePlan(plan)}
             onShare={(plan, whatsapp) => void sharePlan(plan, whatsapp)}
