@@ -52,3 +52,11 @@ test("a public invitation contains the chosen story and timing without private p
   for (const key of ["ownerId", "token", "notes", "budget", "dietary", "interests", "startingArea", "yourGender", "dateGender"]) assert.equal(key in data, false);
   assert.equal(data.startTime, "");
 });
+
+test("invitation notes are optional, explicitly published text with a bounded length", () => {
+  const input = { action: "message", id: "a".repeat(64), message: "  A little time just for us.  " };
+  const parsed = invitationInputSchema.parse(input);
+  assert.equal(parsed.action === "message" && parsed.message, "A little time just for us.");
+  assert.equal(invitationInputSchema.safeParse({ ...input, message: "a".repeat(241) }).success, false);
+  assert.equal(invitationInputSchema.safeParse({ ...input, message: "" }).success, true, "The creator can remove a message");
+});

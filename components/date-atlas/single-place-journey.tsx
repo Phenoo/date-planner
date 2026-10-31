@@ -35,5 +35,5 @@ export function SinglePlaceJourney({ place, sessionId, request, signedIn, accoun
     onSignIn();
   }
   if (accepted) return <ChosenDateReveal key={`${place.id}:${accountRevision}`} place={place} sessionId={sessionId} request={request} signedIn={signedIn} onSignIn={signIn} onTiming={onTiming} onChange={() => { try { sessionStorage.removeItem(key); } catch { /* The current choice can still change. */ } setAccepted(false); setReturning(true); window.scrollTo({ top: 0 }); }} />;
-  return <CinematicReveal onCancelGeneration={onCancelGeneration} place={place} request={request} busy={busy} error={error} rejected={rejected} initialChapter={returning ? 5 : 0} onAccept={accept} onReject={onReject} onEdit={onEdit} onTiming={onTiming} />;
+  return <CinematicReveal onCancelGeneration={onCancelGeneration} place={place} request={request} busy={busy} error={error} rejected={rejected} initialChapter={returning ? 2 : 0} onAccept={accept} onReject={onReject} onEdit={onEdit} onTiming={onTiming} />;
 }

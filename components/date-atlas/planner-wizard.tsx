@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { GeneratingScreen } from "./generating-screen";
 import { NearbyCities } from "./nearby-cities";
+import { ManualCityPicker } from "./manual-city-picker";
 import { VibeChoices } from "./vibe-choices";
 import { GenderChoices } from "./gender-choices";
 import { DatePicker } from "./date-picker";
@@ -15,7 +16,6 @@ import { conversationAnswerKey, localReaction } from "@/lib/planner/conversation
 import styles from "./planner-conversation.module.css";
 import {
   areas,
-  cities,
   genderLabel,
   genderOptions,
   occasions,
@@ -30,7 +30,7 @@ import {
 import { money } from "@/lib/utils";
 import type { CompanionTheme } from "@/lib/animations/registry";
 import type { DetectedLocation } from "@/lib/maps/schema";
-import { browserLocationError, resolveLocation } from "@/lib/maps/client-location";
+import { browserLocationError, resolveCountry, resolveLocation } from "@/lib/maps/client-location";
 
 export { Field } from "@/components/ui/field";
 export { plannerQuestionCount } from "@/lib/planner/questions";
@@ -125,10 +125,24 @@ export function PlannerWizard({
   const [locationMode, setLocationMode] = useState<"choose" | "manual" | "selected">(() => request.currentCity.trim() ? "selected" : "choose");
   const manualLocation = locationMode === "manual";
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
+  const [estimatedCountry, setEstimatedCountry] = useState("");
+  const countryResolved = useRef(editingPlan || !!request.currentCity.trim() || !!request.country.trim() && request.country !== "Nigeria");
+  const initialCountry = useRef(request.country);
   const [destinationChoice, setDestinationChoice] = useState<DestinationChoice>(() => request.currentCity && request.city !== request.currentCity ? "elsewhere" : request.locationScope);
   const currentCity = request.currentCity || request.city;
   const locationController = useRef<AbortController | null>(null);
   useEffect(() => () => locationController.current?.abort(), []);
+  useEffect(() => {
+    if (countryResolved.current) return;
+    const controller = new AbortController();
+    void resolveCountry(controller.signal).then((country) => {
+      if (!country || controller.signal.aborted || countryResolved.current) return;
+      countryResolved.current = true;
+      setRequest((previous) => previous.currentCity.trim() || previous.country !== initialCountry.current ? previous : { ...previous, country: country.name });
+      setEstimatedCountry(country.name);
+    }).catch(() => { /* Country selection remains available if the network has no estimate. */ });
+    return () => controller.abort();
+  }, [setRequest]);
   function detectLocation() {
     if (!window.isSecureContext) { setLocationMessage("Location access needs a secure connection. Open this site with HTTPS, or choose your area manually."); return; }
     if (!navigator.geolocation) { setLocationMessage("Location detection isn't supported. Choose your area manually."); return; }
@@ -142,6 +156,7 @@ export function PlannerWizard({
         const detected = await resolveLocation({ lat: position.coords.latitude, lng: position.coords.longitude }, controller.signal);
         if (controller.signal.aborted) return;
         setRequest((previous) => ({ ...previous, ...detected.location, currentCity: detected.location.city, area: detected.location.city, startingArea: detected.location.area, locationScope: "city", maxDistance: 30 }));
+        countryResolved.current = true; setEstimatedCountry("");
         setDestinationChoice("city");
         setDetectedLocation(detected); setLocationMode("selected");
         onLocationDetected(detected.location);
@@ -162,6 +177,7 @@ export function PlannerWizard({
   function editLocation(mode: "choose" | "manual") {
     locationController.current?.abort();
     setLocating(false); setLocationMessage(""); setError(""); setLocationMode(mode);
+    if (mode === "manual") setRequest((previous) => previous.currentCity.trim() ? previous : { ...previous, city: "", area: "", startingArea: "" });
   }
   function update<K extends keyof PlanRequest>(key: K, value: PlanRequest[K]) {
     if (["city", "country", "area"].includes(key)) { locationController.current?.abort(); setLocating(false); }
@@ -268,8 +284,14 @@ export function PlannerWizard({
     );
   }
   function setOriginCity(city: string) {
+    countryResolved.current = true;
     locationController.current?.abort(); setLocating(false); setDetectedLocation(null); setError(""); setDestinationChoice("city");
     setRequest((previous) => ({ ...previous, currentCity: city, city, area: city, startingArea: "", locationScope: "city", maxDistance: 30 }));
+  }
+  function setOriginCountry(country: string) {
+    countryResolved.current = true; setEstimatedCountry("");
+    locationController.current?.abort(); setLocating(false); setDetectedLocation(null); setError(""); setDestinationChoice("city");
+    setRequest((previous) => ({ ...previous, country, currentCity: "", city: "", area: "", startingArea: "", locationScope: "city", maxDistance: 30 }));
   }
   function chooseDestination(choice: DestinationChoice) {
     setDestinationChoice(choice); setError("");
@@ -412,44 +434,11 @@ export function PlannerWizard({
                 {locationMessage && <p role="status">{locationMessage}</p>}
               </div>
               {manualLocation && <div className="location-manual typeform-answer" id="manual-location">
-              <Field label="Your current city">
-                <input
-                  list="atlas-cities"
-                  value={currentCity}
-                  maxLength={80}
-                  onChange={(event) => setOriginCity(event.target.value)}
-                  placeholder="Type your city…"
-                  autoComplete="address-level2"
-                />
-                <datalist id="atlas-cities">
-                  {cities.map((city) => (
-                    <option key={city}>{city}</option>
-                  ))}
-                </datalist>
-              </Field>
-              <div className="typeform-suggestions">
-                {cities.map((city) => (
-                  <button
-                    type="button"
-                    key={city}
-                    disabled={locating || pending !== null}
-                    onClick={() => { const updated = { ...request, currentCity: city, city, area: city, startingArea: "", locationScope: "city" as const, maxDistance: 30 }; setDetectedLocation(null); setDestinationChoice("city"); setRequest(updated); next(updated); }}
-                  >
-                    {city}
-                  </button>
-                ))}
-              </div>
-              <details className="flow-details">
-                <summary>Planning in {request.country}? Change country</summary>
-                <Field label="Country">
-                  <input
-                    value={request.country}
-                    maxLength={80}
-                    autoComplete="country-name"
-                    onChange={(event) => update("country", event.target.value)}
-                  />
-                </Field>
-              </details>
+                <ManualCityPicker country={request.country} city={currentCity} countryHint={estimatedCountry && estimatedCountry === request.country ? "Estimated from your network. Change if needed." : undefined} onCountryChange={setOriginCountry} onCityChange={setOriginCity} onSelect={(city) => {
+                  countryResolved.current = true;
+                  const updated = { ...request, currentCity: city, city, area: city, startingArea: "", locationScope: "city" as const, maxDistance: 30 };
+                  setDetectedLocation(null); setDestinationChoice("city"); setRequest(updated); next(updated);
+                }} />
               </div>}
             </>
           )}
@@ -466,8 +455,7 @@ export function PlannerWizard({
                 </button>)}
               </div>
               {destinationChoice === "elsewhere" && <>
-                <Field label="Where would you love to go?"><input list="atlas-destination-cities" value={request.city} maxLength={80} autoComplete="off" onChange={(event) => setDestinationCity(event.target.value)} placeholder="Choose or type a destination city…" /></Field>
-                <datalist id="atlas-destination-cities">{cities.map((city) => <option key={city}>{city}</option>)}</datalist>
+                <Field label="Where would you love to go?"><input value={request.city} maxLength={80} autoComplete="off" onChange={(event) => setDestinationCity(event.target.value)} placeholder="Choose or type a destination city…" /></Field>
                 <NearbyCities key={`${request.country}:${currentCity}`} city={currentCity} country={request.country} selectedCity={request.city} onSelect={setDestinationCity} />
                 <small className="answer-help">Travel to another city is separate from this plan. Transportation estimates cover journeys within your date city.</small>
               </>}

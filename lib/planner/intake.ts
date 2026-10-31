@@ -66,6 +66,12 @@ export function applyIntakeOutput(input: IntakeInput, output: unknown) {
   const parsed = intakeOutputSchema.safeParse(output);
   if (!parsed.success) return null;
   const patch = { ...parsed.data.patch };
+  if (input.nextField === "occasion") {
+    const reply = input.message.trim().toLowerCase();
+    if (reply === "a first date") patch.occasion = "First date";
+    else if (reply === "our anniversary") patch.occasion = "Anniversary";
+    else if (reply === "just because") patch.occasion = "Just because";
+  }
   const answered = new Set(input.answered);
   let clarify: IntakeField | null = null;
   if (patch.budget !== undefined) {

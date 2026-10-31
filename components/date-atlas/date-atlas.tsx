@@ -21,9 +21,10 @@ import { recommendationResultSchema } from "@/lib/planner/response-schema";
 import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeRejectedPicks } from "@/lib/planner/discovery-session";
 import { createdInvitationSchema, pendingInvitationKey } from "@/lib/planner/invitations";
 import { RevokeInvitation } from "./revoke-invitation";
-import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftLifetimeMs } from "@/lib/planner/draft-retention";
+import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
 import { requestGeneration } from "@/lib/planner/generation-client";
 import { Homepage } from "./homepage";
+import { InvitationNote } from "./invitation-note";
 import { Explore, ExperienceCard } from "./explore";
 import { ExperiencePage } from "./experience-page";
 import { Dashboard, ProfilePreferences } from "./dashboard";
@@ -148,7 +149,8 @@ export function DateAtlas({
   const [authMessage, setAuthMessage] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [shareSelection, setShareSelection] = useState<{ id: string; token: string } | null>(null);
+  const [shareSelection, setShareSelection] = useState<{ id: string; token: string; message?: string } | null>(null);
+  const [invitationDirty, setInvitationDirty] = useState(false);
   const [shareError, setShareError] = useState("");
   const [loadingStage, setLoadingStage] = useState("Checking your preferences");
   const [feedbackState, setFeedbackState] = useState<"success" | "error" | null>(null);
@@ -198,6 +200,7 @@ export function DateAtlas({
     Promise.resolve().then(() => {
       if (!active) return;
       try {
+        setPlannerMode(savedPlannerMode(localStorage.getItem(plannerModeKey)));
         const appearance = localStorage.getItem(appearanceKey);
         if (appearance === "white" || appearance === "red" || appearance === "dark") setPlannerAppearance(appearance);
         const stored: unknown = JSON.parse(
@@ -296,7 +299,8 @@ export function DateAtlas({
               setRequest(parsed.data);
               if ("needsPreferenceReview" in draft && draft.needsPreferenceReview === true) setToast("Your core answers are restored. Personal notes and chat messages stay out of browser drafts; please review your preferences.");
               setEditingPlan("editingPlan" in draft && draft.editingPlan === true);
-              setPlannerMode("plannerMode" in draft && (draft.plannerMode === "chat" || draft.plannerMode === "steps" || draft.plannerMode === null) ? draft.plannerMode : "steps");
+              if ("plannerMode" in draft && savedPlannerMode(draft.plannerMode)) setPlannerMode(savedPlannerMode(draft.plannerMode));
+              else if (!("plannerMode" in draft)) setPlannerMode("steps");
               if ("chatSession" in draft) {
                 const chat = chatSessionSchema.safeParse(draft.chatSession);
                 if (chat.success) setChatSession(chat.data);
@@ -421,11 +425,13 @@ export function DateAtlas({
   }, [initialView]);
   useEffect(() => {
     if (view !== "planner" || !draftReady) return;
+    if (plannerMode) trackFunnel("planner_started");
     try {
       sessionStorage.setItem(
         draftKey,
         draftJSON({
           version: plannerDraftVersion,
+          flow: new URLSearchParams(window.location.search).get("flow") ?? "direct",
           expiresAt: Date.now() + draftLifetimeMs,
           request,
           step: plannerStep,
@@ -452,7 +458,7 @@ export function DateAtlas({
   }
   function saveAndExit(event: MouseEvent<HTMLButtonElement>) {
     try {
-      sessionStorage.setItem(draftKey, draftJSON({ version: plannerDraftVersion, expiresAt: Date.now() + draftLifetimeMs, request, step: plannerStep, preferredIds, editingPlan, plannerMode, chatSession }));
+      sessionStorage.setItem(draftKey, draftJSON({ version: plannerDraftVersion, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + draftLifetimeMs, request, step: plannerStep, preferredIds, editingPlan, plannerMode, chatSession }));
     } catch {
       event.preventDefault();
       setExitError("We couldn't save your answers. Keep this tab open and try again.");
@@ -565,6 +571,7 @@ export function DateAtlas({
     setChatSession((previous) => ({ ...previous, answered, nextField }));
     if (mode === "steps" && plannerMode === "chat") setPlannerStep(stepForIntake(nextField));
     trackFunnel("planner_started");
+    try { localStorage.setItem(plannerModeKey, mode); } catch { /* This plan still keeps the chosen style in memory. */ }
     setPlannerMode(mode);
     setError("");
     window.scrollTo({ top: 0 });
@@ -940,7 +947,7 @@ export function DateAtlas({
             </>
           )}
         </header>
-        {view === "home" && <Homepage onPlan={() => planDate()} />}
+        {view === "home" && <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />}
         {view === "explore" && (
           <Explore
             onBack={() => router.push("/")}
@@ -1289,9 +1296,10 @@ export function DateAtlas({
             <p>Anyone with this link can see the chosen venue, day, time and date story, and respond. Your budget, private preferences and account details stay private. You can revoke the link at any time.</p>
             {shareError && <p role="alert" className="error-message">{shareError}</p>}
             {shareSelection ? <>
-              <Button onClick={() => void sendCatalogInvitation()}>Share with your date</Button>
-              <Button variant="outline" onClick={() => void sendCatalogInvitation(true)}>Copy invitation link</Button>
-              <a className="button button-outline" href={`https://wa.me/?text=${encodeURIComponent(`I've planned a little something for us. Will you come? ${window.location.origin}/invite/${shareSelection.token}`)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>
+              <InvitationNote key={shareSelection.token} selection={shareSelection} onDirtyChange={setInvitationDirty} onSaved={(message) => setShareSelection((previous) => previous ? { ...previous, message } : previous)} />
+              <Button disabled={invitationDirty} onClick={() => void sendCatalogInvitation()}>Share with your date</Button>
+              <Button variant="outline" disabled={invitationDirty} onClick={() => void sendCatalogInvitation(true)}>Copy invitation link</Button>
+              <a className="button button-outline" aria-disabled={invitationDirty} onClick={(event) => { if (invitationDirty) event.preventDefault(); }} href={`https://wa.me/?text=${encodeURIComponent(`I've planned a little something for us. Will you come? ${window.location.origin}/invite/${shareSelection.token}`)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>
               <RevokeInvitation id={shareSelection.id} onRevoked={() => { setShareOpen(false); setShareSelection(null); setToast("Invitation revoked. The old link no longer works."); }} />
             </> : !shareError && <p role="status">Keeping your date together.</p>}
           </div>

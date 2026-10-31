@@ -6,6 +6,15 @@ import { plannerQuestions } from "../lib/planner/questions";
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Romantic date", vibes: ["Romantic"], budget: 60000, date: "", startTime: "", duration: 300, dietary: ["halal"] });
 const input = (message: string, overrides = {}) => intakeInputSchema.parse({ request, message, today: "2026-10-30", answered: [], nextField: "location", ...overrides });
+test("explicit occasion replies advance even when the AI omits an unchanged or informal answer", () => {
+  for (const [message, occasion] of [["A first date", "First date"], ["Our anniversary", "Anniversary"], ["Just because", "Just because"]]) {
+    const result = applyIntakeOutput(input(message, { answered: ["location"], nextField: "occasion" }), { acknowledgement: "A little time together sounds lovely.", patch: {} });
+    assert.equal(result?.request.occasion, occasion);
+    assert.equal(result?.nextField, "people");
+    assert.equal(result?.request.budget, request.budget);
+  }
+  assert.equal(applyIntakeOutput(input("Something nice", { nextField: "occasion" }), { acknowledgement: "A little thought.", patch: {} })?.answered.includes("occasion"), false);
+});
 test("one chat message can supply every required preference, with the same validated planning request", () => {
   const result = applyIntakeOutput(input("Plan a creative anniversary in Lekki, Lagos, for two. ₦60,000 total including transport, on Saturday 7 November at 14:00 for 4 hours."), { acknowledgement: "A thoughtful little celebration is taking shape.", patch: { city: "Lagos", area: "Lekki", occasion: "Anniversary", guests: 2, vibes: ["Creative"], budget: 60000, date: "2026-11-07", startTime: "14:00", duration: 240 } });
   assert.ok(result);

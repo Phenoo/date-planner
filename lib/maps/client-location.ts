@@ -1,4 +1,14 @@
 import { locationResponseSchema, type Coordinates } from "./schema";
+import { countryEstimateSchema } from "./country";
+
+export async function resolveCountry(signal: AbortSignal, fetcher: typeof fetch = fetch) {
+  signal.throwIfAborted();
+  const response = await fetcher("/api/country", { cache: "no-store", signal: AbortSignal.any([signal, AbortSignal.timeout(6000)]) });
+  if (!response.ok) throw new Error("Country detection is unavailable.");
+  const result = countryEstimateSchema.parse(await response.json());
+  signal.throwIfAborted();
+  return result.country;
+}
 
 export function browserLocationError(code: number) {
   switch (code) {

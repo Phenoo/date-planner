@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetSt
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
-import { intakeNextField, intakeReplySchema, intakeSummary, type ChatSession, type IntakeField } from "@/lib/planner/intake";
+import { intakeNextField, intakeQuestion, intakeReplySchema, intakeSummary, type ChatSession, type IntakeField } from "@/lib/planner/intake";
 import { zonedNow } from "@/lib/planner/schedule";
 import type { PlanRequest } from "@/lib/planner/schema";
 import { DatePicker } from "./date-picker";
@@ -23,6 +23,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   const pendingMessage = session.messages.at(-1);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [editingField, setEditingField] = useState<IntakeField | null>(null);
   const [error, setError] = useState(pendingMessage?.role === "user" ? "Your last message wasn't completed. Let's try that again." : "");
   const [retryMessage, setRetryMessage] = useState(pendingMessage?.role === "user" ? pendingMessage.text : "");
   const controller = useRef<AbortController | null>(null);
@@ -31,7 +32,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   const followMessages = useRef(true);
   const [showLatest, setShowLatest] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
-  const focus = session.nextField ?? intakeNextField(request, session.answered);
+  const focus = editingField ?? session.nextField ?? intakeNextField(request, session.answered);
   const ready = !focus;
   const summary = intakeSummary(request, session.answered);
   const starting = !session.messages.length && !summary.length;
@@ -88,6 +89,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       const reply = intakeReplySchema.parse(await readPlanningResponse(response, () => {}));
       if (abort.signal.aborted) return;
       setRequest(reply.request);
+      setEditingField(null);
       const entry: ChatSession["messages"][number] = { id: crypto.randomUUID(), role: "assistant", text: reply.message };
       setSession((previous) => ({ answered: reply.answered, nextField: reply.nextField, messages: [...previous.messages, entry].slice(-24) }));
     } catch (failure) {
@@ -102,6 +104,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       <div><span className={styles.chatAvatar} aria-hidden="true">a.</span><h1>Your date planner</h1></div>
       {summary.length > 0 && <details className={styles.summary}><summary>Date details <ChevronDown size={14} aria-hidden="true" /></summary><dl>{summary.map(({ field, value }) => <div key={field}><dt>{field === "vibe" ? "Vibe" : field === "people" ? "Guests" : field.charAt(0).toUpperCase() + field.slice(1)}</dt><dd>{value}</dd></div>)}</dl></details>}
     </header>
+    {summary.length > 0 && <div className={styles.detailChips} aria-label="Edit date details">{summary.filter(({ field }) => ["location", "date", "time", "budget"].includes(field)).map(({ field, value }) => <button key={field} type="button" aria-label={`Change ${field === "location" ? "city" : field}: ${value}`} aria-pressed={editingField === field} disabled={sending} onClick={() => { setEditingField(field); scrollToLatest(); input.current?.focus(); }}>{value}</button>)}</div>}
     <div ref={conversation} className={styles.transcript} onScroll={(event) => {
       const viewport = event.currentTarget;
       const nearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
@@ -122,9 +125,10 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
     </div>
     {showLatest && <button className={styles.latest} type="button" onClick={scrollToLatest}><ArrowDown size={16} aria-hidden="true" /> Latest messages</button>}
     <div className={styles.dock}>
+      {editingField && <div className={styles.editing}><p id="chat-edit-prompt">{intakeQuestion(editingField)}</p><button type="button" disabled={sending} onClick={() => { setEditingField(null); input.current?.focus(); }}>Cancel edit</button></div>}
       <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void send(message); }}>
         <label className="sr-only" htmlFor="planner-chat-message">Message your date planner</label>
-        <textarea ref={input} id="planner-chat-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={1200} rows={1} placeholder={sending ? "Add another thought…" : "Message adal…"} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && window.matchMedia("(hover: hover) and (pointer: fine)").matches) { event.preventDefault(); void send(message); } }} />
+        <textarea ref={input} id="planner-chat-message" aria-describedby={editingField ? "chat-edit-prompt" : undefined} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={1200} rows={1} placeholder={sending ? "Add another thought…" : editingField ? `New ${editingField === "location" ? "city" : editingField}…` : "Message adal…"} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && window.matchMedia("(hover: hover) and (pointer: fine)").matches) { event.preventDefault(); void send(message); } }} />
         <button type="submit" aria-label="Send message" disabled={sending || !message.trim()}><ArrowUp size={20} aria-hidden="true" /></button>
       </form>
       <span className={styles.composerNote}>A little input. A lot of thought.</span>

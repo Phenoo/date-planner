@@ -1,10 +1,16 @@
-import { cityRecordSchema, citySearchSchema, nearbyCities } from "@/lib/maps/cities";
+import { cityRecordSchema, citySearchSchema, countryCitySearchSchema, citiesForCountry, nearbyCities } from "@/lib/maps/cities";
 import cityData from "@/lib/maps/data/cities.json";
 import { geocodeLocation } from "@/lib/maps/google";
 import { apiError, readJson, RequestError } from "@/lib/planner/http";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
 
 const cities = cityRecordSchema.array().parse(cityData);
+
+export function GET(request: Request) {
+  const input = countryCitySearchSchema.safeParse({ country: new URL(request.url).searchParams.get("country") ?? "" });
+  if (!input.success) return Response.json({ error: "Choose a valid country." }, { status: 400 });
+  return Response.json(citiesForCountry(cities, input.data.country), { headers: { "Cache-Control": "public, max-age=86400" } });
+}
 
 export async function POST(request: Request) {
   try {

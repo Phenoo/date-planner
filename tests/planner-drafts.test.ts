@@ -1,7 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { restorePlannerStep, plannerQuestions, plannerQuestionCount, plannerDraftVersion } from "../lib/planner/questions";
-import { clearPlannerDrafts, draftIsCurrent, draftLifetimeMs } from "../lib/planner/draft-retention";
+import { clearPlannerDrafts, draftIsCurrent, draftLifetimeMs, draftResumePath, savedPlannerMode } from "../lib/planner/draft-retention";
+import { requestSchema } from "../lib/planner/schema";
+
+test("the homepage resumes only an unexpired, valid draft with actual progress and a safe local URL", () => {
+  const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Romantic date", budget: 60000, vibes: ["Romantic"], duration: 180 });
+  const draft = { request, step: 3, flow: "12345678-1234-4234-8234-123456789abc", expiresAt: 1500 };
+  assert.equal(draftResumePath(JSON.stringify(draft), 1000), `/plan?flow=${draft.flow}`);
+  assert.equal(draftResumePath(JSON.stringify({ ...draft, flow: "https://another-site.test" }), 1000), "/plan");
+  assert.equal(draftResumePath(JSON.stringify(draft), 1500), null);
+  assert.equal(draftResumePath(JSON.stringify({ ...draft, step: 0 }), 1000), null);
+  assert.equal(draftResumePath(JSON.stringify({ ...draft, step: 0, chatSession: { answered: ["location"] } }), 1000), `/plan?flow=${draft.flow}`);
+  assert.equal(draftResumePath(JSON.stringify({ ...draft, request: {} }), 1000), null);
+  assert.equal(draftResumePath("invalid JSON", 1000), null);
+});
+test("planning style preferences accept only existing chat and steps modes", () => {
+  assert.equal(savedPlannerMode("chat"), "chat");
+  assert.equal(savedPlannerMode("steps"), "steps");
+  for (const value of [null, undefined, "CHAT", "unknown", {}]) assert.equal(savedPlannerMode(value), null);
+});
 test("new drafts expire and clearing a draft cannot leave an older version to resurrect", () => {
   assert.equal(draftIsCurrent({ expiresAt: 1500 }, 1000), true);
   assert.equal(draftIsCurrent({ expiresAt: 1500 }, 1500), false);

@@ -32,6 +32,8 @@
 .underlined::after { content: ""; position: absolute; height: 6px; border-bottom: 3px solid white; border-radius: 50%; bottom: -.04em; left: 0; right: 0; transform-origin: left; animation: underlineReveal 900ms 750ms cubic-bezier(.16,1,.3,1) both; }
 .description { color: #fff0f3; max-width: 390px; font-size: 15px; line-height: 1.85; margin-top: 29px; animation: riseIn 800ms 350ms both; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 31px; animation: riseIn 800ms 500ms both; }
+.newPlan { min-height: 44px; padding: 10px 14px; color: #fff; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
+.newPlan:hover:not(:disabled) { background: #ffffff12; border-radius: 10px; }
 .primary { min-height: 58px; min-width: 248px; max-width: 100%; display: inline-flex; justify-content: center; align-items: center; gap: 12px; padding: 15px 22px; border-radius: 12px; font-size: 15px; line-height: 1.5; letter-spacing: -.015em; font-weight: 600; color: #ba0c2d; background: white; border: 1px solid white; box-shadow: 0 2px 4px #93051f0d; transition: transform 180ms, background 180ms, box-shadow 180ms; }
 .primary > span { width: 20px; height: 20px; flex-shrink: 0; display: grid; place-items: center; color: var(--intro-red); }
 .primary:hover:not(:disabled) { background: #fff8fa; transform: translateY(-1px); box-shadow: 0 6px 14px #76091c14; }
@@ -118,6 +120,8 @@
   .actions { position: fixed; inset-inline: 0; bottom: var(--bottom-nav-offset); z-index: 40; margin: 0; padding: 16px 20px calc(16px + env(safe-area-inset-bottom,0px)); background: linear-gradient(to top,var(--intro-red) 70%,#d9133500); animation: none; }
   :global(.has-mobile-nav) .actions { padding-bottom: 16px; }
   .primary { min-width: 0; width: 100%; min-height: 54px; padding: 14px 20px; font-size: 14px; }
+  .intro:has(.newPlan) { padding-bottom: calc(132px + env(safe-area-inset-bottom,0px)); }
+  .newPlan { margin: 0 auto; }
   .art { height: 305px; max-width: 390px; margin-inline: auto; }
   .artHalo { width: 280px; height: 280px; top: 13px; }
   .postcard, .postcardBack { width: 210px; height: 257px; top: 18px; left: calc(50% - 105px); }

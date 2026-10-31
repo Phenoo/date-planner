@@ -1,0 +1,8 @@
+.note { margin: 18px auto; max-width: 520px; width: 100%; color: var(--planner-text,var(--charcoal)); text-align: center; }
+.note summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-size: 13px; }
+.note summary span { font-size: 11px; }
+.note textarea { width: 100%; resize: vertical; min-height: 100px; font-size: 16px; }
+.note p { font-size: 12px; line-height: 1.7; margin-top: 10px; }
+.note > a { display: inline-block; padding: 12px; min-height: 44px; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
+.note > a[aria-disabled="true"] { opacity: .5; cursor: default; }
+.actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }

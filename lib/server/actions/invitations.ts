@@ -5,7 +5,7 @@ import { getDatabase } from "@/lib/firebase/server";
 import { apiError, readJson, RequestError } from "@/lib/planner/http";
 import { invitationInputSchema, nextInvitationResponse } from "@/lib/planner/invitations";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
-import { createCatalogInvitation, createChosenDate, readChosenSelection, revokeDateInvitation, readDateInvitation, storedDateSchema, tokenKey } from "@/lib/server/date-invitations";
+import { createCatalogInvitation, createChosenDate, readChosenSelection, revokeDateInvitation, updateInvitationMessage, readDateInvitation, storedDateSchema, tokenKey } from "@/lib/server/date-invitations";
 import { z } from "zod";
 import { scheduleError } from "@/lib/planner/schedule";
 import { calendarInstant } from "@/lib/planner/calendar";
@@ -28,6 +28,7 @@ export async function invitations(request: Request) {
     }
     if (input.action === "selection") return Response.json(await readChosenSelection(request, input.sessionId, input.placeId), { headers: { "Cache-Control": "no-store" } });
     if (input.action === "revoke") return Response.json(await revokeDateInvitation(request, input.id), { headers: { "Cache-Control": "no-store" } });
+    if (input.action === "message") return Response.json(await updateInvitationMessage(request, input.id, input.message), { headers: { "Cache-Control": "no-store" } });
     if (input.action === "read") return Response.json(await readDateInvitation(input.token), { headers: { "Cache-Control": "no-store" } });
     const db = getDatabase();
     const ref = db.collection("dateInvitations").doc(tokenKey(input.token));

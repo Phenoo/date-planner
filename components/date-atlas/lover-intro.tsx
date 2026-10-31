@@ -23,7 +23,7 @@ function subscribeVisibility(notify: () => void) {
   return () => document.removeEventListener("visibilitychange", notify);
 }
 
-export function LoverIntro({ onContinue }: { onContinue: () => void }) {
+export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; onResume?: () => void }) {
   const [pending, startTransition] = useTransition();
   const heading = useRef<HTMLHeadingElement>(null);
   const reduced = useSyncExternalStore(subscribeMotion, () => window.matchMedia("(prefers-reduced-motion: reduce)").matches, () => true);
@@ -52,7 +52,8 @@ export function LoverIntro({ onContinue }: { onContinue: () => void }) {
           </h1>
           <p className={styles.description}>The thoughtful kind. The “I planned something for us” kind. The little-things-mean-everything kind.</p>
           <div className={styles.actions}>
-            <button type="button" className={styles.primary} disabled={pending} aria-busy={pending} onClick={() => startTransition(onContinue)}>Let&apos;s plan a date{pending && <span aria-hidden="true"><i className={styles.spinner} /></span>}</button>
+            <button type="button" className={styles.primary} disabled={pending} aria-busy={pending} onClick={() => startTransition(onResume ?? onContinue)}>{onResume ? "Continue planning" : "Let's plan a date"}{pending && <span aria-hidden="true"><i className={styles.spinner} /></span>}</button>
+            {onResume && <button type="button" className={styles.newPlan} disabled={pending} onClick={() => startTransition(onContinue)}>Plan a new date</button>}
           </div>
           <p className="sr-only">Good dates don&apos;t have to be hard to plan. Tell us your vibe, time, and budget. We connect the details so you can enjoy the company and make a memory.</p>
         </section>
