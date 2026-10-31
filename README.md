@@ -109,4 +109,4 @@ The [completion report and release runbook](docs/release-completion-2026-10-30.m
 
 Deploy the compatible frontend, private function and additive `firestore.indexes.json` configuration together only after approval and a separate preview check. Expiry policies apply to temporary context/request records and reports/events, not permanent saved plans or date history. New private planning context is available for one hour; cleanup is asynchronous. No production deployment, payment activation or paid service was performed in this pass.
 
-The subsequent approved [31 October production release](docs/production-release-2026-10-31.md) records the deployed frontend/backend, active indexes and expiry policies, read-only live checks, rollback versions and outstanding live Google consent-screen configuration. Payments remain disabled.
+The subsequent approved [31 October production release](docs/production-release-2026-10-31.md) records the deployed frontend/backend, active indexes and expiry policies, read-only live checks, rollback versions and enabled live Google sign-in. Payments remain disabled.
