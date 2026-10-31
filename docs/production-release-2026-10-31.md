@@ -55,3 +55,32 @@ Seven read-only smoke checks passed on the new production build and again on the
 The installed Vercel CLI assigned the default project alias during the build despite `--skip-domain`. The primary `date-atlas.vercel.app` alias was explicitly moved after the backend update and build checks. Both public aliases were subsequently verified against `dpl_9gEBJfcyfM7cTW9PSos7mMXjZnTB`. A bounded runtime query for error/fatal logs on that deployment returned zero records after the live checks. No external log drains are configured; this is an initial error scan, not continuous monitoring or a full production mutation test.
 
 For this update's rollback, re-promote `date-atlas-mrr6vkkv0-logicleads-projects.vercel.app` and explicitly assign `date-atlas.vercel.app` to it. If backend rollback is needed, restore the matching `dateplanner-00022-buj` source/configuration preserved privately before this update. No database migration or user-data rollback is required for these changes. Payments remain disabled.
+
+## Subsequent planning simplicity and location release
+
+The owner explicitly approved this production update. Application source is `a755519b5b0775349445cfc2acc1a04af3cab6fd`, pushed to the existing GitHub repository's `main` branch.
+
+| Component | Immediately before this update | Released |
+| --- | --- | --- |
+| Vercel frontend | `dpl_9gEBJfcyfM7cTW9PSos7mMXjZnTB` | `dpl_GFhjtPPzFJ2gDTmeKQvHEoGG8QV7`, READY |
+| Firebase planner | `dateplanner-00023-guy` | `dateplanner-00024-zor`, ACTIVE |
+| Frontend build | Previous production source | Next.js 16.4.3, Node 24; build completed in 55 seconds |
+
+The production deployment is `date-atlas-pummcasy9-logicleads-projects.vercel.app`. Both `date-atlas.vercel.app` and the default project alias point to this deployment. The existing design, one primary recommendation, guest planning and registered-only saving/sharing remain in place.
+
+The release remembers the selected planning style, resumes current unfinished drafts directly from the homepage, exposes editable chat detail chips, and shortens the cinematic reveal to three chapters while retaining its opening drum roll and skip. Country detection uses Vercel's network country header without GPS permission, returning only a country with private, no-store caching. Manual country/city selection uses the existing GeoNames dataset, optional device-distance sorting and at most three suggestions. The country field is tucked behind a compact Change control. Explicit occasion quick replies reliably advance even if the AI omits the preference patch.
+
+An optional, length-limited invitation note is deliberately public to link recipients. Only the authenticated creator can change it. It is not placed in browser drafts or generic social metadata. Private history and the active public projection update together; a note cannot publish a private plan or resurrect a revoked link. Notes survive renewed links and can be removed. The existing share areas and saved-date details include a recipient preview. Schema changes are additive and optional; no database migration, new index, new dependency or environment variable was required.
+
+### Verification and rollout
+
+- All 124 unit tests passed again immediately before release. Typecheck, lint, the 40-page frontend build, private-function build, and the local Auth/Firestore emulator regression suite passed in the implementation pass. The production build also passed its TypeScript check and generated all 40 pages.
+- Local browser checks covered remembered planning style, draft recovery, chat budget edits preserving other answers, 360px/390px layouts, white/dark chip contrast, three reveal chapters and skip, manual country correction, invitation-note saving and recipient display. These were local/emulator checks, not physical-device or complete production mutation tests.
+- Nine read-only smoke checks passed on the staged production build and again on the live alias: privacy, catalog, country and Ghana city lookup returned 200; private saved-plan, feedback and privacy routes rejected unauthenticated access; past-date generation and malformed history input returned 400. The country response was separately checked for private, no-store caching and a country-only payload.
+- The live homepage and planner entry were inspected in the in-app browser without selecting a planning mode. No production test account, generated plan, invitation, message, reservation or payment was created. Invitation-note authorization, isolation, idempotency, revocation, removal and retained timing were exercised against local emulators.
+- The compatible private backend was updated first. The frontend used the existing production project configuration. The CLI again assigned the default project alias despite `--skip-domain`; the primary public alias was explicitly moved after the staged checks. Both aliases were subsequently verified against the released deployment ID and source commit.
+- The planner function has no public IAM invoker. Google sign-in remains enabled; all five composite indexes remain READY and all seven expiry policies ACTIVE. Deployment protection, database rules, credentials, billing and paid services were unchanged. A bounded error/fatal runtime query for the new deployment returned no matching errors after the live checks. No external log drains are configured; this is an initial scan rather than continuous monitoring.
+
+### Rollback for this update
+
+Re-promote `date-atlas-y4hu9xv2l-logicleads-projects.vercel.app` and explicitly restore `date-atlas.vercel.app` to that deployment. If backend rollback is necessary, restore the matching `dateplanner-00023-guy` source and configuration preserved privately before this rollout. Existing records need no rollback or backfill; the optional invitation message can remain in stored records. Rolling back the frontend hides the note editor without exposing private plan fields. Payments, subscriptions, commissions and paid concierge remain disabled.
