@@ -10,6 +10,7 @@ import type { DatePlan, PlanRequest } from "@/lib/planner/schema";
 import { money } from "@/lib/utils";
 import { VenueDetails } from "./venue-details";
 import { GeneratingScreen } from "./generating-screen";
+import { RecommendationReady } from "./recommendation-ready";
 import styles from "./cinematic-reveal.module.css";
 
 import { RejectionDialog, type RejectionReason } from "./rejection-dialog";
@@ -26,6 +27,8 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
   function acceptPick() { trackFunnel("recommendation_accepted", eventScope.current); onAccept(); }
   function rejectPick(reason: RejectionReason) { lastReason.current = reason; trackFunnel("recommendation_rejected", eventScope.current, reason); onReject(reason); }
   const [chapter, setChapter] = useState(initialChapter);
+  const [introComplete, setIntroComplete] = useState(initialChapter > 0);
+  const revealFingerprint = JSON.stringify([place.id, request.date, request.startTime]);
   const [photoFailed, setPhotoFailed] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const screen = useRef<HTMLElement>(null);
@@ -41,6 +44,21 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
     "One thoughtful possibility. Take a closer look, then trust your feeling.",
   ];
   useEffect(() => {
+    let active = true;
+    void Promise.resolve().then(() => {
+      try {
+        const stored: unknown = JSON.parse(sessionStorage.getItem("date-atlas:reveal-opened:v1") || "null");
+        if (active && stored && typeof stored === "object" && "fingerprint" in stored && stored.fingerprint === revealFingerprint && "expiresAt" in stored && typeof stored.expiresAt === "number" && stored.expiresAt > Date.now()) setIntroComplete(true);
+      } catch { /* The reveal remains usable when storage is unavailable. */ }
+    });
+    return () => { active = false; };
+  }, [revealFingerprint]);
+  function finishIntro(next = 0) {
+    try { sessionStorage.setItem("date-atlas:reveal-opened:v1", JSON.stringify({ fingerprint: revealFingerprint, expiresAt: Date.now() + 3600000 })); } catch { /* The current reveal continues without storage. */ }
+    setIntroComplete(true);
+    setChapter(next);
+  }
+  useEffect(() => {
     if (busy) return;
     const overflow = document.body.style.overflow;
     const uncover = coverScreenSiblings(screen.current);
@@ -48,24 +66,26 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
     return () => { document.body.style.overflow = overflow; uncover(); };
   }, [busy]);
   useEffect(() => {
+    if (busy) return;
     screen.current?.scrollTo({ top: 0 });
-    heading.current?.focus({ preventScroll: true });
-  }, [chapter]);
+    if (introComplete) heading.current?.focus({ preventScroll: true });
+  }, [chapter, introComplete, busy]);
   function move(next: number) { setChapter(Math.max(0, Math.min(chapterNames.length - 1, next))); }
   function keyDown(event: KeyboardEvent<HTMLElement>) {
+    if (!introComplete) return;
     if (event.target instanceof Element && event.target.closest("button,a,input,summary")) return;
     if (event.key === "ArrowRight") { event.preventDefault(); move(chapter + 1); }
     if (event.key === "ArrowLeft") { event.preventDefault(); move(chapter - 1); }
   }
   if (busy) return <GeneratingScreen stage="Finding one different place, with your preferences intact" theme="red" onCancel={onCancelGeneration} />;
   return <main ref={screen} className={styles.screen} data-chapter={chapter} aria-label="Your one perfect pick" onKeyDown={keyDown}
-    onPointerDown={(event) => { if (!(event.target instanceof Element && event.target.closest("button,a,input,summary"))) pointer.current = { x: event.clientX, y: event.clientY }; }}
+    onPointerDown={(event) => { if (introComplete && !(event.target instanceof Element && event.target.closest("button,a,input,summary"))) pointer.current = { x: event.clientX, y: event.clientY }; }}
     onPointerUp={(event) => { const start = pointer.current; pointer.current = null; if (start && Math.abs(event.clientX - start.x) > 70 && Math.abs(event.clientX - start.x) > Math.abs(event.clientY - start.y) * 1.5) move(chapter + (event.clientX < start.x ? 1 : -1)); }} onPointerCancel={() => { pointer.current = null; }}>
     <RejectionDialog open={rejectOpen} onOpenChange={setRejectOpen} radius={Math.max(1, Math.floor(request.maxDistance / 2))} onConfirm={rejectPick} />
     <div className={styles.backdrop} aria-hidden="true"><div className={styles.morph} /><svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice"><path d="M-80 710C280 900 760 700 540 400S180 70 500 90 1070 290 1320 70" /></svg><span>together.</span></div>
-    <header className={styles.header}><span className={styles.logo}>adal<span>.</span></span><span className={styles.headerNote}>ONE PLACE. THOUGHTFULLY CHOSEN.</span><div className={styles.headerActions}>{chapter < 5 && <button type="button" onClick={() => move(5)}>Skip to details</button>}<button type="button" onClick={onEdit}>Edit answers ↗</button></div></header>
-    <nav className={styles.progress} aria-label="Your reveal chapters">{chapterNames.map((name, index) => <button type="button" key={name} aria-label={name} aria-current={chapter === index ? "step" : undefined} data-complete={chapter >= index} onClick={() => move(index)}><span /></button>)}</nav>
-    {rejected && error ? <section className={`${styles.scene} ${styles.errorScene}`}><span className={styles.eyebrow}>A LITTLE MORE THOUGHT</span><h1 ref={heading} tabIndex={-1}>Let&apos;s find your kind of yes.</h1><p role="alert">{error}</p><div className={styles.actions}><Button className={styles.primary} onClick={() => rejectPick(lastReason.current)}>Try one replacement</Button><Button className={styles.secondary} variant="outline" onClick={onEdit}>Change preferences</Button></div></section> : <>
+    <header className={styles.header}><span className={styles.logo}>adal<span>.</span></span><span className={styles.headerNote}>ONE PLACE. THOUGHTFULLY CHOSEN.</span><div className={styles.headerActions}>{chapter < 5 && <button type="button" onClick={() => introComplete ? move(5) : finishIntro(5)}>Skip to details</button>}<button type="button" onClick={onEdit}>Edit answers ↗</button></div></header>
+    {introComplete && <nav className={styles.progress} aria-label="Your reveal chapters">{chapterNames.map((name, index) => <button type="button" key={name} aria-label={name} aria-current={chapter === index ? "step" : undefined} data-complete={chapter >= index} onClick={() => move(index)}><span /></button>)}</nav>}
+    {!introComplete ? <RecommendationReady city={request.city} onContinue={() => finishIntro()} /> : rejected && error ? <section className={`${styles.scene} ${styles.errorScene}`}><span className={styles.eyebrow}>A LITTLE MORE THOUGHT</span><h1 ref={heading} tabIndex={-1}>Let&apos;s find your kind of yes.</h1><p role="alert">{error}</p><div className={styles.actions}><Button className={styles.primary} onClick={() => rejectPick(lastReason.current)}>Try one replacement</Button><Button className={styles.secondary} variant="outline" onClick={onEdit}>Change preferences</Button></div></section> : <>
       <section key={chapter} className={`${styles.scene} ${chapter >= 4 ? styles.revealScene : ""} ${chapter === 5 ? styles.detailScene : ""}`}>
         <div className={styles.copy}><span className={styles.eyebrow}>{chapterNames[chapter]}</span><h1 ref={heading} tabIndex={-1} aria-label={titles[chapter]}>{titles[chapter].split(" ").map((word, index) => <span className={styles.word} aria-hidden="true" key={`${word}:${index}`}><span style={{ "--word": index } as CSSProperties}>{word}&nbsp;</span></span>)}</h1><p>{descriptions[chapter]}</p>
           {chapter === 1 && <div className={styles.vibes}>{request.vibes.slice(0, 4).map((vibe, index) => <span key={vibe} style={{ "--word": index } as CSSProperties}>{vibe}</span>)}</div>}

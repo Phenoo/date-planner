@@ -59,7 +59,7 @@ export function intakeQuestion(field: IntakeField | null) {
     time: "What starting time works? Morning, afternoon, evening, or an exact time — in the venue's local time.",
     duration: "How long do you have together, including travel? Tell me in hours, or choose a full day.",
   };
-  return field ? questions[field] : "That's enough to choose one place. Check your preferences below, then tap ‘Find my date’ when you're ready.";
+  return field ? questions[field] : "I have the details. Tap ‘Find my date’ when you're ready, or tell me what you'd like to change.";
 }
 
 export function applyIntakeOutput(input: IntakeInput, output: unknown) {

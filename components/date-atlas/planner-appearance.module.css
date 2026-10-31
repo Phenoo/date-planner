@@ -54,6 +54,8 @@
   color: var(--planner-text);
 }
 .planner { min-height: 100svh; background: var(--planner-bg); }
+.planner[data-planner-mode="chat"] { height: var(--chat-viewport-height,100dvh); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.planner[data-planner-mode="chat"] > :global(.atlas-header) { position: relative; flex-shrink: 0; }
 .planner :global(.atlas-header) { background: var(--planner-bg); border-color: var(--planner-border); gap: 16px; box-shadow: none; }
 .planner :global(.atlas-wordmark), .planner :global(.atlas-wordmark) > span { color: var(--planner-text); }
 .planner[data-planner-theme="white"] :global(.atlas-wordmark) > span { color: var(--red); }

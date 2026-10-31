@@ -22,10 +22,3 @@ export function PlannerModeChoice({ onChoose }: { onChoose: (mode: PlannerMode) 
     </div>
   </main>;
 }
-
-export function PlannerModeSwitch({ mode, onChange, disabled }: { mode: PlannerMode; onChange: (mode: PlannerMode) => void; disabled: boolean }) {
-  return <div className={styles.modeSwitch} role="group" aria-label="Planning interface">
-    <button type="button" aria-pressed={mode === "chat"} disabled={disabled} onClick={() => onChange("chat")}>Chat</button>
-    <button type="button" aria-pressed={mode === "steps"} disabled={disabled} onClick={() => onChange("steps")}>Step by step</button>
-  </div>;
-}

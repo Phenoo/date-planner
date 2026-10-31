@@ -29,7 +29,7 @@ import { ExperiencePage } from "./experience-page";
 import { Dashboard, ProfilePreferences } from "./dashboard";
 import { preferenceSchema } from "@/lib/planner/preferences-storage";
 import { chatSessionSchema, emptyChatSession, answeredThroughStep, intakeFields, intakeNextField, stepForIntake, type PlannerMode } from "@/lib/planner/intake";
-import { PlannerModeChoice, PlannerModeSwitch } from "./planner-mode-choice";
+import { PlannerModeChoice } from "./planner-mode-choice";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
@@ -649,13 +649,17 @@ export function DateAtlas({
     }
   }
   async function restore(recipe: SavedRecipe) {
-    const owner = getBrowserAuth()?.currentUser?.uid;
+    const auth = getBrowserAuth();
+    let owner = auth?.currentUser?.uid;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     const id = ++generationId.current;
     setBusy(true);
     try {
+      await auth?.authStateReady();
+      owner = auth?.currentUser?.uid;
+      if (controller.signal.aborted || id !== generationId.current) return;
       const response = await plannerFetch("/api/plans/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -873,6 +877,7 @@ export function DateAtlas({
       <div
         className={`atlas-app ${planning ? `is-planning ${plannerStyles.palette} ${plannerStyles.planner}` : ""} ${view === "home" ? "is-lover-intro" : ""} ${signedIn && !planning ? "has-mobile-nav" : ""} ${view === "results" ? "has-itinerary" : ""}`}
         data-planner-theme={planning ? plannerAppearance : undefined}
+        data-planner-mode={planning ? plannerMode ?? undefined : undefined}
       >
         <header className={`atlas-header ${compactHeader ? "compact" : ""}`}>
           <Link
@@ -1047,7 +1052,6 @@ export function DateAtlas({
             </small>
           </div>
         )}
-        {planning && draftReady && plannerMode !== null && !busy && <PlannerModeSwitch mode={plannerMode} onChange={choosePlannerMode} disabled={busy} />}
         {planning && (!draftReady || plannerMode === null && busy) && <main className="planning-loader"><p>{busy ? "Opening your date plan…" : "Getting your questions ready…"}</p></main>}
         {planning && draftReady && plannerMode === null && !busy && <PlannerModeChoice onChoose={choosePlannerMode} />}
         {planning && draftReady && plannerMode === "chat" && <PlannerChat onCancelGeneration={cancelGeneration} request={request} setRequest={setRequest} session={chatSession} setSession={setChatSession} onGenerate={() => generate()} loading={busy} loadingStage={loadingStage} serverError={error} />}

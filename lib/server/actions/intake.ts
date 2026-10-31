@@ -13,7 +13,7 @@ export async function intake(request: Request) {
     if (parsed.data.today < addCalendarDays(utcToday, -1) || parsed.data.today > addCalendarDays(utcToday, 1)) throw new RequestError("Refresh the planner so we can use your current date.", 400);
     await enforcePlannerLimit(request, "conversation");
     const model = getAI();
-    if (!model) throw new RequestError("Chat planning is temporarily unavailable. Your answers are safe; try again or switch to Step by step.", 503);
+    if (!model) throw new RequestError("Chat planning is temporarily unavailable. Your answers are safe; please try again shortly.", 503);
     const { startingArea: _origin, yourGender: _gender, dateGender: _dateGender, ...preferences } = parsed.data.request;
     void _origin; void _gender; void _dateGender;
     try {
@@ -28,7 +28,7 @@ export async function intake(request: Request) {
       if (!reply) throw new Error("Unusable planning reply");
       return Response.json(reply, { headers: { "Cache-Control": "no-store" } });
     } catch {
-      throw new RequestError("I couldn't read that message just now. Your answers are safe. Try again, or switch to Step by step.", 503);
+      throw new RequestError("I couldn't read that message just now. Your answers are safe. Please try sending it again.", 503);
     }
   } catch (error) { return apiError(error); }
 }
