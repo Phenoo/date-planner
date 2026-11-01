@@ -1,11 +1,42 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyIntakeOutput, intakeInputSchema, intakeOutputSchema, intakeFields, intakeNextField, answeredThroughStep, stepForIntake, chatSessionSchema } from "../lib/planner/intake";
+import { applyIntakeOutput, intakeInputSchema, intakeOutputSchema, intakeFields, intakeNextField, intakeTimeReply, answeredThroughStep, stepForIntake, chatSessionSchema } from "../lib/planner/intake";
 import { requestSchema } from "../lib/planner/schema";
 import { plannerQuestions } from "../lib/planner/questions";
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Romantic date", vibes: ["Romantic"], budget: 60000, date: "", startTime: "", duration: 300, dietary: ["halal"] });
 const input = (message: string, overrides = {}) => intakeInputSchema.parse({ request, message, today: "2026-10-30", answered: [], nextField: "location", ...overrides });
+test("exact time selections and typed times retain every minute without AI presets", () => {
+  const preferences = { ...request, date: "2030-11-02", startTime: "18:00", endTime: "20:00" };
+  for (const [message, expected] of [["Start at 19:45.", "19:45"], ["7:45 pm", "19:45"], ["7.45pm", "19:45"], ["09:17", "09:17"], ["12am", "00:00"], ["12 PM", "12:00"], ["At 8 PM", "20:00"], ["23:59", "23:59"]]) {
+    const result = intakeTimeReply(input(message, { request: preferences, nextField: "time", answered: intakeFields }), new Date("2030-11-01T12:00:00Z"));
+    assert.ok(result);
+    assert.equal(result.request.startTime, expected);
+    assert.equal(result.request.endTime, "");
+    assert.deepEqual(result.request, { ...preferences, startTime: expected, endTime: "" });
+    assert.equal(result.ready, true);
+  }
+});
+test("time edits still reject past times in the venue timezone without changing other answers", () => {
+  const preferences = { ...request, date: "2030-11-01", startTime: "18:00" };
+  const now = new Date("2030-11-01T12:30:00Z");
+  const past = intakeTimeReply(input("13:15", { request: preferences, nextField: "time", answered: intakeFields }), now);
+  assert.equal(past?.ready, false);
+  assert.equal(past?.nextField, "time");
+  assert.match(past?.message ?? "", /already passed/);
+  assert.deepEqual(past?.request, preferences);
+  assert.equal(intakeTimeReply(input("13:30", { request: preferences, nextField: "time" }), now)?.ready, false);
+  const future = intakeTimeReply(input("13:31", { request: preferences, nextField: "time", answered: intakeFields }), now);
+  assert.equal(future?.request.startTime, "13:31");
+  const expiredDate = intakeTimeReply(input("Start at 19:45.", { request: { ...preferences, date: "2030-10-31" }, nextField: "time" }), now);
+  assert.equal(expiredDate?.nextField, "date");
+  assert.equal(expiredDate?.ready, false);
+});
+test("ambiguous or invalid clock replies stay in the existing conversational validation path", () => {
+  for (const message of ["25:00", "7:60 pm", "0pm", "13pm", "8", "not 8 PM", "7 PM or 8 PM", "two hours", "tomorrow at 7 PM"]) assert.equal(intakeTimeReply(input(message, { nextField: "time" })), null);
+  assert.equal(intakeTimeReply(input("7:45", { nextField: "duration" })), null);
+  assert.equal(intakeTimeReply(input("Start at 19:45", { request: { ...request, date: "2030-11-02" }, nextField: "duration" }))?.request.startTime, "19:45");
+});
 test("explicit occasion replies advance even when the AI omits an unchanged or informal answer", () => {
   for (const [message, occasion] of [["A first date", "First date"], ["Our anniversary", "Anniversary"], ["Just because", "Just because"]]) {
     const result = applyIntakeOutput(input(message, { answered: ["location"], nextField: "occasion" }), { acknowledgement: "A little time together sounds lovely.", patch: {} });

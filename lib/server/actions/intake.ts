@@ -1,6 +1,6 @@
 import { generateText, Output } from "ai";
 import { getAI, generationOptions } from "@/lib/planner/ai";
-import { intakeInputSchema, intakeOutputSchema, applyIntakeOutput } from "@/lib/planner/intake";
+import { intakeInputSchema, intakeOutputSchema, applyIntakeOutput, intakeTimeReply } from "@/lib/planner/intake";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
 import { apiError, readJson, RequestError } from "@/lib/planner/http";
 import { addCalendarDays } from "@/lib/planner/schedule";
@@ -12,6 +12,8 @@ export async function intake(request: Request) {
     const utcToday = new Date().toISOString().slice(0, 10);
     if (parsed.data.today < addCalendarDays(utcToday, -1) || parsed.data.today > addCalendarDays(utcToday, 1)) throw new RequestError("Refresh the planner so we can use your current date.", 400);
     await enforcePlannerLimit(request, "conversation");
+    const timeReply = intakeTimeReply(parsed.data);
+    if (timeReply) return Response.json(timeReply, { headers: { "Cache-Control": "no-store" } });
     const model = getAI();
     if (!model) throw new RequestError("Chat planning is temporarily unavailable. Your answers are safe; please try again shortly.", 503);
     const { startingArea: _origin, yourGender: _gender, dateGender: _dateGender, ...preferences } = parsed.data.request;

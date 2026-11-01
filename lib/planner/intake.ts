@@ -56,10 +56,25 @@ export function intakeQuestion(field: IntakeField | null) {
     vibe: "What kind of date sounds good: romantic, playful, relaxed, creative — or something else?",
     budget: "Do you have a comfortable spending ceiling? Give me a total or per-person amount, or say ‘keep it open’.",
     date: "Which actual day works for you? If it's a weekend, choose Saturday or Sunday.",
-    time: "What starting time works? Morning, afternoon, evening, or an exact time — in the venue's local time.",
+    time: "What time would you like to start? Choose any time or type one, like 7:45 PM — in the venue's local time.",
     duration: "How long do you have together, including travel? Tell me in hours, or choose a full day.",
   };
   return field ? questions[field] : "I have the details. Tap ‘Find my date’ when you're ready, or tell me what you'd like to change.";
+}
+
+export function intakeTimeReply(input: IntakeInput, now = new Date()) {
+  if (input.nextField !== "time" && input.nextField !== null && !/^start(?:ing)?\b/i.test(input.message.trim())) return null;
+  const match = input.message.trim().match(/^(?:start(?:ing)?(?: the date)?(?: at)?\s+|at\s+)?(\d{1,2})(?:[:.]([0-5]\d))?\s*(am|pm)?[.!]?$/i);
+  if (!match || !match[2] && !match[3]) return null;
+  const hour = Number(match[1]);
+  const period = match[3]?.toLowerCase();
+  if (period ? hour < 1 || hour > 12 : hour > 23) return null;
+  const startTime = `${String(period ? hour % 12 + (period === "pm" ? 12 : 0) : hour).padStart(2, "0")}:${match[2] ?? "00"}`;
+  const current = zonedNow(input.request.timeZone, now);
+  if (input.request.date && (input.request.date < current.date || input.request.date === current.date && startTime <= current.time)) {
+    return { request: input.request, answered: input.answered, nextField: input.request.date < current.date ? "date" as const : "time" as const, ready: false, message: input.request.date < current.date ? "Choose today or a future date, then we can set the time." : "That time has already passed. Choose a later time for your date." };
+  }
+  return applyIntakeOutput({ ...input, message: `Start at ${startTime}.` }, { acknowledgement: `We'll start at ${clockLabel(timeMinutes(startTime))}, in ${input.request.timeZone}.`, patch: { startTime } });
 }
 
 export function applyIntakeOutput(input: IntakeInput, output: unknown) {

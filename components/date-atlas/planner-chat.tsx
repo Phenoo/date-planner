@@ -104,7 +104,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       <div><span className={styles.chatAvatar} aria-hidden="true">a.</span><h1>Your date planner</h1></div>
       {summary.length > 0 && <details className={styles.summary}><summary>Date details <ChevronDown size={14} aria-hidden="true" /></summary><dl>{summary.map(({ field, value }) => <div key={field}><dt>{field === "vibe" ? "Vibe" : field === "people" ? "Guests" : field.charAt(0).toUpperCase() + field.slice(1)}</dt><dd>{value}</dd></div>)}</dl></details>}
     </header>
-    {summary.length > 0 && <div className={styles.detailChips} aria-label="Edit date details">{summary.filter(({ field }) => ["location", "date", "time", "budget"].includes(field)).map(({ field, value }) => <button key={field} type="button" aria-label={`Change ${field === "location" ? "city" : field}: ${value}`} aria-pressed={editingField === field} disabled={sending} onClick={() => { setEditingField(field); scrollToLatest(); input.current?.focus(); }}>{value}</button>)}</div>}
+    {summary.length > 0 && <div className={styles.detailChips} aria-label="Edit date details">{summary.filter(({ field }) => ["location", "date", "time", "budget"].includes(field)).map(({ field, value }) => <button key={field} type="button" aria-label={`Change ${field === "location" ? "city" : field}: ${value}`} aria-pressed={editingField === field} disabled={sending} onClick={() => { setEditingField(field); scrollToLatest(); if (field !== "time") input.current?.focus(); }}>{value}</button>)}</div>}
     <div ref={conversation} className={styles.transcript} onScroll={(event) => {
       const viewport = event.currentTarget;
       const nearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
@@ -118,6 +118,15 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
           {sending && <div className={styles.typing} role="status" aria-label="The planner is thinking"><span className={styles.speaker}>adal</span><div aria-hidden="true"><i /><i /><i /></div></div>}
         </div>
         {!sending && !error && focus === "date" && <div className={styles.inlineCalendar}><DatePicker value={request.date} onChange={(date) => void send(`Let's go on ${date}.`)} /></div>}
+        {!sending && !error && focus === "time" && <form className={styles.exactTime} onSubmit={(event) => {
+          event.preventDefault();
+          const time = new FormData(event.currentTarget).get("startTime");
+          if (typeof time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(time)) void send(`Start at ${time}.`);
+        }}>
+          <label className="field"><span>Choose a specific time</span><input name="startTime" type="time" step={60} required defaultValue={session.answered.includes("time") ? request.startTime : ""} aria-describedby="chat-time-zone" /></label>
+          <small id="chat-time-zone">Local time in {request.timeZone}. You can also type a time below.</small>
+          <Button type="submit">Use this time</Button>
+        </form>}
         {!sending && !error && suggestions.length > 0 && <div className={`${styles.suggestions} ${starting ? styles.starters : ""}`} aria-label="Suggested replies">{suggestions.map((text) => <button key={text} type="button" onClick={() => void send(text)}>{text}</button>)}</div>}
         {(error || serverError) && <div className={styles.error} role="alert"><p>{error || serverError}</p>{retryMessage && <button type="button" disabled={sending} onClick={() => void send(retryMessage, true)}>Try that message again</button>}</div>}
         {ready && !sending && !error && <div className={styles.ready}><Button onClick={() => void onGenerate()}>Find my date <span aria-hidden="true">↗</span></Button></div>}

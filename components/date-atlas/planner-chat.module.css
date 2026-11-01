@@ -57,6 +57,10 @@
 .summary dt { text-transform: uppercase; letter-spacing: .1em; font-size: 9px; color: var(--planner-muted); margin-bottom: 7px; }
 .summary dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
 .inlineCalendar { width: min(460px,100%); margin-top: 26px; }
+.exactTime { width: min(360px,100%); margin-top: 26px; display: grid; gap: 12px; }
+.exactTime input { width: 100%; min-height: 48px; font-size: 16px; color: var(--planner-text); background: var(--planner-surface); border-color: var(--planner-border); color-scheme: inherit; }
+.exactTime > small { font-size: 11px; line-height: 1.7; color: var(--planner-muted); }
+.exactTime > button { justify-self: start; }
 .ready { margin-top: 24px; }
 .error { border: 1px solid var(--planner-border); background: var(--planner-surface); border-radius: 16px; padding: 18px; margin-top: 20px; }
 .error p { font-size: 13px; line-height: 1.8; }
