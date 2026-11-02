@@ -81,3 +81,20 @@ test("v11 drafts keep their answers and semantic question after budget moves beh
   const previous = ["yourGender", "dateGender", "city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"];
   previous.forEach((id, step) => assert.equal(plannerQuestions[restorePlannerStep(step, 11)].id, id));
 });
+
+test("semantic question identity survives positions changing and unknown identities use legacy migration", () => {
+  const people = plannerQuestions.findIndex(({ id }) => id === "people");
+  assert.equal(restorePlannerStep(0, plannerDraftVersion, "people"), people);
+  assert.equal(plannerQuestions[restorePlannerStep(0, 11, "budget")].id, "budget");
+  assert.equal(restorePlannerStep(3, plannerDraftVersion, "missing-question"), 3);
+});
+
+test("drafts from another planning flow cannot replace the current flow's answers", async () => {
+  const { draftMatchesFlow, draftJSON } = await import("../lib/planner/draft-retention");
+  assert.equal(draftMatchesFlow({ flow: "first" }, "first"), true);
+  assert.equal(draftMatchesFlow({ flow: "first" }, "second"), false);
+  assert.equal(draftMatchesFlow({}, "current"), true, "Unscoped legacy drafts remain migratable");
+  assert.equal(draftMatchesFlow(null, "current"), false);
+  const migrated = JSON.parse(draftJSON({ version: 11, step: 6 }));
+  assert.equal(migrated.questionId, "budget", "Serializing a legacy draft must retain its original semantic question");
+});

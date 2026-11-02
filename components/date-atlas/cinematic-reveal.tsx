@@ -9,6 +9,7 @@ import type { NearbyResult } from "@/lib/maps/schema";
 import type { DatePlan, PlanRequest } from "@/lib/planner/schema";
 import { money } from "@/lib/utils";
 import { VenueDetails } from "./venue-details";
+import { VenueReview } from "./venue-review";
 import { GeneratingScreen } from "./generating-screen";
 import { RecommendationReady } from "./recommendation-ready";
 import styles from "./cinematic-reveal.module.css";
@@ -16,11 +17,11 @@ import styles from "./cinematic-reveal.module.css";
 import { RejectionDialog, type RejectionReason } from "./rejection-dialog";
 import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 
-type Props = { place: NearbyResult["places"][number]; request: PlanRequest; catalogPlan?: DatePlan; busy: boolean; error: string; rejected: boolean; initialChapter?: number; onAccept: () => void; onCancelGeneration?: () => void; onReject: (reason: RejectionReason) => void; onEdit: () => void; onTiming: () => void };
+type Props = { place: NearbyResult["places"][number]; request: PlanRequest; catalogPlan?: DatePlan; busy: boolean; error: string; rejected: boolean; loadingStage?: string; initialChapter?: number; onAccept: () => void; onCancelGeneration?: () => void; onReject: (reason: RejectionReason) => void; onEdit: () => void; onTiming: () => void };
 const chapterNames = ["We heard you", "Our one pick", "The little details"];
 
 
-export function CinematicReveal({ place, request, catalogPlan, busy, error, rejected, initialChapter = 0, onAccept, onCancelGeneration, onReject, onEdit, onTiming }: Props) {
+export function CinematicReveal({ place, request, catalogPlan, busy, error, rejected, loadingStage, initialChapter = 0, onAccept, onCancelGeneration, onReject, onEdit, onTiming }: Props) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const lastReason = useRef<RejectionReason>("place");
   const eventScope = useRef(funnelScope(`recommendation:${place.id}`));
@@ -32,6 +33,7 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
   const [photoFailed, setPhotoFailed] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const screen = useRef<HTMLElement>(null);
+  const [moreBelow, setMoreBelow] = useState(false);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const titles = ["Not just any date.", "Meet your next memory.", "Does this feel like you?"];
   const descriptions = [
@@ -66,6 +68,17 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
     screen.current?.scrollTo({ top: 0 });
     if (introComplete) heading.current?.focus({ preventScroll: true });
   }, [chapter, introComplete, busy]);
+  useEffect(() => {
+    const viewport = screen.current;
+    const scene = viewport?.querySelector<HTMLElement>("section");
+    if (!viewport || !scene || !introComplete || busy) return;
+    const update = () => setMoreBelow(chapter > 0 && viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop > 32 && scene.getBoundingClientRect().bottom > viewport.getBoundingClientRect().bottom - 100);
+    const observer = new ResizeObserver(update);
+    observer.observe(viewport); observer.observe(scene);
+    viewport.addEventListener("scroll", update, { passive: true });
+    const frame = requestAnimationFrame(update);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); viewport.removeEventListener("scroll", update); };
+  }, [chapter, introComplete, busy]);
   function move(next: number) { setChapter(Math.max(0, Math.min(chapterNames.length - 1, next))); }
   function keyDown(event: KeyboardEvent<HTMLElement>) {
     if (!introComplete) return;
@@ -73,7 +86,7 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
     if (event.key === "ArrowRight") { event.preventDefault(); move(chapter + 1); }
     if (event.key === "ArrowLeft") { event.preventDefault(); move(chapter - 1); }
   }
-  if (busy) return <GeneratingScreen stage="Finding one different place, with your preferences intact" theme="red" onCancel={onCancelGeneration} />;
+  if (busy) return <GeneratingScreen stage={loadingStage ?? "Finding one different place, with your preferences intact"} theme="red" onCancel={onCancelGeneration} />;
   return <main ref={screen} className={styles.screen} data-chapter={chapter} aria-label="Your one perfect pick" onKeyDown={keyDown}
     onPointerDown={(event) => { if (introComplete && !(event.target instanceof Element && event.target.closest("button,a,input,summary"))) pointer.current = { x: event.clientX, y: event.clientY }; }}
     onPointerUp={(event) => { const start = pointer.current; pointer.current = null; if (start && Math.abs(event.clientX - start.x) > 70 && Math.abs(event.clientX - start.x) > Math.abs(event.clientY - start.y) * 1.5) move(chapter + (event.clientX < start.x ? 1 : -1)); }} onPointerCancel={() => { pointer.current = null; }}>
@@ -88,13 +101,14 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
           {chapter === 1 && <button type="button" className={styles.timing} onClick={onTiming}><span>{request.date ? calendarLabel(request.date, { month: "short", day: "numeric" }) : "Choose a day"}</span><strong>{request.startTime ? clockLabel(timeMinutes(request.startTime)) : "Choose a time"}</strong><small>Change day or time ↗</small></button>}
         </div>
         {chapter >= 1 && <div className={styles.place}>
-          <div className={styles.photo}>{place.photo && !photoFailed ? <><Image src={place.photo.url} alt={catalogPlan ? "Illustrative date atmosphere" : `A view of ${place.name}`} fill unoptimized priority sizes="(max-width:700px) 90vw, 52vw" onError={() => setPhotoFailed(true)} /><div className={styles.photoCredit}>{catalogPlan && <span>{catalogPlan.demo ? "Demonstration · illustrative photography" : "Illustrative photography"}</span>}{place.photo.authors.map((author, index) => author.url ? <a key={index} href={author.url} target="_blank" rel="noreferrer">Photo: {author.name}</a> : <span key={index}>Photo: {author.name}</span>)}</div></> : <div className={styles.poster}><span>YOUR NEXT GOOD STORY</span><strong>{place.name.charAt(0)}</strong><span>{catalogPlan?.demo ? "DEMONSTRATION EXPERIENCE" : "A REAL PLACE. A NEW POSSIBILITY."}</span></div>}</div>
+          <div className={styles.photo}>{place.photo && !photoFailed ? <><Image src={place.photo.url} alt={catalogPlan ? "Illustrative date atmosphere" : `A view of ${place.name}`} fill unoptimized loading="eager" fetchPriority="high" sizes="(max-width:700px) 90vw, 52vw" onError={() => setPhotoFailed(true)} /><div className={styles.photoCredit}>{catalogPlan && <span>{catalogPlan.demo ? "Demonstration · illustrative photography" : "Illustrative photography"}</span>}{place.photo.authors.map((author, index) => author.url ? <a key={index} href={author.url} target="_blank" rel="noreferrer">Photo: {author.name}</a> : <span key={index}>Photo: {author.name}</span>)}</div></> : <div className={styles.poster}><span>YOUR NEXT GOOD STORY</span><strong>{place.name.charAt(0)}</strong><span>{catalogPlan?.demo ? "DEMONSTRATION EXPERIENCE" : "A REAL PLACE. A NEW POSSIBILITY."}</span></div>}</div>
           <div className={styles.placeName}><span>{place.category} · {request.city}</span><h2>{place.name}</h2>{place.details?.rating !== undefined && <small>{place.details.rating.toFixed(1)} / 5 · {place.details.reviewCount ?? 0} Google reviews</small>}</div>
+          {chapter === 1 && !catalogPlan && <VenueReview place={place} />}
         </div>}
         {chapter === 0 && <div className={styles.companion} aria-hidden="true"><span className={styles.companionHalo} /><AtlasCompanion pose="discover" theme="red" lively reactionKey={chapter} width="100%" height="100%" /></div>}
         {chapter === 2 && <div className={styles.detailContent}>{catalogPlan ? <section className={styles.catalogFacts} aria-label="Catalog experience details"><h3>{catalogPlan.activities[0].experience.name}</h3><p>{request.date ? calendarLabel(request.date) : "Choose a day"} · {request.startTime ? clockLabel(timeMinutes(request.startTime)) : "Choose a time"} · {request.duration / 60} hours · {request.guests} people · {request.timeZone}</p><p>{catalogPlan.activities[0].experience.description}</p><div><span>Experience <strong>{money(catalogPlan.activityCost)}</strong></span><span>Transport estimate <strong>{money(catalogPlan.transportCost)}</strong></span><span>Contingency <strong>{money(catalogPlan.contingencyCost)}</strong></span><span>Estimated total <strong>{money(catalogPlan.total)}</strong></span></div><p>{catalogPlan.demo ? "Fictional demonstration venue and sample prices. No real-world bookings or reviews." : `Catalog source checked ${catalogPlan.activities[0].experience.verifiedAt ?? "date unavailable"}. ${catalogPlan.activities[0].experience.reservation} Reservation availability still needs venue confirmation.`}</p><p>Reviews are not available for this catalog record.</p>{!catalogPlan.demo && catalogPlan.activities[0].experience.sourceUrl && <a href={catalogPlan.activities[0].experience.sourceUrl} target="_blank" rel="noreferrer">View the venue source ↗</a>}</section> : <VenueDetails place={place} request={request} inverted />}{error && <p role="alert" className={styles.error}>{error}</p>}<div className={styles.decision}><span>THERE&apos;S NO COMMITMENT YET.</span><h2>Your kind of yes?</h2><div className={styles.actions}><Button className={styles.primary} onClick={acceptPick}>I love it</Button><Button className={styles.secondary} variant="outline" onClick={() => setRejectOpen(true)}>Not my vibe</Button></div><button type="button" onClick={onTiming}>Change the date or time ↗</button></div></div>}
       </section>
-      <footer className={styles.footer}><button type="button" className={styles.previous} disabled={chapter === 0} aria-label="Previous chapter" onClick={() => move(chapter - 1)}>←</button><span>{chapter === 2 ? "One place. Your decision." : "A little thought, every step of the way."}</span>{chapter < 2 ? <Button className={styles.primary} onClick={() => move(chapter + 1)}>{chapter === 0 ? "Reveal our pick" : "Take a closer look"}<span aria-hidden="true">→</span></Button> : <Button className={styles.primary} onClick={acceptPick}>I love it</Button>}</footer>
+      <footer className={styles.footer}>{moreBelow && chapter > 0 && <button type="button" className={styles.scrollCue} aria-label="Scroll to more content in this reveal chapter" onClick={() => { const viewport = screen.current; if (viewport) viewport.scrollTo({ top: viewport.scrollTop + viewport.clientHeight * .7, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }}><span aria-hidden="true">↓</span></button>}<button type="button" className={styles.previous} disabled={chapter === 0} aria-label="Previous chapter" onClick={() => move(chapter - 1)}>←</button><span>{chapter === 2 ? "One place. Your decision." : "A little thought, every step of the way."}</span>{chapter < 2 ? <Button className={styles.primary} onClick={() => move(chapter + 1)}>{chapter === 0 ? "Reveal our pick" : "Take a closer look"}<span aria-hidden="true">→</span></Button> : <Button className={styles.primary} onClick={acceptPick}>I love it</Button>}</footer>
     </>}
   </main>;
 }

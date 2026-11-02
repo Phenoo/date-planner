@@ -1,0 +1,7 @@
+.brand { display: inline-block; align-self: flex-start; width: 12ch; height: 1.3em; white-space: nowrap; }
+.brand > span { color: inherit; }
+.brand span span { display: inline-block; vertical-align: bottom; white-space: pre; overflow: clip; animation: contract 1.2s 1.4s cubic-bezier(.4,0,.2,1) both; }
+.gap { --width: .24em; }.date { --width: 1.55em; }.at { --width: .6em; }.las { --width: .95em; }
+.brand .dot { overflow: visible; animation: none; color: var(--red,#d91335); }
+@keyframes contract { from { width: var(--width); opacity: 1; } to { width: 0; opacity: 0; } }
+@media(prefers-reduced-motion:reduce) { .brand span span:not(.dot) { animation: none; width: 0; opacity: 0; } }

@@ -6,11 +6,67 @@ import {
   isSignInWithEmailLink,
   sendSignInLinkToEmail,
   signInWithEmailLink,
+  signInAnonymously,
+  type Auth,
+  type User,
 } from "firebase/auth";
 
 const emailKey = "date-atlas:sign-in-email";
-let pendingEmailTransfer: { guestToken: string; uid: string } | null = null;
+let pendingTransfer: { guestToken: string; uid: string; destination?: string } | null = null;
+let accountTransition: Promise<void> | null = null;
+let guestSignIn: Promise<unknown> | null = null;
 let completingLink: Promise<void> | null = null;
+const transferListeners = new Set<() => void>();
+
+export async function waitForAccountTransition() { await accountTransition; }
+export function hasPendingAccountTransfer() { return !!pendingTransfer?.destination && pendingTransfer.destination === getBrowserAuth()?.currentUser?.uid; }
+export function subscribeAccountTransfer(notify: () => void) {
+  transferListeners.add(notify);
+  return () => { transferListeners.delete(notify); };
+}
+
+export async function ensurePlanningIdentity() {
+  await waitForAccountTransition();
+  const auth = getBrowserAuth();
+  if (!auth) return;
+  await auth.authStateReady();
+  if (!auth.currentUser) {
+    guestSignIn ??= signInAnonymously(auth).finally(() => { guestSignIn = null; });
+    await guestSignIn;
+  }
+}
+
+// Auth listeners fire before guest records have moved to the permanent account.
+export function authenticateAccount(signIn: (auth: Auth, guest: User | null) => Promise<unknown>, resumeTransfer = false) {
+  if (accountTransition) return accountTransition;
+  accountTransition = Promise.resolve().then(async () => {
+    const auth = getBrowserAuth();
+    if (!auth) throw new Error("Account services aren't available. Please try again later.");
+    await auth.authStateReady();
+    await guestSignIn;
+    const guest = auth.currentUser?.isAnonymous ? auth.currentUser : null;
+    if (guest) pendingTransfer = { uid: guest.uid, guestToken: await guest.getIdToken() };
+    const retry = resumeTransfer && !!pendingTransfer?.destination && pendingTransfer.destination === auth.currentUser?.uid && !guest;
+    if (!retry) await signIn(auth, guest);
+    const user = auth.currentUser;
+    if (!user || user.isAnonymous) throw new Error("Sign-in didn't finish. Please try again.");
+    const transfer = pendingTransfer;
+    if (transfer && transfer.uid !== user.uid) {
+      if (transfer.destination && transfer.destination !== user.uid) {
+        pendingTransfer = null;
+        throw new Error("Your account changed. Reopen this account's dates to continue.");
+      }
+      transfer.destination = user.uid;
+      const token = await user.getIdToken();
+      if (auth.currentUser?.uid !== user.uid) { pendingTransfer = null; throw new Error("Your account changed. Sign in again to continue."); }
+      const response = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken: transfer.guestToken }), signal: AbortSignal.timeout(30000) });
+      if (!response.ok) throw new Error("You're signed in, but your date couldn't be transferred. Retry sign-in to finish keeping it with your account.");
+    }
+    if (auth.currentUser?.uid !== user.uid) { pendingTransfer = null; throw new Error("Your account changed. Sign in again to continue."); }
+    pendingTransfer = null;
+  }).finally(() => { accountTransition = null; transferListeners.forEach((notify) => notify()); });
+  return accountTransition;
+}
 
 export function getBrowserAuth() {
   const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
@@ -31,7 +87,7 @@ export function getBrowserAuth() {
     );
   const auth = getAuth(app);
   const emulator = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL;
-  if (emulator && projectId.startsWith("demo-") && typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) && !auth.emulatorConfig) connectAuthEmulator(auth, emulator);
+  if (emulator && projectId.startsWith("demo-") && typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) && !auth.emulatorConfig) connectAuthEmulator(auth, emulator, { disableWarnings: true });
   return auth;
 }
 
@@ -68,22 +124,7 @@ export async function completeEmailSignIn(email: string) {
   if (!completingLink) {
     const url = window.location.href;
     completingLink = (async () => {
-      await auth.authStateReady();
-      const guest = auth.currentUser?.isAnonymous ? auth.currentUser : null;
-      const guestToken = guest ? await guest.getIdToken() : null;
-      const retryTransfer = !!pendingEmailTransfer && !auth.currentUser?.isAnonymous;
-      if (!retryTransfer) {
-        // Linking a used email can consume its one-time code before reporting a collision.
-        // Sign in once, then transfer the authenticated guest's private records.
-        if (guestToken && guest) pendingEmailTransfer = { guestToken, uid: guest.uid };
-        await signInWithEmailLink(auth, email, url);
-      }
-      if (pendingEmailTransfer && auth.currentUser?.uid !== pendingEmailTransfer.uid) {
-        const token = await auth.currentUser?.getIdToken();
-        const merge = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken: pendingEmailTransfer.guestToken }) });
-        if (!merge.ok) throw new Error("Signed in, but your chosen date couldn't be transferred. Keep this tab open and retry.");
-        pendingEmailTransfer = null;
-      }
+      await authenticateAccount((current) => signInWithEmailLink(current, email.trim(), url), true);
         try {
           localStorage.removeItem(emailKey);
         } catch {
@@ -133,6 +174,10 @@ export function authErrorMessage(error: unknown) {
   )
     return "This sign-in link has expired or was already used. Request a new link.";
   if (code === "auth/invalid-credential" || code === "auth/wrong-password") return "Email or password isn't correct. Please try again.";
+  if (code === "auth/user-not-found") return "Email or password isn't correct. Please try again.";
+  if (code === "auth/weak-password") return "Choose a password with at least six characters.";
+  if (code === "auth/network-request-failed") return "Couldn't connect. Check your internet connection and try again.";
+  if (code === "auth/popup-blocked") return "Your browser blocked sign-in. Allow the pop-up or use email and password.";
   if (code === "auth/email-already-in-use" || code === "auth/credential-already-in-use") return "That account already exists. Choose Sign in; your guest plans are safe.";
   if (code === "auth/popup-closed-by-user") return "Sign-in was closed. You can try again whenever you're ready.";
   if (code === "auth/invalid-email") return "Please check your email address.";
@@ -142,6 +187,7 @@ export function authErrorMessage(error: unknown) {
     code === "auth/unauthorized-domain" ||
     code === "auth/operation-not-allowed"
   )
-    return "Email sign-in needs to be enabled for this website in Firebase.";
+    return code === "auth/unauthorized-domain" ? "This website's domain isn't authorized for sign-in in Firebase. Please contact support." : "This sign-in method isn't enabled in Firebase. Please try another method or contact support.";
+  if (error instanceof Error && !code) return error.message;
   return "We couldn't complete sign-in. Please try again.";
 }

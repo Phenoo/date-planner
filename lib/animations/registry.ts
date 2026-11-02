@@ -7,11 +7,12 @@ export const animations = {
   review: atlas("learned"), empty: atlas("thoughtful"), idle: atlas("idle"), still: atlas("still"),
   success: asset("success", true), celebration: atlas("learned"), error: atlas("attentive"),
   swap: asset("swap"), lock: asset("lock"),
+  walking: asset("atlas/human/red/walking"),
 } as const;
 export type AnimationName = keyof typeof animations;
 export type CompanionTheme = "white" | "red" | "dark";
 const humanPoses: Record<AnimationName, string> = {
-  splash: "welcome", discover: "welcome", preferences: "explaining", itinerary: "learned", concierge: "thoughtful", location: "location", guests: "guests", budget: "budget", calendar: "calendar", clock: "clock", review: "learned", empty: "thoughtful", idle: "idle", still: "still", success: "learned", celebration: "learned", error: "attentive", swap: "explaining", lock: "attentive",
+  splash: "welcome", discover: "welcome", preferences: "explaining", itinerary: "learned", concierge: "thoughtful", location: "location", guests: "guests", budget: "budget", calendar: "calendar", clock: "clock", review: "learned", empty: "thoughtful", idle: "idle", still: "still", success: "learned", celebration: "learned", error: "attentive", swap: "explaining", lock: "attentive", walking: "walking",
 };
 export function humanAtlasAsset(pose: AnimationName, theme: CompanionTheme = "white") { return asset(`atlas/human/${theme}/${humanPoses[pose]}`); }
 const lively = (pose: string) => asset(`atlas/lively/${pose}`);

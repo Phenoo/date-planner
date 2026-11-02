@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useEffectEvent, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { z } from "zod";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -21,7 +21,7 @@ import { recommendationResultSchema } from "@/lib/planner/response-schema";
 import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeRejectedPicks } from "@/lib/planner/discovery-session";
 import { createdInvitationSchema, pendingInvitationKey } from "@/lib/planner/invitations";
 import { RevokeInvitation } from "./revoke-invitation";
-import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
+import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
 import { requestGeneration } from "@/lib/planner/generation-client";
 import { Homepage } from "./homepage";
 import { InvitationNote } from "./invitation-note";
@@ -29,7 +29,7 @@ import { Explore, ExperienceCard } from "./explore";
 import { ExperiencePage } from "./experience-page";
 import { Dashboard, ProfilePreferences } from "./dashboard";
 import { preferenceSchema } from "@/lib/planner/preferences-storage";
-import { chatSessionSchema, emptyChatSession, answeredThroughStep, intakeFields, intakeNextField, stepForIntake, type PlannerMode } from "@/lib/planner/intake";
+import { chatSessionSchema, emptyChatSession, intakeFields, intakeNextField, intakeFieldForQuestion, stepForIntake, type PlannerMode } from "@/lib/planner/intake";
 import { PlannerModeChoice } from "./planner-mode-choice";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -50,6 +50,7 @@ import {
   savedAccountKey,
   pendingSaveKey,
   readPendingPlanAction,
+  readCatalogAuthReturn,
   toRecipe,
   type SavedRecipe,
 } from "@/lib/planner/saved";
@@ -61,6 +62,9 @@ import {
   storedSignInEmail,
   completeEmailSignIn,
   authErrorMessage,
+  waitForAccountTransition,
+  hasPendingAccountTransfer,
+  subscribeAccountTransfer,
 } from "@/lib/firebase/client";
 import {
   plannerDraftVersion,
@@ -70,8 +74,9 @@ import {
 
 const PlannerWizard = dynamic(() =>
   import("./planner-wizard").then((module) => module.PlannerWizard),
+  { loading: () => <PlannerInitializing /> },
 );
-const PlannerChat = dynamic(() => import("./planner-chat").then((module) => module.PlannerChat));
+const PlannerChat = dynamic(() => import("./planner-chat").then((module) => module.PlannerChat), { loading: () => <PlannerInitializing /> });
 const Results = dynamic(() =>
   import("./results").then((module) => module.Results),
 );
@@ -109,6 +114,16 @@ const defaultRequest = () =>
     interests: "",
     quiet: false,
   });
+
+function PlannerInitializing() {
+  return <main className={plannerStyles.initializing} aria-busy="true">
+    <span className="eyebrow">A LITTLE SPACE FOR YOUR IDEAS</span>
+    <h1>Let’s make it personal.</h1>
+    <p role="status">Opening your planner and checking for recent answers…</p>
+    <div className={plannerStyles.skeleton} aria-hidden="true"><span /><span /><span /></div>
+    <small>This usually takes a moment. Your current tab keeps valid core answers for one hour.</small>
+  </main>;
+}
 
 export function DateAtlas({
   initialView = "home",
@@ -148,6 +163,7 @@ export function DateAtlas({
   const [authAccountView, setAuthAccountView] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  const authTransferPending = useSyncExternalStore(subscribeAccountTransfer, hasPendingAccountTransfer, () => false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareSelection, setShareSelection] = useState<{ id: string; token: string; message?: string } | null>(null);
   const [invitationDirty, setInvitationDirty] = useState(false);
@@ -167,7 +183,9 @@ export function DateAtlas({
   const mounted = useRef(false);
   const savingPlans = useRef(new Set<string>());
   const savedRevision = useRef(0);
-  const resumeSaveAfterAuth = useEffectEvent(() => { void resumeAfterAuth(); });
+  const previousAccount = useRef<{ uid: string; anonymous: boolean } | null>(null);
+  const resumingAuth = useRef<Promise<void> | null>(null);
+  const finishAuthentication = useEffectEvent(() => authenticationDone());
   const restoreShared = useEffectEvent((recipe: SavedRecipe) => {
     void restore(recipe);
   });
@@ -232,6 +250,8 @@ export function DateAtlas({
       Promise.resolve().then(async () => {
         if (!active) return;
         try {
+          await getBrowserAuth()?.authStateReady();
+          if (!active) return;
           const stored: unknown = JSON.parse(
             sessionStorage.getItem(activePlanKey) || "null",
           );
@@ -242,9 +262,11 @@ export function DateAtlas({
           if (reference.success && reference.data.flow === flow && draftIsCurrent(reference.data)) {
             restoredDiscovery.current = true;
             await planningToken();
+            const owner = getBrowserAuth()?.currentUser?.uid;
             const response = await plannerFetch("/api/plans/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reference.data), signal: AbortSignal.any([catalogController.signal, AbortSignal.timeout(30000)]) });
             const data = z.object({ request: requestSchema, result: recommendationResultSchema }).parse(await readPlanningResponse(response, () => {}));
             if (!active) return;
+            if (getBrowserAuth()?.currentUser?.uid !== owner) { setDraftReady(true); return; }
             setRequest(data.request); setResult(data.result); setView("results"); setDraftReady(true);
             if (reference.data.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${reference.data.sessionId}`, reference.data.placeId);
             return;
@@ -263,6 +285,7 @@ export function DateAtlas({
             typeof stored === "object" &&
             "flow" in stored &&
             stored.flow === flow &&
+            (!("ownerId" in stored) ? !getBrowserAuth()?.currentUser || getBrowserAuth()?.currentUser?.isAnonymous : stored.ownerId === getBrowserAuth()?.currentUser?.uid) &&
             draftIsCurrent(stored) &&
             "recipe" in stored
           ) {
@@ -289,9 +312,12 @@ export function DateAtlas({
             sessionStorage.getItem("date-atlas:planning-draft:v3") ||
             sessionStorage.getItem("date-atlas:planning-draft:v2"),
         )
-        .then((raw) => {
+        .then(async (raw) => {
+          await getBrowserAuth()?.authStateReady();
           if (!active || !raw || restoredDiscovery.current) return;
           const draft: unknown = JSON.parse(raw);
+          if (!draftMatchesFlow(draft, new URLSearchParams(window.location.search).get("flow") ?? "direct")) return;
+          if (draft && typeof draft === "object" && "ownerId" in draft && draft.ownerId && draft.ownerId !== getBrowserAuth()?.currentUser?.uid) return;
           if (!draftIsCurrent(draft)) { clearPlannerDrafts(sessionStorage, plannerDraftVersion); setToast("Your earlier draft expired. Let's start fresh."); return; }
           if (draft && typeof draft === "object" && "request" in draft) {
             const parsed = requestSchema.safeParse(draft.request);
@@ -309,6 +335,7 @@ export function DateAtlas({
                 restorePlannerStep(
                   "needsPreferenceReview" in draft && draft.needsPreferenceReview === true ? Math.min("step" in draft && typeof draft.step === "number" ? draft.step : 0, plannerQuestions.findIndex((item) => item.id === "interests")) : "step" in draft ? draft.step : 0,
                   "version" in draft ? draft.version : undefined,
+                  "needsPreferenceReview" in draft && draft.needsPreferenceReview === true ? undefined : "questionId" in draft ? draft.questionId : undefined,
                 ),
               );
               if ("preferredIds" in draft && Array.isArray(draft.preferredIds))
@@ -322,15 +349,34 @@ export function DateAtlas({
         })
         .catch(() => {})
         .finally(() => {
-          if (active) setDraftReady(true);
+          if (active && !restoredDiscovery.current) setDraftReady(true);
         });
     }
     const auth = getBrowserAuth();
     let sessionRevision = 0;
     const unsubscribe = auth
-      ? onIdTokenChanged(auth, (user) => {
+      ? onIdTokenChanged(auth, async (user) => {
           if (!active) return;
           const revision = ++sessionRevision;
+          const previous = previousAccount.current;
+          previousAccount.current = user ? { uid: user.uid, anonymous: user.isAnonymous } : null;
+          if (previous && !previous.anonymous && previous.uid !== user?.uid) {
+            abortRef.current?.abort(); generationId.current++; setBusy(false);
+            setResult(null); setRequest(defaultRequest()); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
+            pendingSave.current = null; setSaved([]); setSignedIn(false); setAccountId(""); setDraftReady(true);
+            shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
+            setShareOpen(false); setShareSelection(null);
+            try {
+              clearPlannerDrafts(sessionStorage, plannerDraftVersion);
+              sessionStorage.removeItem(activeDiscoveryKey); sessionStorage.removeItem(activePlanKey);
+              sessionStorage.removeItem("date-atlas:accepted-catalog:v1");
+              sessionStorage.removeItem(pendingSaveKey); localStorage.removeItem(pendingSaveKey);
+              localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey);
+            } catch { /* Server ownership checks remain authoritative. */ }
+            setView(initialView === "planner" ? "planner" : initialView);
+          }
+          try { await waitForAccountTransition(); } catch { /* The account can load while the separate guest transfer remains retryable. */ }
+          if (!active || revision !== sessionRevision || auth.currentUser?.uid !== user?.uid) return;
           const saveRevision = ++savedRevision.current;
           if (shareOwner.current && shareOwner.current !== user?.uid) {
             shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
@@ -383,11 +429,7 @@ export function DateAtlas({
       try {
         await completeEmailSignIn(email);
         if (active) {
-          setAuthOpen(false);
-          setHistoryRevision((value) => value + 1);
-          trackFunnel("authentication_completed");
-          resumeSaveAfterAuth();
-          setToast("You're signed in. Your plans have a home.");
+          finishAuthentication();
         }
       } catch (failure) {
         if (active) setAuthMessage(authErrorMessage(failure));
@@ -430,6 +472,7 @@ export function DateAtlas({
       sessionStorage.setItem(
         draftKey,
         draftJSON({
+          ownerId: getBrowserAuth()?.currentUser?.uid ?? null,
           version: plannerDraftVersion,
           flow: new URLSearchParams(window.location.search).get("flow") ?? "direct",
           expiresAt: Date.now() + draftLifetimeMs,
@@ -445,7 +488,7 @@ export function DateAtlas({
     } catch {
       /* The current session still works when storage is unavailable. */
     }
-  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan, plannerMode, chatSession]);
+  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan, plannerMode, chatSession, accountId]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => { setToast(""); setFeedbackState(null); }, 6000);
@@ -458,7 +501,7 @@ export function DateAtlas({
   }
   function saveAndExit(event: MouseEvent<HTMLButtonElement>) {
     try {
-      sessionStorage.setItem(draftKey, draftJSON({ version: plannerDraftVersion, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + draftLifetimeMs, request, step: plannerStep, preferredIds, editingPlan, plannerMode, chatSession }));
+      sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + draftLifetimeMs, request, step: plannerStep, preferredIds, editingPlan, plannerMode, chatSession }));
     } catch {
       event.preventDefault();
       setExitError("We couldn't save your answers. Keep this tab open and try again.");
@@ -474,6 +517,7 @@ export function DateAtlas({
         sessionStorage.setItem(
           draftKey,
           draftJSON({
+            ownerId: getBrowserAuth()?.currentUser?.uid ?? null,
             version: plannerDraftVersion,
             expiresAt: Date.now() + draftLifetimeMs,
             request: { ...request, ...patch },
@@ -493,7 +537,7 @@ export function DateAtlas({
   function resetPlanner() {
     try {
       clearPlannerDrafts(sessionStorage, plannerDraftVersion);
-      for (const key of [activePlanKey, activeDiscoveryKey, pendingSaveKey, rejectedPicksKey(new URLSearchParams(window.location.search).get("flow") ?? "direct")]) sessionStorage.removeItem(key);
+      for (const key of [activePlanKey, activeDiscoveryKey, pendingSaveKey, "date-atlas:accepted-catalog:v1", rejectedPicksKey(new URLSearchParams(window.location.search).get("flow") ?? "direct")]) sessionStorage.removeItem(key);
       localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey);
     } catch { setExitError("Your browser couldn't clear the draft. Please try again before starting over."); return; }
     pendingSave.current = null; rejectionMemory.current = { flow: "", picks: mergeRejectedPicks() };
@@ -549,6 +593,7 @@ export function DateAtlas({
         sessionStorage.setItem(
           draftKey,
           draftJSON({
+            ownerId: getBrowserAuth()?.currentUser?.uid ?? null,
             version: plannerDraftVersion,
             request,
             step,
@@ -566,7 +611,7 @@ export function DateAtlas({
   }
   function choosePlannerMode(mode: PlannerMode) {
     if (mode === "chat" && !requestSchema.safeParse(request).success) { setError("Please finish this answer before switching to chat. Your other preferences are kept."); return; }
-    const answered = [...new Set([...chatSession.answered, ...(plannerMode === "steps" ? answeredThroughStep(plannerStep) : []), ...(editingPlan ? intakeFields : [])])];
+    const answered = [...new Set([...chatSession.answered, ...(editingPlan ? intakeFields : [])])];
     const nextField = intakeNextField(request, answered);
     setChatSession((previous) => ({ ...previous, answered, nextField }));
     if (mode === "steps" && plannerMode === "chat") setPlannerStep(stepForIntake(nextField));
@@ -577,12 +622,12 @@ export function DateAtlas({
     window.scrollTo({ top: 0 });
   }
   function changePlannerStep(step: number) {
-    if (step > plannerStep) setChatSession((previous) => ({ ...previous, answered: [...new Set([...previous.answered, ...answeredThroughStep(step)])] }));
     setPlannerStep(step);
   }
   function cancelGeneration() {
     abortRef.current?.abort(); generationId.current++; activeGeneration.current = "";
     setBusy(false); setError("");
+    setToast("Planning cancelled. Your answers are kept; you can try again when you're ready.");
   }
   async function generate(
     preferences = request,
@@ -606,7 +651,7 @@ export function DateAtlas({
       try {
         sessionStorage.setItem(rejectedPicksKey(flow), JSON.stringify(exclusions));
         if (extra.excludeIds?.length || extra.excludePlaceIds?.length) {
-          sessionStorage.setItem(draftKey, draftJSON({ version: plannerDraftVersion, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds, plannerMode, chatSession }));
+          sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds, plannerMode, chatSession }));
           sessionStorage.removeItem(activeDiscoveryKey);
           sessionStorage.removeItem(activePlanKey);
         }
@@ -679,6 +724,7 @@ export function DateAtlas({
       setResult(data);
       setView("results");
       window.scrollTo({ top: 0 });
+      return true;
     } catch (failure) {
       if (!controller.signal.aborted && getBrowserAuth()?.currentUser?.uid === owner)
         setToast(
@@ -698,6 +744,7 @@ export function DateAtlas({
           flow:
             new URLSearchParams(window.location.search).get("flow") ?? "direct",
           expiresAt: Date.now() + draftLifetimeMs,
+          ownerId: getBrowserAuth()?.currentUser?.uid ?? null,
           recipe: { ...toRecipe(plan), title: "Your chosen date", request: draftRequest(plan.request) },
         }),
       );
@@ -711,7 +758,7 @@ export function DateAtlas({
     if (!user || user.isAnonymous) {
       rememberPlan(plan);
       pendingSave.current = { recipe, action: "save" };
-      try { localStorage.setItem(pendingSaveKey, JSON.stringify({ recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) }, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + 3600000 })); } catch { /* The current tab retains the action in memory. */ }
+      try { localStorage.removeItem(invitationReturnKey); localStorage.setItem(pendingSaveKey, JSON.stringify({ recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) }, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + 3600000 })); } catch { /* The current tab retains the action in memory. */ }
       openAuthentication();
       return;
     }
@@ -736,6 +783,7 @@ export function DateAtlas({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(recipe),
+        signal: AbortSignal.timeout(20000),
       });
       if (!response.ok) throw new Error("Your plan couldn't be saved. Please try again.");
       if (!mounted.current || getBrowserAuth()?.currentUser?.uid !== user.uid) return;
@@ -752,19 +800,36 @@ export function DateAtlas({
     } finally { savingPlans.current.delete(operationKey); }
   }
   async function resumeAfterAuth() {
+    if (resumingAuth.current) return resumingAuth.current;
+    resumingAuth.current = resumeAccountPlan().finally(() => { resumingAuth.current = null; });
+    return resumingAuth.current;
+  }
+  async function resumeAccountPlan() {
     const owner = getBrowserAuth()?.currentUser;
     if (!owner || owner.isAnonymous) return;
     const stillCurrent = () => mounted.current && getBrowserAuth()?.currentUser?.uid === owner.uid;
     try {
-      const raw: unknown = JSON.parse(localStorage.getItem(invitationReturnKey) ?? "null");
-      const context = z.object({ flow: z.string(), sessionId: z.uuid(), placeId: z.string(), expiresAt: z.number() }).safeParse(raw);
+      const invitationReturn = localStorage.getItem(invitationReturnKey);
+      const raw: unknown = JSON.parse(invitationReturn ?? sessionStorage.getItem(activeDiscoveryKey) ?? "null");
+      const context = z.object({ flow: z.string(), sessionId: z.uuid(), placeId: z.string(), expiresAt: z.number(), accepted: z.boolean().default(false) }).safeParse(raw);
       if (context.success && context.data.flow === (new URLSearchParams(window.location.search).get("flow") ?? "direct") && context.data.expiresAt > Date.now() && context.data.expiresAt <= Date.now() + 3600000) {
         const response = await plannerFetch("/api/plans/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(context.data), signal: AbortSignal.timeout(30000) });
         const data = z.object({ request: requestSchema, result: recommendationResultSchema }).parse(await readPlanningResponse(response, () => {}));
         if (!stillCurrent()) return;
-        sessionStorage.setItem(`date-atlas:accepted-pick:${context.data.sessionId}`, context.data.placeId);
-        setRequest(data.request); setResult(data.result); setView("results");
+        if (invitationReturn || context.data.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${context.data.sessionId}`, context.data.placeId);
+        setRequest(data.request); setResult(data.result); setView("results"); setDraftReady(true);
         localStorage.removeItem(invitationReturnKey);
+      }
+      const catalogReturn = readCatalogAuthReturn(invitationReturn, new URLSearchParams(window.location.search).get("flow") ?? "direct");
+      if (catalogReturn && stillCurrent()) {
+        if (catalogReturn.accepted) sessionStorage.setItem("date-atlas:accepted-catalog:v1", catalogReturn.recipe.id);
+        else sessionStorage.removeItem("date-atlas:accepted-catalog:v1");
+        const current = result?.plans[0]?.id === catalogReturn.recipe.id;
+        if (!current) {
+          setRequest(catalogReturn.recipe.request);
+          sessionStorage.setItem(activePlanKey, JSON.stringify({ ...catalogReturn, ownerId: owner.uid }));
+        }
+        if ((current || await restore(catalogReturn.recipe)) && stillCurrent()) localStorage.removeItem(invitationReturnKey);
       }
       if (stillCurrent()) await resumePendingSave();
     } catch (failure) { if (stillCurrent()) setToast(failure instanceof Error ? failure.message : "Sign-in succeeded. Reopen your chosen date to finish."); }
@@ -805,7 +870,9 @@ export function DateAtlas({
   }
   async function removeSaved(id: string) {
     savedRevision.current++;
+    const owner = getBrowserAuth()?.currentUser?.uid;
     const token = await getAuthToken().catch(() => null);
+    if (getBrowserAuth()?.currentUser?.uid !== owner) return;
     if (signedIn && !token) {
       setToast("Couldn't connect to your account. Please try removing the plan again.");
       return;
@@ -828,6 +895,7 @@ export function DateAtlas({
         return;
       }
     }
+    if (!mounted.current || getBrowserAuth()?.currentUser?.uid !== owner) return;
     const next = saved.filter((item) => item.id !== id);
     try {
       const user = getBrowserAuth()?.currentUser;
@@ -845,7 +913,7 @@ export function DateAtlas({
     if (!user || user.isAnonymous) {
       rememberPlan(plan);
       pendingSave.current = { recipe, action: "share" };
-      try { localStorage.setItem(pendingSaveKey, JSON.stringify({ recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) }, action: "share", flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + 3600000 })); } catch { /* The current tab retains the action in memory. */ }
+      try { localStorage.removeItem(invitationReturnKey); localStorage.setItem(pendingSaveKey, JSON.stringify({ recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) }, action: "share", flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + 3600000 })); } catch { /* The current tab retains the action in memory. */ }
       openAuthentication();
       return;
     }
@@ -876,8 +944,25 @@ export function DateAtlas({
   }
   function openAuthentication() {
     const user = getBrowserAuth()?.currentUser;
-    setAuthAccountView(!!user && !user.isAnonymous);
+    const plan = result?.plans[0];
+    if ((!user || user.isAnonymous) && plan && !pendingSave.current) {
+      try {
+        const recipe = toRecipe(plan);
+        localStorage.setItem(invitationReturnKey, JSON.stringify({ flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + draftLifetimeMs, accepted: sessionStorage.getItem("date-atlas:accepted-catalog:v1") === plan.id, recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) } }));
+      } catch { /* The current tab keeps the selected date in memory. */ }
+    }
+    setAuthAccountView(!!user && !user.isAnonymous && !hasPendingAccountTransfer());
     setAuthOpen(true);
+  }
+  function authenticationDone() {
+    const user = getBrowserAuth()?.currentUser;
+    if (!user || user.isAnonymous) return;
+    setSignedIn(true); setAccountId(user.uid); setAuthOpen(false); setAuthMessage("");
+    if (result?.plans[0]) rememberPlan(result.plans[0]);
+    setHistoryRevision((value) => value + 1);
+    trackFunnel("authentication_completed");
+    void refreshSavedPlans(); void resumeAfterAuth();
+    setToast("You're signed in. Your current date is still here.");
   }
   const planning = view === "planner";
   return (
@@ -947,6 +1032,11 @@ export function DateAtlas({
             </>
           )}
         </header>
+        {planning && draftReady && plannerMode !== null && !busy && <nav className={plannerStyles.modeBar} aria-label="Planning style">
+          <button type="button" aria-pressed={plannerMode === "chat"} onClick={() => choosePlannerMode("chat")}>Chat with Oge</button>
+          <button type="button" aria-pressed={plannerMode === "steps"} onClick={() => choosePlannerMode("steps")}>Questions</button>
+          {error && <span role="alert">{error}</span>}
+        </nav>}
         {view === "home" && <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />}
         {view === "explore" && (
           <Explore
@@ -1059,15 +1149,23 @@ export function DateAtlas({
             </small>
           </div>
         )}
-        {planning && (!draftReady || plannerMode === null && busy) && <main className="planning-loader"><p>{busy ? "Opening your date plan…" : "Getting your questions ready…"}</p></main>}
+        {planning && (!draftReady || plannerMode === null && busy) && <PlannerInitializing />}
         {planning && draftReady && plannerMode === null && !busy && <PlannerModeChoice onChoose={choosePlannerMode} />}
-        {planning && draftReady && plannerMode === "chat" && <PlannerChat onCancelGeneration={cancelGeneration} request={request} setRequest={setRequest} session={chatSession} setSession={setChatSession} onGenerate={() => generate()} loading={busy} loadingStage={loadingStage} serverError={error} />}
+        {planning && draftReady && plannerMode === "chat" && <PlannerChat appearance={plannerAppearance} onCancelGeneration={cancelGeneration} request={request} setRequest={setRequest} session={chatSession} setSession={setChatSession} onGenerate={() => generate()} loading={busy} loadingStage={loadingStage} serverError={error} />}
         {planning && draftReady && plannerMode === "steps" && (
             <PlannerWizard
               request={request}
               setRequest={setRequest}
               step={plannerStep}
               editingPlan={editingPlan}
+              answered={chatSession.answered}
+              onAnswer={(id, updated) => {
+                const field = intakeFieldForQuestion(id);
+                if (field) setChatSession((previous) => {
+                  const answered = [...new Set([...previous.answered, field])];
+                  return { ...previous, answered, nextField: intakeNextField(updated, answered) };
+                });
+              }}
               theme={plannerAppearance}
               setStep={changePlannerStep}
               onCancelGeneration={cancelGeneration}
@@ -1086,7 +1184,7 @@ export function DateAtlas({
           <Results
             result={result}
             planningRequest={request}
-            signedIn={signedIn && !authOpen}
+            signedIn={signedIn && !authOpen && !authBusy && !authTransferPending}
             accountRevision={`${accountId}:${historyRevision}`}
             onSignIn={openAuthentication}
             onActivePlan={rememberPlan}
@@ -1103,6 +1201,7 @@ export function DateAtlas({
             onRegenerate={generate}
             busy={busy}
             requestError={error}
+            loadingStage={loadingStage}
           />
         )}
         {view === "saved" && (
@@ -1342,7 +1441,7 @@ export function DateAtlas({
             <AccountPrivacy />
             </>
           ) : (
-            <AccountAccess onDone={() => { setAuthOpen(false); setHistoryRevision((value) => value + 1); setFeedbackState("success"); setToast("You're signed in. Your guest dates stay with you."); trackFunnel("authentication_completed"); void resumeAfterAuth(); }} />
+            <AccountAccess onDone={authenticationDone} />
           )}
           {authBusy && <p role="status">Completing your secure sign-in…</p>}
           {authMessage && (

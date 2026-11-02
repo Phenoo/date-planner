@@ -12,12 +12,12 @@
 .story p { font-size: 14px; line-height: 1.8; color: #fff0f3; max-width: 315px; margin-top: 23px; }
 .storySignature { position: relative; font-size: 8px; letter-spacing: .15em; color: #ffedf2; }
 .panel { display: flex; flex-direction: column; justify-content: center; padding: 72px 48px 48px; min-width: 0; }
-.inner { width: min(100%,400px); margin-inline: auto; }
+.inner { width: min(100%,400px); min-width: 0; margin-inline: auto; overflow-wrap: anywhere; }
 .inner h1 { font-family: var(--font-dm-sans),sans-serif; font-size: 38px; font-weight: 550; line-height: 1.15; letter-spacing: -.045em; margin: 10px 0 14px; }
 .inner > :global(.eyebrow) { color: #d91335; font-size: 9px; }
 .inner > p { font-size: 14px; line-height: 1.7; margin-bottom: 24px; }
 .mobileBrand { display: none; }
-.account { width: 100%; }
+.account { width: 100%; min-width: 0; }
 .eyebrow { font-size: 9px; font-weight: 600; letter-spacing: .15em; color: #d91335; }
 .lead { font-size: 14px; line-height: 1.7; margin-bottom: 27px; max-width: 360px; }
 .google:global(.button) { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 52px; padding: 14px 20px; border-radius: 12px; border: 1px solid #747775; background: white; color: #1f1f1f; font-size: 14px; font-weight: 500; }
@@ -28,7 +28,8 @@
 .form:global(.form-stack) { gap: 17px; }
 .form :global(.field) { gap: 7px; }
 .form :global(.field) > span { color: #513940; font-size: 11px; }
-.form input { min-height: 51px; border-radius: 11px; border-color: #e5dadd; font-size: 14px; }
+.form input { min-width: 0; max-width: 100%; min-height: 51px; border-radius: 11px; border-color: #e5dadd; font-size: 16px; }
+.account button { white-space: normal; overflow-wrap: anywhere; }
 .submit:global(.button) { width: 100%; min-height: 52px; margin-top: 2px; border-radius: 11px; font-size: 14px; }
 .forgot { align-self: flex-end; min-height: 32px; padding: 5px 0; margin-top: -10px; color: #d91335; font-size: 12px; line-height: 1.5; }
 .forgot:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
@@ -55,7 +56,7 @@
   .layout { display: block; }
   .story { display: none; }
   .panel { justify-content: flex-start; min-height: 100dvh; padding: max(29px,env(safe-area-inset-top)) 24px max(28px,env(safe-area-inset-bottom)); }
-  .mobileBrand { display: block; margin-bottom: 46px; }
+  .mobileBrand { display: block; margin: 0 48px 46px 0; white-space: normal; }
   .screen > :global(.dialog-close) { top: 21px; right: 20px; }
   .inner h1 { font-size: 33px; }
   .lead { font-size: 13px; margin-bottom: 25px; }

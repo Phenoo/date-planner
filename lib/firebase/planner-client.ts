@@ -1,18 +1,11 @@
 "use client";
-import { signInAnonymously } from "firebase/auth";
-import { getBrowserAuth, getAuthToken } from "./client";
-let guestSignIn: Promise<unknown> | null = null;
+import { ensurePlanningIdentity, getAuthToken, waitForAccountTransition } from "./client";
 export async function planningToken() {
-  const auth = getBrowserAuth();
-  if (!auth) return null;
-  await auth.authStateReady();
-  if (!auth.currentUser) {
-    guestSignIn ??= signInAnonymously(auth).finally(() => { guestSignIn = null; });
-    await guestSignIn;
-  }
+  await ensurePlanningIdentity();
   return getAuthToken();
 }
 export async function plannerFetch(url: string, init?: RequestInit) {
+  await waitForAccountTransition();
   const headers = new Headers(init?.headers);
   const token = await getAuthToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);

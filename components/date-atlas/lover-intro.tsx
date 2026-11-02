@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { AtlasCompanion } from "@/components/animations/atlas-companion";
 import styles from "./lover-intro.module.css";
+import { useSlideAdvance } from "@/components/animations/use-slide-advance";
+
+const storySlideIntervalMs = 6000;
 
 const storyCards = [
   { kicker: "A LITTLE INPUT. A LOT OF THOUGHT.", title: "Good dates don't have to be hard to plan.", body: "We connect the details. You enjoy the company.", art: "companion" },
@@ -12,23 +15,15 @@ const storyCards = [
   { kicker: "03 / MAKE A MEMORY", title: "Less planning. More being there.", body: "Bring your favorite person. Leave a little room for something lovely.", art: "together" },
 ] as const;
 
-function subscribeMotion(notify: () => void) {
-  const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-  query.addEventListener("change", notify);
-  return () => query.removeEventListener("change", notify);
-}
-
-function subscribeVisibility(notify: () => void) {
-  document.addEventListener("visibilitychange", notify);
-  return () => document.removeEventListener("visibilitychange", notify);
-}
-
 export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; onResume?: () => void }) {
   const [pending, startTransition] = useTransition();
   const heading = useRef<HTMLHeadingElement>(null);
-  const reduced = useSyncExternalStore(subscribeMotion, () => window.matchMedia("(prefers-reduced-motion: reduce)").matches, () => true);
-  const visible = useSyncExternalStore(subscribeVisibility, () => !document.hidden, () => true);
+  const [slide, setSlide] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const { reduced, visible } = useSlideAdvance(slide, storySlideIntervalMs, paused || hovered, () => setSlide((value) => (value + 1) % storyCards.length));
   const still = reduced || !visible;
+  const card = storyCards[slide];
 
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
@@ -58,7 +53,7 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
           <p className="sr-only">Good dates don&apos;t have to be hard to plan. Tell us your vibe, time, and budget. We connect the details so you can enjoy the company and make a memory.</p>
         </section>
 
-        <div id="how-it-works" className={styles.art} aria-hidden="true" onPointerMove={(event) => {
+        <section id="how-it-works" className={styles.art} aria-label="Date planning stories" aria-roledescription="carousel" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onPointerMove={(event) => {
           if (still || event.pointerType !== "mouse") return;
           const bounds = event.currentTarget.getBoundingClientRect();
           event.currentTarget.style.setProperty("--tilt-x", `${((event.clientY - bounds.top) / bounds.height - .5) * -9}deg`);
@@ -70,21 +65,22 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
           <div className={styles.artHalo} />
           <div className={styles.parallax}>
             <div className={styles.postcardBack} />
-            <div className={styles.postcard}>
-              {storyCards.map((card, index) => <div key={card.art} className={`${styles.flipPanel} ${card.art === "vibe" ? styles.vibe : card.art === "together" ? styles.together : ""}`} style={{ animationDelay: `${(index === 0 ? 0 : index - storyCards.length) * 6 - 1}s` }}>
-                <div className={styles.postcardTop}><span>{card.kicker}</span><span>{String(index + 1).padStart(2, "0")} / 04</span></div>
+            <div className={styles.postcard} tabIndex={0} onFocus={() => setPaused(true)} onPointerDown={() => setPaused(true)}>
+              <div key={card.art} className={`${styles.flipPanel} ${card.art === "vibe" ? styles.vibe : card.art === "together" ? styles.together : ""}`} role="group" aria-roledescription="slide" aria-label={`${slide + 1} of ${storyCards.length}`} aria-live={paused ? "polite" : "off"}>
+                <div className={styles.postcardTop}><span>{card.kicker}</span><span>{String(slide + 1).padStart(2, "0")} / 04</span></div>
                 <div className={styles.storyArt}>
-                  {card.art === "companion" ? <AtlasCompanion pose="preferences" label="Atlas helps connect the little details" width="100%" height="100%" playing={!still} />
+                  {card.art === "companion" ? <AtlasCompanion pose="preferences" eager label="Oge helps connect the little details" width="100%" height="100%" playing={!still && !paused} />
                     : card.art === "vibe" ? <div className={styles.vibeTags}><span>YOUR VIBE</span><span>YOUR TIME</span><span>YOUR BUDGET</span></div>
                       : card.art === "route" ? <div className={styles.routeArt}><span>01</span><i /><span>02</span><i /><span>03</span></div>
                         : <div className={styles.togetherArt}>you<span>+</span>me</div>}
                 </div>
                 <div className={styles.storyCopy}><h2>{card.title}</h2><p>{card.body}</p></div>
                 <div className={styles.postcardBottom}><span>THOUGHTFULLY PLANNED</span><span>a date at las.</span></div>
-              </div>)}
+              </div>
             </div>
           </div>
-        </div>
+          <div className={styles.slideControls} aria-label="Story controls"><button type="button" aria-label="Previous story" onClick={() => { setPaused(true); setSlide((value) => (value + storyCards.length - 1) % storyCards.length); }}>←</button><span>{slide + 1} / {storyCards.length}</span><button type="button" aria-label="Next story" onClick={() => { setPaused(true); setSlide((value) => (value + 1) % storyCards.length); }}>→</button>{!reduced && <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? "Play stories" : "Pause stories"}</button>}</div>
+        </section>
       </div>
 
       <footer className={styles.footer}>

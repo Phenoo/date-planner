@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FirebaseError } from "firebase/app";
 import { GoogleAuthProvider, EmailAuthProvider, linkWithCredential, linkWithPopup, signInWithPopup, signInWithCredential, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { getBrowserAuth, completeEmailSignIn, hasEmailSignInLink, sendEmailSignIn, authErrorMessage } from "@/lib/firebase/client";
+import { getBrowserAuth, authenticateAccount, hasPendingAccountTransfer, completeEmailSignIn, hasEmailSignInLink, sendEmailSignIn, authErrorMessage } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
 import styles from "./auth-screen.module.css";
 export function AccountAccess({ onDone }: { onDone: () => void }) {
@@ -14,13 +14,12 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
   const emailInput = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const authenticating = useRef(false);
-  const pendingGuest = useRef<{ uid: string; token: string } | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function requestPasswordReset() {
-    if (busy || resetSent) return;
+    if (authenticating.current || resetSent) return;
     const auth = getBrowserAuth();
     if (!auth) { setError("Password recovery isn't available right now. Please try again later."); return; }
-    setBusy(true); setError("");
+    authenticating.current = true; setBusy(true); setError("");
     try {
       await sendPasswordResetEmail(auth, email.trim());
       if (mounted.current) setResetSent(true);
@@ -31,48 +30,43 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
       else if (failure instanceof FirebaseError && failure.code === "auth/too-many-requests") setError("Too many attempts. Please wait a little before trying again.");
       else if (failure instanceof FirebaseError && failure.code === "auth/network-request-failed") setError("Couldn't connect. Check your internet connection and try again.");
       else setError("We couldn't send a password reset link. Please try again.");
-    } finally { if (mounted.current) setBusy(false); }
+    } finally { authenticating.current = false; if (mounted.current) setBusy(false); }
   }
   async function authenticate(google = false, emailLink = false) {
     if (authenticating.current) return;
     const auth = getBrowserAuth(); if (!auth) { setError("Account services aren't available yet. You can still plan your date and try signing in later."); return; }
     authenticating.current = true;
     setBusy(true); setError("");
-    async function transferGuest() {
-      const guest = pendingGuest.current;
-      const user = auth?.currentUser;
-      if (!guest || !user || user.isAnonymous) return;
-      if (user.uid !== guest.uid) {
-        const token = await user.getIdToken();
-        const response = await fetch("/api/account/merge", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ guestToken: guest.token }), signal: AbortSignal.timeout(30000) });
-        if (!response.ok) throw new Error("You're signed in, but your date couldn't be transferred. Retry sign-in to finish keeping it with your account.");
-      }
-      pendingGuest.current = null;
-    }
     try {
-      const guest = auth.currentUser?.isAnonymous ? auth.currentUser : null;
-      if (guest) pendingGuest.current = { uid: guest.uid, token: await guest.getIdToken() };
-      else if (pendingGuest.current && auth.currentUser) { await transferGuest(); if (mounted.current) onDone(); return; }
-      if (await completeEmailSignIn(email)) { pendingGuest.current = null; if (mounted.current) onDone(); return; }
-      if (emailLink) { await sendEmailSignIn(email); setError("Your secure link is on its way. Check your email."); return; }
-      if (google) {
-        const provider = new GoogleAuthProvider();
-        try { if (guest) await linkWithPopup(guest, provider); else await signInWithPopup(auth, provider); }
-        catch (failure) {
-          const credential = failure instanceof FirebaseError ? GoogleAuthProvider.credentialFromError(failure) : null;
-          if (credential && failure instanceof FirebaseError && failure.code === "auth/credential-already-in-use") await signInWithCredential(auth, credential);
-          else throw failure;
-        }
-      } else if (create) {
-        if (guest) await linkWithCredential(guest, EmailAuthProvider.credential(email, password));
-        else await createUserWithEmailAndPassword(auth, email, password);
-      } else await signInWithEmailAndPassword(auth, email, password);
-      await transferGuest();
+      if (await completeEmailSignIn(email)) { if (mounted.current) onDone(); return; }
+      if (hasPendingAccountTransfer()) { await authenticateAccount(async () => {}, true); if (mounted.current) onDone(); return; }
+      if (emailLink) { await sendEmailSignIn(email.trim()); if (mounted.current) setError("Your secure link is on its way. Check your email."); return; }
+      await authenticateAccount(async (auth, guest) => {
+        if (google) {
+          const provider = new GoogleAuthProvider();
+          try { if (guest) await linkWithPopup(guest, provider); else await signInWithPopup(auth, provider); }
+          catch (failure) {
+            const credential = failure instanceof FirebaseError ? GoogleAuthProvider.credentialFromError(failure) : null;
+            if (credential && failure instanceof FirebaseError && failure.code === "auth/credential-already-in-use") await signInWithCredential(auth, credential);
+            else throw failure;
+          }
+        } else if (create) {
+          if (guest) await linkWithCredential(guest, EmailAuthProvider.credential(email.trim(), password));
+          else await createUserWithEmailAndPassword(auth, email.trim(), password);
+        } else await signInWithEmailAndPassword(auth, email.trim(), password);
+      });
       if (mounted.current) onDone();
     } catch (failure) {
       if (mounted.current) setError(failure instanceof FirebaseError ? authErrorMessage(failure) : failure instanceof Error ? failure.message : "Sign-in couldn't finish. Please retry.");
     } finally { authenticating.current = false; if (mounted.current) setBusy(false); }
   }
+  if (hasPendingAccountTransfer()) return <div className={styles.account}>
+    <span className={styles.eyebrow}>YOUR DATE IS STILL HERE</span>
+    <h1>One last connection.</h1>
+    <p className={styles.lead}>You’re signed in. Finish keeping your current date with your account, then we’ll return you to it.</p>
+    <Button className={styles.submit} disabled={busy} onClick={() => void authenticate()}>{busy ? "Keeping your date together…" : "Finish sign-in"}</Button>
+    {error && <p role="alert" className="auth-message">{error}</p>}
+  </div>;
   return <div className={styles.account}>
     <span className={styles.eyebrow}>YOUR NEXT CHAPTER</span>
     <h1>{reset ? "Forgot your password?" : create ? "Create your account." : "Welcome back."}</h1>
@@ -83,7 +77,7 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
     </>}
     <form className={`form-stack ${styles.form}`} aria-busy={busy} onSubmit={(event) => { event.preventDefault(); if (reset) void requestPasswordReset(); else void authenticate(); }}>
       <label className="field"><span>Email</span><input ref={emailInput} type="email" required autoComplete="email" disabled={busy} value={email} onChange={(event) => { setEmail(event.target.value); setResetSent(false); setError(""); }} /></label>
-      {!reset && <label className="field"><span>Password</span><input type="password" required minLength={6} autoComplete={create ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
+      {!reset && <label className="field"><span>Password</span><input type="password" required minLength={create ? 6 : undefined} disabled={busy} autoComplete={create ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
       {!reset && !create && <button type="button" className={styles.forgot} disabled={busy} onClick={() => { setReset(true); setResetSent(false); setError(""); emailInput.current?.focus(); }}>Forgot password?</button>}
       <Button type="submit" className={styles.submit} disabled={busy || (reset && resetSent)}>{reset ? busy ? "Sending reset link…" : resetSent ? "Reset link requested" : "Send reset link" : busy ? "Connecting…" : create ? "Create my account" : "Sign in"}</Button>
       {reset ? <button type="button" className={styles.mode} disabled={busy} onClick={() => { setReset(false); setResetSent(false); setError(""); emailInput.current?.focus(); }}>Back to sign in</button> : <>

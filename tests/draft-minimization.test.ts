@@ -26,3 +26,11 @@ test("HTTP and streamed generation conflicts retain status for a fresh retry", a
     await assert.rejects(readPlanningResponse(response, () => {}), (error: unknown) => error instanceof PlanningRequestError && error.status === 409);
   }
 });
+
+test("minimized drafts retain confirmed answer identities and the current semantic question", () => {
+  const draft = JSON.parse(draftJSON({ request, step: 5, chatSession: { messages: [{ role: "user", text: "PRIVATE MESSAGE" }], answered: ["people", "vibe"], nextField: "date" } }));
+  assert.equal(draft.questionId, "people");
+  assert.deepEqual(draft.chatSession.answered, ["people", "vibe"]);
+  assert.equal(draft.chatSession.nextField, "date");
+  assert.deepEqual(draft.chatSession.messages, []);
+});

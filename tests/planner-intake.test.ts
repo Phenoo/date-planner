@@ -102,3 +102,19 @@ test("switching interfaces resumes at the missing detail, and bounded chat histo
   assert.ok(chatSessionSchema.safeParse({ messages: [{ id: "one", role: "user", text: "Plan something creative" }], answered: ["vibe"], nextField: "location" }).success);
   assert.equal(chatSessionSchema.safeParse({ messages: [], answered: ["invented"], nextField: null }).success, false);
 });
+
+test("the questionnaire skips explicit chat answers, keeps defaults unconfirmed and exposes review editing", async () => {
+  const { wizardQuestionSteps } = await import("../lib/planner/intake");
+  const preferences = { ...request, date: "2030-11-02", startTime: "14:00", yourGender: "woman" as const, guests: 4 };
+  const ids = (answered: Parameters<typeof wizardQuestionSteps>[1]) => wizardQuestionSteps(preferences, answered, "2030-11-01").map((step) => plannerQuestions[step].id);
+  assert.ok(ids([]).includes("people"), "Gender and default values are not a participant count answer");
+  const remaining = ids(["people", "vibe", "budget", "date", "time", "duration"]);
+  for (const id of ["people", "vibes", "budget", "date", "time", "duration"]) assert.equal(remaining.includes(id as typeof remaining[number]), false);
+  assert.ok(remaining.includes("review"), "Review always offers editing, including skipped questions");
+  assert.ok(remaining.includes("city"));
+  assert.ok(remaining.includes("area"), "A named chat city does not answer the separate search-reach question");
+  const invalidated = wizardQuestionSteps({ ...preferences, date: "2030-10-31" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
+  assert.ok(invalidated.includes("date"));
+  const deadline = wizardQuestionSteps({ ...preferences, startTime: "21:00", endTime: "20:00" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
+  assert.ok(deadline.includes("duration"), "A dependent deadline must be reviewed after the start changes");
+});

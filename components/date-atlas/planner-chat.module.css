@@ -74,8 +74,14 @@
 .composer > button { flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: var(--planner-primary-bg); color: var(--planner-primary-text); display: grid; place-items: center; }
 .composer > button:hover:not(:disabled) { filter: brightness(.9); }
 .composer > button:disabled { opacity: .35; cursor: default; }
-.composerNote { display: block; text-align: center; font-size: 10px; color: var(--planner-muted); padding-top: 10px; }
 @keyframes arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes pulse { 50% { opacity: .3; transform: translateY(-2px); } }
 @media(max-width:600px) { .choice { padding-top: 35px; } .choice h1 { font-size: 41px; } .modeCards { grid-template-columns: 1fr; gap: 16px; margin-top: 30px; } .modeCards > button { padding: 20px; } .chatPreview,.stepsPreview { min-height: 110px; margin-bottom: 22px; } .modeCards p { min-height: 0; } .chatHeading { padding: 8px 20px; } .thread { padding: 18px 20px 24px; } .welcome { padding-top: 6vh; } .welcome h2 { font-size: 30px; } .messages p { font-size: 15px; } .user { padding: 12px 16px; } .dock { padding-inline: 14px; } .composer textarea { font-size: 16px; } .starters { flex-direction: column; align-items: center; } .starters > button { width: fit-content; } }
 @media(prefers-reduced-motion:reduce) { .choice *,.chat * { animation: none !important; transition: none !important; } }
+
+.chatHeading > div { min-width: 0; }
+.chatAvatar { flex-shrink: 0; }
+.chatHeading h1 { overflow-wrap: anywhere; }
+.detailChips { max-height: 88px; overflow-y: auto; }
+:global([data-chat-keyboard-open="true"]) .detailChips { display: none; }
+.composer textarea { max-height: min(144px,25dvh); }

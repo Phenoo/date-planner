@@ -111,7 +111,9 @@ export const plannerQuestions: readonly { id: PlannerQuestionId; title: string; 
 });
 export const plannerQuestionCount = plannerQuestions.length;
 export const plannerDraftVersion = 12;
-export function restorePlannerStep(step: unknown, version: unknown): number {
+export function restorePlannerStep(step: unknown, version: unknown, questionId?: unknown): number {
+  const semanticStep = plannerQuestions.findIndex((question) => question.id === questionId);
+  if (semanticStep >= 0) return semanticStep;
   if (typeof step !== "number" || !Number.isInteger(step) || step < 0) return 0;
   if (version === plannerDraftVersion) return Math.min(plannerQuestionCount - 1, step);
   if (version === 11) return order.indexOf(versionElevenOrder[Math.min(versionElevenOrder.length - 1, step)]);

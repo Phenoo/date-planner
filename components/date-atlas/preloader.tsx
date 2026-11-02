@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SwipeToContinue } from "./swipe-to-continue";
+import { BrandMorph } from "./brand-morph";
 import styles from "./preloader.module.css";
 
 const heartStart = 300;
@@ -139,7 +140,7 @@ export function Preloader({ onContinue }: { onContinue?: () => void }) {
 
   return (
     <main className={styles.preloader} aria-label="Welcome to a date at las">
-      <span className={`atlas-wordmark ${styles.brand}`}>a date at las<span>.</span></span>
+      <BrandMorph />
       <div className={styles.content}>
         <div className={styles.paper}>
           <svg className={styles.drawing} viewBox="0 30 480 370" role="img" aria-label="A hand draws a heart, then writes A date at las">
@@ -166,10 +167,10 @@ export function Preloader({ onContinue }: { onContinue?: () => void }) {
             </g>
           </svg>
         </div>
-        <p className={styles.caption} role="status">A little love is on its way<span aria-hidden="true">…</span></p>
+        <p className={styles.caption}>{drawingComplete ? "A little thought. A lovely possibility." : "A little love is on its way…"}</p>
       </div>
       <div className={styles.footer}>
-        {onContinue && drawingComplete && <SwipeToContinue onContinue={complete} />}
+        {onContinue && <SwipeToContinue onContinue={complete} />}
       </div>
     </main>
   );

@@ -28,3 +28,17 @@ test("an invitation intent resumes only for the same accepted place and unexpire
   assert.equal(readPendingInvitation(raw, undefined, "test-place", 1000), null);
   assert.equal(readPendingInvitation(raw, sessionId, "test-place", 1500), null);
 });
+
+test("temporary catalog auth returns preserve acceptance and timing without becoming save or share intents", async () => {
+  const { readCatalogAuthReturn } = await import("../lib/planner/saved");
+  const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Romantic date", vibes: ["Relaxed"], budget: null, duration: 180, date: "2026-11-14", startTime: "18:00" });
+  const recipe = { id: "test-return", title: "Your chosen date", type: "Best overall match", request, experienceIds: ["test-place"], total: 30000, image: "", demo: true, savedAt: new Date().toISOString() };
+  const raw = JSON.stringify({ recipe, flow: "current-plan", expiresAt: 1500, accepted: true });
+  const context = readCatalogAuthReturn(raw, "current-plan", 1000);
+  assert.deepEqual(context?.recipe.request, request);
+  assert.equal(context?.accepted, true);
+  assert.equal("action" in (context ?? {}), false, "Signing in alone grants no save or publication intent");
+  assert.equal(readCatalogAuthReturn(raw, "another-plan", 1000), null);
+  assert.equal(readCatalogAuthReturn(raw, "current-plan", 1500), null);
+  assert.equal(readCatalogAuthReturn(JSON.stringify({ recipe, flow: "current-plan", expiresAt: 3601001 }), "current-plan", 1000), null);
+});

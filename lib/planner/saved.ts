@@ -19,6 +19,12 @@ export const savedRecipeSchema = z.object({
 export type SavedRecipe = z.infer<typeof savedRecipeSchema>;
 export const savedAccountKey = (uid: string) => `date-atlas:saved:account:${uid}:v1`;
 export const pendingSaveKey = "date-atlas:pending-save:v1";
+export function readCatalogAuthReturn(raw: string | null, flow: string, now = Date.now()) {
+  try {
+    const parsed = z.object({ recipe: savedRecipeSchema, flow: z.string().max(100), expiresAt: z.number().finite(), accepted: z.boolean().default(false) }).safeParse(JSON.parse(raw ?? "null"));
+    return parsed.success && parsed.data.flow === flow && parsed.data.expiresAt > now && parsed.data.expiresAt <= now + 3600000 ? parsed.data : null;
+  } catch { return null; }
+}
 export function readPendingPlanAction(raw: string | null, now = Date.now(), flow?: string) {
   try {
     const parsed = z.object({ recipe: savedRecipeSchema, action: z.enum(["save", "share"]).default("save"), flow: z.string().max(100).default("direct"), expiresAt: z.number().finite() }).safeParse(JSON.parse(raw ?? "null"));

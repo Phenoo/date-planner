@@ -16,9 +16,10 @@ const quickReplies: Record<IntakeField, string[]> = {
   date: [], time: ["Morning at 10:00", "Afternoon at 14:00", "Evening at 18:00"], duration: ["2 hours", "4 hours", "A full day"],
 };
 
-export function PlannerChat({ request, setRequest, session, setSession, onGenerate, onCancelGeneration, loading, loadingStage, serverError }: {
+export function PlannerChat({ request, setRequest, session, setSession, onGenerate, onCancelGeneration, loading, loadingStage, serverError, appearance = "red" }: {
   request: PlanRequest; setRequest: Dispatch<SetStateAction<PlanRequest>>; session: ChatSession; setSession: Dispatch<SetStateAction<ChatSession>>;
   onGenerate: () => Promise<void>; onCancelGeneration?: () => void; loading: boolean; loadingStage: string; serverError: string;
+  appearance?: "white" | "red" | "dark";
 }) {
   const pendingMessage = session.messages.at(-1);
   const [message, setMessage] = useState("");
@@ -38,22 +39,43 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   const starting = !session.messages.length && !summary.length;
   const suggestions = starting ? ["Help me plan something romantic", "Something fun and unexpected", "Let’s celebrate an anniversary"] : focus ? quickReplies[focus] : [];
   useEffect(() => () => controller.current?.abort(), []);
-  useEffect(() => {
-    const app = screen.current?.closest<HTMLElement>(".is-planning");
+  useLayoutEffect(() => {
+    const app = screen.current?.closest<HTMLElement>(".is-planning") ?? document.querySelector<HTMLElement>('.is-planning[data-planner-mode="chat"]');
     if (!app) return;
     const viewport = window.visualViewport;
+    const previousOverflow = document.body.style.overflow;
+    const previousBackground = document.body.style.backgroundColor;
+    document.body.style.overflow = "hidden";
+    document.body.style.backgroundColor = getComputedStyle(app).backgroundColor;
     const resize = () => {
-      if (!viewport || viewport.scale === 1) app.style.setProperty("--chat-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+      if (viewport && viewport.scale !== 1) return;
+      app.style.setProperty("--chat-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+      app.style.setProperty("--chat-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+      app.dataset.chatKeyboardOpen = String(window.innerHeight - (viewport?.height ?? window.innerHeight) > 120);
+      if (followMessages.current && conversation.current) conversation.current.scrollTop = conversation.current.scrollHeight;
     };
     resize();
     viewport?.addEventListener("resize", resize);
+    viewport?.addEventListener("scroll", resize);
     window.addEventListener("resize", resize);
     return () => {
       app.style.removeProperty("--chat-viewport-height");
+      app.style.removeProperty("--chat-viewport-top");
+      delete app.dataset.chatKeyboardOpen;
+      document.body.style.overflow = previousOverflow;
+      document.body.style.backgroundColor = previousBackground;
       viewport?.removeEventListener("resize", resize);
+      viewport?.removeEventListener("scroll", resize);
       window.removeEventListener("resize", resize);
     };
-  }, []);
+  }, [appearance]);
+  useEffect(() => {
+    const viewport = conversation.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(() => { if (followMessages.current) viewport.scrollTop = viewport.scrollHeight; });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [loading]);
   useLayoutEffect(() => {
     const textarea = input.current;
     if (!textarea) return;
@@ -101,10 +123,10 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   if (loading) return <GeneratingScreen stage={loadingStage} onCancel={onCancelGeneration} />;
   return <main ref={screen} className={styles.chat}>
     <header className={styles.chatHeading}>
-      <div><span className={styles.chatAvatar} aria-hidden="true">a.</span><h1>Your date planner</h1></div>
+      <div><span className={styles.chatAvatar} aria-hidden="true">o.</span><h1>Oge · Your planning companion</h1></div>
       {summary.length > 0 && <details className={styles.summary}><summary>Date details <ChevronDown size={14} aria-hidden="true" /></summary><dl>{summary.map(({ field, value }) => <div key={field}><dt>{field === "vibe" ? "Vibe" : field === "people" ? "Guests" : field.charAt(0).toUpperCase() + field.slice(1)}</dt><dd>{value}</dd></div>)}</dl></details>}
     </header>
-    {summary.length > 0 && <div className={styles.detailChips} aria-label="Edit date details">{summary.filter(({ field }) => ["location", "date", "time", "budget"].includes(field)).map(({ field, value }) => <button key={field} type="button" aria-label={`Change ${field === "location" ? "city" : field}: ${value}`} aria-pressed={editingField === field} disabled={sending} onClick={() => { setEditingField(field); scrollToLatest(); if (field !== "time") input.current?.focus(); }}>{value}</button>)}</div>}
+    {summary.length > 0 && <div className={styles.detailChips} aria-label="Edit date details">{summary.map(({ field, value }) => <button key={field} type="button" aria-label={`Change ${field === "location" ? "city" : field}: ${value}`} aria-pressed={editingField === field} disabled={sending} onClick={() => { setEditingField(field); scrollToLatest(); if (field !== "time") input.current?.focus(); }}>{value}</button>)}</div>}
     <div ref={conversation} className={styles.transcript} onScroll={(event) => {
       const viewport = event.currentTarget;
       const nearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
@@ -112,10 +134,10 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       setShowLatest(!nearBottom);
     }}>
       <div className={styles.thread}>
-        {!session.messages.length && <div className={styles.welcome}><span className="eyebrow">A DATE AT LAS</span><h2>{starting ? "What are you imagining?" : "Let’s pick up from here."}</h2><p>{starting ? <>A city, a feeling, a little something they love.<br />Tell me what you have in mind.</> : ready ? "Your date details are here. Tell me what to change, or let’s find your date." : "Your date details are here. Tell me a little more about what you have in mind."}</p></div>}
-        <div className={styles.messages} role="log" aria-label="Conversation with your date planner" aria-live="polite" aria-relevant="additions">
-          {session.messages.map((item) => <article key={item.id} className={item.role === "user" ? styles.user : styles.assistant}><span className={item.role === "user" ? "sr-only" : styles.speaker}>{item.role === "user" ? "You" : "adal"}</span><p>{item.text}</p></article>)}
-          {sending && <div className={styles.typing} role="status" aria-label="The planner is thinking"><span className={styles.speaker}>adal</span><div aria-hidden="true"><i /><i /><i /></div></div>}
+        {!session.messages.length && <div className={styles.welcome}><span className="eyebrow">A DATE AT LAS</span><h2>{starting ? "Hi, I’m Oge." : "Let’s pick up from here."}</h2><p>{starting ? "Your date-planning companion. Tell me what you have in mind." : ready ? "Oge here. Your date details are kept. Tell me what to change, or let’s find your date." : `Oge here. ${intakeQuestion(focus)}`}</p></div>}
+        <div className={styles.messages} role="log" aria-label="Conversation with Oge" aria-live="polite" aria-relevant="additions">
+          {session.messages.map((item) => <article key={item.id} className={item.role === "user" ? styles.user : styles.assistant}><span className={item.role === "user" ? "sr-only" : styles.speaker}>{item.role === "user" ? "You" : "Oge"}</span><p>{item.text}</p></article>)}
+          {sending && <div className={styles.typing} role="status" aria-label="Oge is thinking"><span className={styles.speaker}>Oge</span><div aria-hidden="true"><i /><i /><i /></div></div>}
         </div>
         {!sending && !error && focus === "date" && <div className={styles.inlineCalendar}><DatePicker value={request.date} onChange={(date) => void send(`Let's go on ${date}.`)} /></div>}
         {!sending && !error && focus === "time" && <form className={styles.exactTime} onSubmit={(event) => {
@@ -136,11 +158,10 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
     <div className={styles.dock}>
       {editingField && <div className={styles.editing}><p id="chat-edit-prompt">{intakeQuestion(editingField)}</p><button type="button" disabled={sending} onClick={() => { setEditingField(null); input.current?.focus(); }}>Cancel edit</button></div>}
       <form className={styles.composer} onSubmit={(event) => { event.preventDefault(); void send(message); }}>
-        <label className="sr-only" htmlFor="planner-chat-message">Message your date planner</label>
-        <textarea ref={input} id="planner-chat-message" aria-describedby={editingField ? "chat-edit-prompt" : undefined} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={1200} rows={1} placeholder={sending ? "Add another thought…" : editingField ? `New ${editingField === "location" ? "city" : editingField}…` : "Message adal…"} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && window.matchMedia("(hover: hover) and (pointer: fine)").matches) { event.preventDefault(); void send(message); } }} />
+        <label className="sr-only" htmlFor="planner-chat-message">Message Oge</label>
+        <textarea ref={input} id="planner-chat-message" aria-describedby={editingField ? "chat-edit-prompt" : undefined} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={1200} rows={1} placeholder={sending ? "Add another thought…" : editingField ? `New ${editingField === "location" ? "city" : editingField}…` : "Message Oge…"} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && window.matchMedia("(hover: hover) and (pointer: fine)").matches) { event.preventDefault(); void send(message); } }} />
         <button type="submit" aria-label="Send message" disabled={sending || !message.trim()}><ArrowUp size={20} aria-hidden="true" /></button>
       </form>
-      <span className={styles.composerNote}>A little input. A lot of thought.</span>
     </div>
   </main>;
 }

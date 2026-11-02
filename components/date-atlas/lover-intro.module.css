@@ -52,7 +52,7 @@
 .postcardBottom { margin-top: auto; border-top: 1px solid #d9133522; padding-top: 13px; display: flex; justify-content: space-between; align-items: center; font-size: 7px; letter-spacing: .08em; }
 .postcardBottom > span:last-child { font-size: 14px; font-weight: 650; letter-spacing: -.05em; }
 
-.flipPanel { position: absolute; inset: 0; padding: 23px; display: flex; flex-direction: column; background: #fffaf8; border-radius: 7px; box-shadow: 0 30px 65px #7a082733; backface-visibility: hidden; -webkit-backface-visibility: hidden; transform: rotateY(180deg); animation: storyFlip 24s cubic-bezier(.65,0,.35,1) infinite; }
+.flipPanel { position: absolute; inset: 0; padding: 23px; display: flex; flex-direction: column; background: #fffaf8; border-radius: 7px; box-shadow: 0 30px 65px #7a082733; backface-visibility: hidden; -webkit-backface-visibility: hidden; transform: none; }
 .flipPanel:first-child { transform: none; }
 .flipPanel.vibe { background: #ffe1e8; }
 .flipPanel.together { background: #fff0f3; }
@@ -86,7 +86,7 @@
 .chapter > small { font-size: 8px; letter-spacing: .12em; margin-left: 10px; }
 .still *, .still *::before, .still *::after { animation: none !important; transition: none !important; }
 .still .parallax { transform: none; }
-.still .flipPanel { transform: rotateY(180deg); }
+.still .flipPanel { transform: none; }
 .still .flipPanel:first-child { transform: none; }
 
 @keyframes headlineReveal { from { opacity: 0; transform: translateY(115%) rotate(3deg); } to { opacity: 1; transform: translateY(0) rotate(0); } }
@@ -155,3 +155,7 @@
 @media (max-width:700px) and (max-height:740px) { .layout { padding-top: 19px; gap: 5px; } .kicker { margin-bottom: 17px; } .title { font-size: 52px; } .description { margin-top: 18px; } .art { height: 270px; } .parallax { scale: .9; transform-origin: center top; } }
 @media (prefers-reduced-motion:reduce) { .intro *, .intro *::before, .intro *::after { animation: none !important; transition: none !important; } .parallax { transform: none; } .flipPanel { transform: rotateY(180deg); } .flipPanel:first-child { transform: none; } }
 @media (hover:none) { .parallax { transform: none; } }
+
+.slideControls { position: absolute; bottom: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; color: white; }
+.slideControls button { min-height: 44px; min-width: 44px; font-size: 12px; padding: 6px; }
+.slideControls span { font-size: 11px; }

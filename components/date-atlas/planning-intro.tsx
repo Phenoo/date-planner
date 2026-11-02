@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, useTransition, type CSSProperties } from "
 import Image from "next/image";
 import { AtlasCompanion } from "@/components/animations/atlas-companion";
 import styles from "./planning-intro.module.css";
+import { useSlideAdvance } from "@/components/animations/use-slide-advance";
 
-const chapterDuration = 3000;
+const planningChapterIntervalMs = 3000;
 const chapters = [
   { label: "A PLACE TO BEGIN", title: "Start with somewhere.", description: "Your city is just the beginning. Choose how far you’d love to go.", pose: "location" },
   { label: "THE LITTLE DETAILS", title: "Make it your kind of date.", description: "Your occasion, your people, your vibe and your time. Set a budget, or leave it open.", pose: "preferences" },
@@ -27,72 +28,16 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
   const [pending, startTransition] = useTransition();
   const screen = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  const startButton = useRef<HTMLButtonElement>(null);
+  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const ready = chapter === chapters.length;
   const current = chapters[Math.min(chapter, chapters.length - 1)];
 
-  useEffect(() => {
-    heading.current?.focus({ preventScroll: true });
-    const element = screen.current;
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let frame = 0;
-    let elapsed = 0;
-    let previous: number | null = null;
-    let displayedChapter = 0;
+  const { reduced, visible } = useSlideAdvance(chapter, planningChapterIntervalMs, paused || hovered || ready, () => setChapter((value) => Math.min(chapters.length, value + 1)));
+  useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
+  function chooseChapter(index: number) { setPaused(true); setChapter(index); }
 
-    function finish() {
-      displayedChapter = chapters.length;
-      element?.style.setProperty("--intro-progress", "1");
-      setChapter(chapters.length);
-    }
-
-    function tick(now: number) {
-      if (document.hidden) { previous = null; return; }
-      if (motion.matches) { finish(); return; }
-      if (previous !== null) elapsed += now - previous;
-      previous = now;
-      element?.style.setProperty("--intro-progress", String(Math.min(1, elapsed / (chapterDuration * chapters.length))));
-      const next = Math.min(chapters.length, Math.floor(elapsed / chapterDuration));
-      if (next !== displayedChapter) { displayedChapter = next; setChapter(next); }
-      if (next < chapters.length) frame = window.requestAnimationFrame(tick);
-    }
-
-    function visibilityChanged() {
-      window.cancelAnimationFrame(frame);
-      previous = null;
-      if (element) element.dataset.paused = String(document.hidden);
-      if (!document.hidden && displayedChapter < chapters.length) frame = window.requestAnimationFrame(tick);
-    }
-
-    function motionChanged() {
-      if (!motion.matches) return;
-      window.cancelAnimationFrame(frame);
-      finish();
-    }
-
-    visibilityChanged();
-    document.addEventListener("visibilitychange", visibilityChanged);
-    motion.addEventListener("change", motionChanged);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener("visibilitychange", visibilityChanged);
-      motion.removeEventListener("change", motionChanged);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    const frame = window.requestAnimationFrame(() => {
-      startButton.current?.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-        block: "end",
-        inline: "nearest",
-      });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [ready]);
-
-  return <main ref={screen} className={styles.screen} aria-label="Before you plan your date" data-chapter={chapter}>
+  return <main ref={screen} className={styles.screen} aria-label="Before you plan your date" data-chapter={chapter} data-paused={!visible || paused || hovered || reduced} style={{ "--intro-progress": String(chapter / chapters.length) } as CSSProperties}>
     <div className={styles.backdrop} aria-hidden="true">
       <span /><span /><span /><div className={styles.orbit} />
       {[styles.loveLeft, styles.loveRight, styles.loveBottom].map((placement) => <svg key={placement} className={`${styles.loveArt} ${placement}`} viewBox="70 55 340 280" fill="none" focusable="false">
@@ -104,8 +49,8 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
       <span>A LITTLE THOUGHT GOES A LONG WAY</span>
     </div>
 
-    <div className={styles.story}>
-      <div className={styles.copy} aria-live="polite" aria-atomic="true">
+    <div className={styles.story} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onPointerDown={() => setPaused(true)} onFocusCapture={(event) => { if (event.target !== heading.current) setPaused(true); }}>
+      <div className={styles.copy} aria-live={paused ? "polite" : "off"} aria-atomic="true">
         <span className={styles.eyebrow}>{ready ? "YOUR TURN TO MAKE IT PERSONAL" : current.label}</span>
         <h1 ref={heading} tabIndex={-1}><span key={chapter}><Title text={ready ? "Ready to make their day?" : current.title} /></span></h1>
         <p key={`description-${chapter}`}>{ready ? "A few details from you. A thoughtful plan from us." : current.description}</p>
@@ -121,9 +66,9 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
             <div className={styles.cityLabel}>Your city<span>A starting point, not a limit.</span></div>
           </div>
           <div className={`${styles.floatingNote} ${styles.exploreNote}`}>Somewhere new?</div>
-          <div className={styles.locationCompanion}><AtlasCompanion pose="location" label="Atlas finding possibilities" width="100%" height="100%" idle={false} /></div>
+          <div className={styles.locationCompanion}><AtlasCompanion pose="location" label="Oge finding possibilities" width="100%" height="100%" idle={false} /></div>
         </div> : chapter === 1 ? <div className={styles.detailsScene}>
-          <div className={styles.detailCompanion}><AtlasCompanion pose="preferences" label="Atlas getting to know your date" width="100%" height="100%" idle={false} /></div>
+          <div className={styles.detailCompanion}><AtlasCompanion pose="preferences" label="Oge getting to know your date" width="100%" height="100%" idle={false} /></div>
           <div className={`${styles.detailCard} ${styles.vibeCard}`}><span>YOUR VIBE</span><strong>A little creative.</strong><div className={styles.swatches}><i /><i /><i /></div></div>
           <div className={`${styles.detailCard} ${styles.timeCard}`}><span>YOUR TIME</span><strong>Make room for two.</strong><div className={styles.clock}><i /><i /></div></div>
           <div className={`${styles.detailCard} ${styles.budgetCard}`}><span>YOUR BUDGET</span><strong>Comfort comes first.</strong><small>Set a limit, or keep it open.</small></div>
@@ -134,22 +79,22 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
             <Image src={`/illustrations/vibes/editorial-v2/${moment.image}.webp`} alt="" width={360} height={240} sizes="(max-width:700px) 30vw, 170px" />
             <span>{moment.detail}</span><strong>{moment.title}</strong>
           </div>)}</div>
-          <div className={styles.planFooter}><span className={styles.routeDots}><i /><i /><i /></span><span>Connected around you.</span><div className={styles.planCompanion}><AtlasCompanion pose={current.pose} label="Atlas connecting your plan" width="100%" height="100%" playing={!ready} idle={false} /></div></div>
+          <div className={styles.planFooter}><span className={styles.routeDots}><i /><i /><i /></span><span>Connected around you.</span><div className={styles.planCompanion}><AtlasCompanion pose={current.pose} label="Oge connecting your plan" width="100%" height="100%" playing={!ready} idle={false} /></div></div>
         </div>}
       </div>
 
       <ol className={styles.chapters} aria-label="How planning works">
-        <li data-active={chapter >= 0}><span>Choose a place</span><small>Your city &amp; how far to go</small></li>
-        <li data-active={chapter >= 1}><span>Make it personal</span><small>Occasion, people, vibe &amp; time</small></li>
-        <li data-active={chapter >= 2}><span>Leave it to us</span><small>Places, timing &amp; estimated costs</small></li>
+        <li data-active={chapter >= 0}><button type="button" aria-current={chapter === 0 ? "step" : undefined} onClick={() => chooseChapter(0)}>Choose a place</button><small>Your city &amp; how far to go</small></li>
+        <li data-active={chapter >= 1}><button type="button" aria-current={chapter === 1 ? "step" : undefined} onClick={() => chooseChapter(1)}>Make it personal</button><small>Occasion, people, vibe &amp; time</small></li>
+        <li data-active={chapter >= 2}><button type="button" aria-current={chapter === 2 ? "step" : undefined} onClick={() => chooseChapter(2)}>Leave it to us</button><small>Places, timing &amp; estimated costs</small></li>
       </ol>
     </div>
 
     <footer className={styles.footer}>
       <div className={styles.progress} aria-hidden="true"><span /></div>
-      <div className={styles.actionSlot}>{ready
-        ? <button ref={startButton} type="button" className={styles.start} disabled={pending} aria-busy={pending} onClick={() => startTransition(onStart)}>{pending ? "Opening your planner…" : "Start my date plan"}<span aria-hidden="true">→</span></button>
-        : <p className={styles.watch}>A quick look at how it all comes together<span aria-hidden="true">…</span></p>}
+      <div className={styles.slideControls}><button type="button" disabled={chapter === 0} onClick={() => chooseChapter(chapter - 1)}>Previous</button><button type="button" disabled={ready} onClick={() => chooseChapter(Math.min(chapters.length, chapter + 1))}>Next</button>{!reduced && !ready && <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? "Play introduction" : "Pause introduction"}</button>}</div>
+      <div className={styles.actionSlot}><button type="button" className={styles.start} disabled={pending} aria-busy={pending} onClick={() => startTransition(onStart)}>{pending ? "Opening your planner…" : "Start my date plan"}<span aria-hidden="true">→</span></button>
+
       </div>
     </footer>
   </main>;

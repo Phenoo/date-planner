@@ -22,4 +22,8 @@
 .reviews article span { font-size: 11px; color: var(--detail-muted); }
 .reviews summary { cursor: pointer; padding-block: 12px; min-height: 44px; font-size: 12px; }
 .reviews small { display: block; margin-top: 20px; line-height: 1.7; }
+.preview { margin: 20px 0 0; }
+.preview .reviews { padding-top: 12px; }
+.preview h3 { font-size: 18px; margin-bottom: 0; }
+.preview article { padding-block: 12px; margin-bottom: 12px; }
 @media(max-width:600px) { .facts { gap: 20px; grid-template-columns: 1fr; } .facts > div { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 8px; } .facts strong { margin: 0; font-size: 21px; } .facts p { grid-column: 2; font-size: 11px; } .facts span { padding-top: 6px; } }

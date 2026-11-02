@@ -1,7 +1,7 @@
 import { getAuth } from "firebase-admin/auth";
 import { z } from "zod";
 import { authenticatedClient, getFirebaseAdmin } from "@/lib/firebase/server";
-import { apiError, readJson } from "@/lib/planner/http";
+import { apiError, readJson, RequestError } from "@/lib/planner/http";
 export async function POST(request: Request) {
   try {
     const auth = await authenticatedClient(request);
@@ -11,6 +11,11 @@ export async function POST(request: Request) {
     const guest = await getAuth(getFirebaseAdmin()).verifyIdToken(body.data.guestToken, true);
     if (guest.firebase.sign_in_provider !== "anonymous" || guest.uid === auth.user.uid) return Response.json({ error: "Only your authenticated guest session can be transferred." }, { status: 403 });
     const source = auth.db.collection("users").doc(guest.uid), destination = auth.db.collection("users").doc(auth.user.uid);
+    await auth.db.runTransaction(async (tx) => {
+      const owner = (await tx.get(source)).data()?.transferredTo;
+      if (owner && owner !== auth.user.uid) throw new RequestError("This guest session has already been transferred to another account.", 403);
+      tx.set(source, { transferredTo: auth.user.uid }, { merge: true });
+    });
     for (const collection of ["savedPlans", "datePlans", "discoverySessions", "dateHistory"]) {
       const records = await source.collection(collection).limit(100).get();
       for (const record of records.docs) await auth.db.runTransaction(async (tx) => {

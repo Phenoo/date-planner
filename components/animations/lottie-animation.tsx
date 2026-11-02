@@ -18,10 +18,11 @@ function subscribeVisibility(notify: () => void) {
   document.addEventListener("visibilitychange", notify); return () => document.removeEventListener("visibilitychange", notify);
 }
 export function LottieAnimation({ animation, src, fallback, label, width = 280, height = 200,
-  autoplay = true, loop = false, speed = 1, playing = true, onComplete, className = "",
+  autoplay = true, loop = false, speed = 1, playing = true, onComplete, className = "", eager = false,
 }: { animation?: AnimationName; src?: string; fallback?: string; label: string; width?: number | string;
   height?: number | string; autoplay?: boolean; loop?: boolean; speed?: number; playing?: boolean;
   onComplete?: () => void; className?: string;
+  eager?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const finished = useRef(false);
@@ -63,7 +64,7 @@ export function LottieAnimation({ animation, src, fallback, label, width = 280, 
   }, [player, loaded, visible, pageVisible, playing, autoplay, reduced, loop]);
   const style: CSSProperties = { width, height, maxWidth: "100%" };
   return <div ref={container} className={`lottie-illustration ${className}`} style={style} role="img" aria-label={label} data-animation-state={failed ? "fallback" : loaded ? "ready" : "static"}>
-    {still && (!loaded || failed || reduced) && <Image src={still} alt="" aria-hidden="true" fill sizes="320px" unoptimized />}
+    {still && (!loaded || failed || reduced) && <Image src={still} alt="" aria-hidden="true" fill sizes="320px" unoptimized loading={eager ? "eager" : "lazy"} />}
     {!reduced && activated && !failed && source && <Player src={source} autoplay={false} loop={loop} speed={speed}
       dotLottieRefCallback={setPlayer} aria-hidden="true" renderConfig={{ devicePixelRatio: 2, freezeOnOffscreen: true }}
       style={{ opacity: loaded ? 1 : 0 }} />}

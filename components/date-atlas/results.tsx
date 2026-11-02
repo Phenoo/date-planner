@@ -61,6 +61,7 @@ export function Results({
   onCancelGeneration,
   busy,
   requestError,
+  loadingStage,
 }: {
   result: RecommendationResult;
   planningRequest: PlanRequest;
@@ -81,6 +82,7 @@ export function Results({
   busy: boolean;
   onCancelGeneration?: () => void;
   requestError: string;
+  loadingStage?: string;
 }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   function exclusions() { try { return readRejectedPicks(sessionStorage.getItem(rejectedPicksKey(new URLSearchParams(window.location.search).get("flow") ?? "direct"))); } catch { return readRejectedPicks(null); } }
@@ -127,15 +129,15 @@ export function Results({
   const activeLocked = locked.filter((id) =>
     plan?.activities.some((activity) => activity.experience.id === id),
   );
-  if (plan && acceptedCatalog === plan.id && busy) return <GeneratingScreen stage="Preparing one replacement with your other answers intact" onCancel={onCancelGeneration} />;
+  if (plan && acceptedCatalog === plan.id && busy) return <GeneratingScreen stage={loadingStage} onCancel={onCancelGeneration} />;
   if (plan && acceptedCatalog !== plan.id) {
     const activity = plan.activities[0];
     const place: NearbyResult["places"][number] = { id: activity.experience.id, name: activity.experience.venue, category: activity.experience.category, address: `${activity.experience.area}, ${activity.experience.city}`, distanceKm: activity.distance, reason: activity.reason, mapsUrl: "https://www.google.com/maps/", attributions: [], photo: { url: activity.experience.image, authors: [] } };
-    return <CinematicReveal onCancelGeneration={onCancelGeneration} key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => { try { sessionStorage.setItem("date-atlas:accepted-catalog:v1", plan.id); } catch { /* The accepted state remains in memory. */ } setAcceptedCatalog(plan.id); }} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => { setLastRejected(plan.id); void onRegenerate(reason === "distance" ? { ...plan.request, maxDistance: Math.max(1, Math.floor(plan.request.maxDistance / 2)) } : plan.request, { excludeIds: plan.activities.map((item) => item.experience.id), ...(reason === "activity" ? { excludeCategories: [activity.experience.category] } : {}) }); }} />;
+    return <CinematicReveal loadingStage={loadingStage} onCancelGeneration={onCancelGeneration} key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => { try { sessionStorage.setItem("date-atlas:accepted-catalog:v1", plan.id); } catch { /* The accepted state remains in memory. */ } setAcceptedCatalog(plan.id); }} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => { setLastRejected(plan.id); void onRegenerate(reason === "distance" ? { ...plan.request, maxDistance: Math.max(1, Math.floor(plan.request.maxDistance / 2)) } : plan.request, { excludeIds: plan.activities.map((item) => item.experience.id), ...(reason === "activity" ? { excludeCategories: [activity.experience.category] } : {}) }); }} />;
   }
   if (!plan && result.nearby?.places[0]) {
     const place = result.nearby.places[0];
-    return <SinglePlaceJourney onCancelGeneration={onCancelGeneration} key={`${place.id}:${result.nearby.sessionId ?? ""}`} place={place} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} accountRevision={accountRevision} busy={busy} error={requestError} rejected={lastRejected === place.id} onSignIn={onSignIn} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => {
+    return <SinglePlaceJourney loadingStage={loadingStage} onCancelGeneration={onCancelGeneration} key={`${place.id}:${result.nearby.sessionId ?? ""}`} place={place} sessionId={result.nearby.sessionId} request={planningRequest} signedIn={signedIn} accountRevision={accountRevision} busy={busy} error={requestError} rejected={lastRejected === place.id} onSignIn={onSignIn} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => {
       setLastRejected(place.id);
       void onRegenerate(reason === "distance" ? { ...planningRequest, maxDistance: Math.max(1, Math.floor(planningRequest.maxDistance / 2)) } : planningRequest, { excludePlaceIds: [place.id], ...(reason === "activity" ? { excludeCategories: [place.category] } : {}) });
     }} />;

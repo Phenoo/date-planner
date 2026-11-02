@@ -31,8 +31,8 @@ import type { NearbyResult } from "../../lib/maps/schema";
 if (process.env.FIREBASE_PROJECT_ID !== "demo-date-atlas" || process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080" || process.env.FIREBASE_AUTH_EMULATOR_HOST !== "127.0.0.1:9099") throw new Error("This check only runs against the local demo emulators.");
 
 import { discoverDatePlaces } from "../../lib/server/date-discovery";
-import { getBrowserAuth, completeEmailSignIn } from "../../lib/firebase/client";
-import { signInAnonymously, sendSignInLinkToEmail, signOut as signOutClient } from "firebase/auth";
+import { getBrowserAuth, completeEmailSignIn, authenticateAccount, waitForAccountTransition, hasPendingAccountTransfer } from "../../lib/firebase/client";
+import { signInAnonymously, sendSignInLinkToEmail, signInWithEmailAndPassword, linkWithCredential, EmailAuthProvider, signOut as signOutClient } from "firebase/auth";
 import { POST as feedback } from "../../app/api/date-feedback/route";
 import { GET as privacyStatus, POST as privacyRequest } from "../../app/api/account/privacy/route";
 import { GET as privacyQueue, POST as processPrivacy } from "../../app/api/admin/privacy/route";
@@ -47,10 +47,11 @@ import { POST as restoreContext } from "../../app/api/plans/context/route";
 
 const originalFetch = globalThis.fetch;
 let interruptMerge = false;
+let heldMerge: { entered: () => void; released: Promise<void> } | null = null;
 globalThis.fetch = async (input, init) => {
   const url = String(input);
   if (url.startsWith("https://maps.googleapis.com/maps/api/geocode/json")) return Response.json({ status: "OK", results: [{ geometry: { location: { lat: 6.45, lng: 3.46 } }, address_components: [], formatted_address: "TEST FIXTURE AREA" }] });
-  if (url === "/api/account/merge") { if (interruptMerge) { interruptMerge = false; return Response.json({ error: "Test-only interrupted transfer" }, { status: 503 }); } return mergeGuest(new Request("http://test.local/api/account/merge", init)); }
+  if (url === "/api/account/merge") { if (heldMerge) { heldMerge.entered(); await heldMerge.released; heldMerge = null; } if (interruptMerge) { interruptMerge = false; return Response.json({ error: "Test-only interrupted transfer" }, { status: 503 }); } return mergeGuest(new Request("http://test.local/api/account/merge", init)); }
   if (url.startsWith("https://places.googleapis.com/v1/places:")) return Response.json({ places: [{ id: "TEST_PLACE_0", displayName: { text: "TEST FIXTURE 0" }, formattedAddress: "TEST FIXTURE ADDRESS", primaryTypeDisplayName: { text: "Art gallery" }, businessStatus: "OPERATIONAL", location: { latitude: 6.45, longitude: 3.46 }, types: ["art_gallery"], attributions: [], photos: [] }] });
   if (url.startsWith("https://places.googleapis.com/v1/places/")) {
     const id = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!);
@@ -456,6 +457,51 @@ const storedEmail = new Map<string, string>();
 Object.defineProperty(globalThis, "window", { configurable: true, value: { location: testLocation, history: { state: null, replaceState: (_state: unknown, _unused: string, url: URL) => { testLocation.href = url.toString(); } } } });
 Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: (key: string) => storedEmail.get(key) ?? null, setItem: (key: string, value: string) => storedEmail.set(key, value), removeItem: (key: string) => storedEmail.delete(key) } });
 const clientAuth = getBrowserAuth(); assert.ok(clientAuth);
+// A fresh login must execute the sign-in operation even before any guest exists.
+let freshAttempts = 0;
+await authenticateAccount(async (auth) => { freshAttempts++; await signInWithEmailAndPassword(auth, memberEmail, "Emulator-only-Password-728!"); });
+assert.equal(freshAttempts, 1);
+assert.equal(clientAuth.currentUser?.uid, member.localId);
+await signOutClient(clientAuth);
+const passwordGuest = await signInAnonymously(clientAuth);
+const passwordGuestToken = await passwordGuest.user.getIdToken();
+await assert.rejects(authenticateAccount((auth) => signInWithEmailAndPassword(auth, memberEmail, "wrong-test-password")));
+assert.equal(clientAuth.currentUser?.uid, passwordGuest.user.uid, "Failed credentials must retain the guest and its planning context");
+const passwordSession = await persistDiscoverySession(req({}, passwordGuestToken), choices, preferences);
+const entered = Promise.withResolvers<void>();
+const releaseTransfer = Promise.withResolvers<void>();
+heldMerge = { entered: () => entered.resolve(), released: releaseTransfer.promise };
+let signInCalls = 0;
+const passwordTransition = authenticateAccount(async (auth) => { signInCalls++; await signInWithEmailAndPassword(auth, memberEmail, "Emulator-only-Password-728!"); });
+const repeatedTransition = authenticateAccount(async () => { throw new Error("Duplicate login must not run"); });
+assert.equal(passwordTransition, repeatedTransition);
+await entered.promise;
+let contextReady = false;
+const contextWait = waitForAccountTransition().then(() => { contextReady = true; });
+await Promise.resolve();
+assert.equal(contextReady, false, "Auth listeners cannot resume actions while ownership transfer is pending");
+releaseTransfer.resolve();
+await passwordTransition; await contextWait;
+assert.equal(signInCalls, 1);
+const memberToken = await clientAuth.currentUser!.getIdToken();
+const passwordContext = await restoreContext(req({ sessionId: passwordSession.sessionId, placeId: choices.places[0].id }, memberToken));
+assert.equal(passwordContext.status, 200);
+assert.equal((await passwordContext.json()).request.notes, preferences.notes);
+assert.equal((await mergeGuest(req({ guestToken: passwordGuestToken }, stranger.idToken))).status, 403, "A transferred guest can never be copied into a second account");
+assert.equal((await db.collection("users").doc(stranger.localId).collection("discoverySessions").doc(passwordSession.sessionId!).get()).exists, false);
+await signOutClient(clientAuth);
+const newAccountGuest = await signInAnonymously(clientAuth);
+const newAccountUid = newAccountGuest.user.uid;
+const newAccountSession = await persistDiscoverySession(req({}, await newAccountGuest.user.getIdToken()), choices, preferences);
+await authenticateAccount(async (_auth, currentGuest) => {
+  assert.ok(currentGuest);
+  await linkWithCredential(currentGuest, EmailAuthProvider.credential(`new-${randomUUID()}@example.test`, "Emulator-only-Password-728!"));
+});
+assert.equal(clientAuth.currentUser?.uid, newAccountUid, "Account creation links the current guest without changing its ownership");
+assert.equal(clientAuth.currentUser?.isAnonymous, false);
+assert.equal((await restoreContext(req({ sessionId: newAccountSession.sessionId, placeId: choices.places[0].id }, await clientAuth.currentUser!.getIdToken()))).status, 200);
+await signOutClient(clientAuth);
+console.log("Client password regression passed: fresh login, single-flight transfer barrier, selected context continuity, account isolation and anonymous account linking.");
 const emailGuest = await signInAnonymously(clientAuth);
 const emailGuestToken = await emailGuest.user.getIdToken();
 const emailSession = await persistDiscoverySession(req({}, emailGuestToken), choices, preferences);
@@ -477,7 +523,9 @@ const freshCode = freshCodes.oobCodes.findLast((item) => item.email === memberEm
 testLocation.href = `http://127.0.0.1:3004/plan?apiKey=emulator-only&mode=signIn&oobCode=${freshCode.oobCode}`;
 interruptMerge = true;
 await assert.rejects(completeEmailSignIn(memberEmail), /couldn't be transferred/);
+assert.equal(hasPendingAccountTransfer(), true, "A signed-in account still has an explicit transfer retry path after a merge failure");
 assert.equal(await completeEmailSignIn(memberEmail), true, "An interrupted guest transfer retries without consuming the code a second time");
+assert.equal(hasPendingAccountTransfer(), false);
 assert.equal((await db.collection("users").doc(member.localId).collection("discoverySessions").doc(retrySession.sessionId!).get()).exists, true);
 testLocation.href = "http://127.0.0.1:3004/plan?apiKey=emulator-only&mode=signIn&oobCode=TEST_EXPIRED_CODE";
 await assert.rejects(completeEmailSignIn(memberEmail));

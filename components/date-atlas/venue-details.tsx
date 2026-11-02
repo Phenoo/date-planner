@@ -3,6 +3,7 @@ import type { PlanRequest } from "@/lib/planner/schema";
 import { calendarLabel, clockLabel, timeMinutes } from "@/lib/planner/schedule";
 import { money } from "@/lib/utils";
 import styles from "./venue-details.module.css";
+import { ReviewArticle } from "./venue-review";
 
 export function VenueDetails({ place, request, inverted = false }: { place: NearbyResult["places"][number]; request: PlanRequest; inverted?: boolean }) {
   const details = place.details;
@@ -26,7 +27,7 @@ export function VenueDetails({ place, request, inverted = false }: { place: Near
     </div>
     <div className={styles.reviews}>
       <div className={styles.reviewHeading}><h3>What people say.</h3>{details?.rating !== undefined && <span>{details.rating.toFixed(1)} / 5 · {details.reviewCount ?? 0} Google reviews</span>}</div>
-      {details?.reviews.length ? details.reviews.slice(0, 3).map((review, index) => <article key={`${review.author}:${index}`}><div><strong>{review.url ? <a href={review.url} target="_blank" rel="noreferrer">{review.author} ↗</a> : review.author}</strong><span>{review.rating !== undefined ? `${review.rating} / 5` : ""} {review.when ? `· ${review.when}` : ""}</span></div><p>{review.text.length > 340 ? `${review.text.slice(0, 300).trimEnd()}…` : review.text}</p>{review.text.length > 340 && <details><summary>Read full review</summary><p>{review.text}</p></details>}</article>) : <p>Reviews aren&apos;t available here yet. <a href={place.mapsUrl} target="_blank" rel="noreferrer">Read reviews on Google Maps ↗</a></p>}
+      {details?.reviews.length ? details.reviews.slice(0, 3).map((review, index) => <ReviewArticle key={`${review.author}:${index}`} review={review} />) : <p>Reviews aren&apos;t available here yet. <a href={place.mapsUrl} target="_blank" rel="noreferrer">Read reviews on Google Maps ↗</a></p>}
       {details && <small>Venue information checked {new Date(details.checkedAt).toLocaleDateString("en-GB")}. Hours can change. Travel is an estimate, without live traffic.</small>}
     </div>
   </section>;

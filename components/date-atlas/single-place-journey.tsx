@@ -7,9 +7,10 @@ import { ChosenDateReveal } from "./chosen-date-reveal";
 import { activeDiscoveryKey, invitationReturnKey } from "@/lib/planner/discovery-session";
 
 import type { RejectionReason } from "./rejection-dialog";
-export function SinglePlaceJourney({ place, sessionId, request, signedIn, accountRevision, busy, error, rejected, onReject, onCancelGeneration, onEdit, onTiming, onSignIn }: {
+export function SinglePlaceJourney({ place, sessionId, request, signedIn, accountRevision, busy, error, rejected, loadingStage, onReject, onCancelGeneration, onEdit, onTiming, onSignIn }: {
   place: NearbyResult["places"][number]; sessionId?: string; request: PlanRequest; signedIn: boolean; accountRevision: string;
   onCancelGeneration?: () => void; busy: boolean; error: string; rejected: boolean; onReject: (reason: RejectionReason) => void; onEdit: () => void; onTiming: () => void; onSignIn: () => void;
+  loadingStage?: string;
 }) {
   const [accepted, setAccepted] = useState(false);
   const [returning, setReturning] = useState(false);
@@ -35,5 +36,5 @@ export function SinglePlaceJourney({ place, sessionId, request, signedIn, accoun
     onSignIn();
   }
   if (accepted) return <ChosenDateReveal key={`${place.id}:${accountRevision}`} place={place} sessionId={sessionId} request={request} signedIn={signedIn} onSignIn={signIn} onTiming={onTiming} onChange={() => { try { sessionStorage.removeItem(key); } catch { /* The current choice can still change. */ } setAccepted(false); setReturning(true); window.scrollTo({ top: 0 }); }} />;
-  return <CinematicReveal onCancelGeneration={onCancelGeneration} place={place} request={request} busy={busy} error={error} rejected={rejected} initialChapter={returning ? 2 : 0} onAccept={accept} onReject={onReject} onEdit={onEdit} onTiming={onTiming} />;
+  return <CinematicReveal loadingStage={loadingStage} onCancelGeneration={onCancelGeneration} place={place} request={request} busy={busy} error={error} rejected={rejected} initialChapter={returning ? 2 : 0} onAccept={accept} onReject={onReject} onEdit={onEdit} onTiming={onTiming} />;
 }

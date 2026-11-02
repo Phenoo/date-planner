@@ -14,11 +14,12 @@ const themes = {
   red: { shirt: "FFE3E8", trim: "C11637", pants: "60293C", accent: "B50F30", card: "FFF5F6", ink: "442630" },
   dark: { shirt: "EE9FB5", trim: "3B2130", pants: "B6AACB", accent: "FFADC4", card: "432D3B", ink: "FFEAF1" },
 };
-const modes = ["welcome", "idle", "explaining", "learned", "thoughtful", "attentive", "still", "location", "budget", "guests", "calendar", "clock"];
+const modes = ["welcome", "idle", "explaining", "learned", "thoughtful", "attentive", "still", "location", "budget", "guests", "calendar", "clock", "walking"];
 for (const [theme, palette] of Object.entries(themes)) {
   const directory = `public/animations/atlas/human/${theme}`;
   mkdirSync(directory, { recursive: true });
-  for (const mode of modes) {
+  for (const mode of modes.filter((mode) => !process.argv[2] || mode === process.argv[2])) {
+    const walking = mode === "walking";
     const waving = mode === "welcome" || mode === "guests";
     const celebrating = mode === "learned";
     const thinking = mode === "thoughtful" || mode === "attentive";
@@ -33,7 +34,7 @@ for (const [theme, palette] of Object.entries(themes)) {
     add("Soft oval shadow", [ellipse(0,0,78,11),fill("6E4050")], [180,321,0], { o: fixed(10), s: frames([[100,100,100],[86,86,100],[100,100,100],[90,90,100],[100,100,100]]) }, null);
     for (const side of [-1, 1]) {
       const pivot = side === -1 ? 2100 : 2200;
-      parent(pivot, side === -1 ? "Left leg joint" : "Right leg joint", [180+side*16,236,0], frames([[side*1],[-side*2],[side*1],[-side],[side*1]]));
+      parent(pivot, side === -1 ? "Left leg joint" : "Right leg joint", [180+side*16,236,0], frames(walking ? [[side*24],[-side*24],[side*24],[-side*24],[side*24]] : [[side*1],[-side*2],[side*1],[-side],[side*1]]));
       add(side === -1 ? "Left trouser leg" : "Right trouser leg", [rect(0,31,25,65,8),fill(palette.pants)], [0,0,0], {}, pivot);
       add("Little sneaker", [path([[-12,58],[9,58],[20,69],[20,75],[-13,75]],true),fill("342331")], [0,0,0], {}, pivot);
       add("Sneaker sole", [path([[-12,73],[18,73]]),line("FFF5F5",3)], [0,0,0], {}, pivot);
@@ -46,7 +47,7 @@ for (const [theme, palette] of Object.entries(themes)) {
     for (const side of [-1, 1]) {
       const pivot = side === -1 ? 3100 : 3200;
       const resting = side === 1 ? -12 : 8;
-      const rotations = side === 1 && waving ? [[-70],[-105],[-80],[-105],[-70]] : celebrating ? [[-side*55],[-side*95],[-side*55],[-side*85],[-side*55]] : side === -1 && thinking ? [[20],[43],[20],[35],[20]] : [[resting],[resting-side*8],[resting],[resting-side*4],[resting]];
+      const rotations = walking ? [[-side*22],[side*22],[-side*22],[side*22],[-side*22]] : side === 1 && waving ? [[-70],[-105],[-80],[-105],[-70]] : celebrating ? [[-side*55],[-side*95],[-side*55],[-side*85],[-side*55]] : side === -1 && thinking ? [[20],[43],[20],[35],[20]] : [[resting],[resting-side*8],[resting],[resting-side*4],[resting]];
       parent(pivot, side === 1 ? "Right shoulder joint" : "Left shoulder joint", [180+side*32,181,0], frames(rotations));
       add("Sleeve outline", [path([[0,0],[side*13,23]]),line(theme === "red" ? "B94D65" : palette.shirt,23)], [0,0,0], {}, pivot);
       add("Shirt sleeve", [path([[0,0],[side*13,23]]),line(palette.shirt,21)], [0,0,0], {}, pivot);
@@ -68,7 +69,7 @@ for (const [theme, palette] of Object.entries(themes)) {
     }
     add("Nose", [path([[0,5],[-2,13],[2,13]]),line("8D533B",1.5)], [0,0,0], {},2000);
     add("Smile", [path([[-10,0],[10,0]],false,[[0,0],[-5,7]],[[5,7],[0,0]]),line("442630",2.2)], [0,23,0], {s:frames([[100,100,100],[110,135,100],[100,100,100],[105,115,100],[100,100,100]])},2000);
-    if(mode !== "idle" && mode !== "still") {
+    if(mode !== "idle" && mode !== "still" && !walking) {
       const float = {p:frames([[86,220,0],[83,211,0],[86,220,0],[90,215,0],[86,220,0]]),r:frames([[-6],[3],[-6],[-2],[-6]])};
       add("Context card", [rect(0,0,52,53,12),fill(palette.card)], [0,0,0],float);
       if(mode === "budget") {
@@ -86,7 +87,7 @@ for (const [theme, palette] of Object.entries(themes)) {
       } else add("A little love", [heart(0,-1,14),fill(palette.accent)], [0,0,0],float);
     }
     const root = {ddd:0,ind:1000,ty:3,nm:"Atlas human body",sr:1,ks:{o:fixed(100),r:frames([[0],[-1.5],[0],[1.5],[0]]),p:frames([[180,180,0],[180,celebrating?172:177,0],[180,180,0],[180,177,0],[180,180,0]]),a:fixed([180,180,0]),s:fixed([100,100,100])},ip:0,op:144,st:0};
-    const data = {v:"5.12.2",fr:30,ip:0,op:144,w:360,h:360,nm:`Atlas human ${theme} — ${mode}`,ddd:0,assets:[],layers:[...layers.reverse(),root],markers:[{tm:0,cm:`human-${theme}-${mode}`,dr:144}]};
+    const data = {v:"5.12.2",fr:walking?60:30,ip:0,op:144,w:360,h:360,nm:`Atlas human ${theme} — ${mode}`,ddd:0,assets:[],layers:[...layers.reverse(),root],markers:[{tm:0,cm:`human-${theme}-${mode}`,dr:144}]};
     writeFileSync(`${directory}/${mode}.json`,JSON.stringify(data));
   }
 }

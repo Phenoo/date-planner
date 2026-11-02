@@ -1,0 +1,8 @@
+.lane { position: relative; width: min(440px,100%); height: 110px; flex-shrink: 0; pointer-events: none; }
+.walker { position: absolute; width: 110px; height: 110px; left: calc(50% - 55px); }
+.lane:has([data-animation-state="ready"]) .walker { animation: stroll 12s linear infinite; }
+.lane:has([data-animation-state="ready"]) .direction { animation: turn 12s steps(1,end) infinite; }
+.lane[data-paused="true"] * { animation-play-state: paused !important; }
+@keyframes stroll { 0%,100% { left: 0; } 48%,50% { left: calc(100% - 110px); } 98% { left: 0; } }
+@keyframes turn { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+@media(prefers-reduced-motion:reduce) { .lane .walker,.lane .direction { animation: none !important; } }

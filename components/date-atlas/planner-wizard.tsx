@@ -28,6 +28,8 @@ import {
   plannerQuestionCount,
 } from "@/lib/planner/questions";
 import { money } from "@/lib/utils";
+import { wizardQuestionSteps, type IntakeField } from "@/lib/planner/intake";
+import type { PlannerQuestionId } from "@/lib/planner/questions";
 import type { CompanionTheme } from "@/lib/animations/registry";
 import type { DetectedLocation } from "@/lib/maps/schema";
 import { browserLocationError, resolveCountry, resolveLocation } from "@/lib/maps/client-location";
@@ -98,6 +100,8 @@ export function PlannerWizard({
   loadingStage,
   theme = "red",
   editingPlan = false,
+  answered = [],
+  onAnswer,
 }: {
   request: PlanRequest;
   setRequest: Dispatch<SetStateAction<PlanRequest>>;
@@ -111,8 +115,13 @@ export function PlannerWizard({
   loadingStage?: string;
   theme?: CompanionTheme;
   editingPlan?: boolean;
+  answered?: readonly IntakeField[];
+  onAnswer?: (id: PlannerQuestionId, request: PlanRequest) => void;
 }) {
   const step = Math.max(0, Math.min(requestedStep, plannerQuestionCount - 1));
+  const [initialAnswers] = useState(() => answered);
+  const questionSteps = [...new Set([...wizardQuestionSteps(request, initialAnswers), step])].sort((a, b) => a - b);
+  const position = questionSteps.indexOf(step);
   const [error, setError] = useState("");
   const [pending, setPending] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{ line: string; target: number } | null>(null);
@@ -181,7 +190,7 @@ export function PlannerWizard({
   }
   function update<K extends keyof PlanRequest>(key: K, value: PlanRequest[K]) {
     if (["city", "country", "area"].includes(key)) { locationController.current?.abort(); setLocating(false); }
-    setRequest((previous) => ({ ...previous, [key]: value, ...(["city", "country"].includes(key) ? { area: previous.locationScope === "city" ? previous.city : "", startingArea: "" } : {}) }));
+    setRequest((previous) => ({ ...previous, [key]: value, ...(["city", "country"].includes(key) ? { area: previous.locationScope === "city" ? key === "city" && typeof value === "string" ? value : previous.city : "", startingArea: "" } : {}), ...(key === "startTime" && value !== previous.startTime ? { endTime: "" } : {}) }));
     if (["city", "country"].includes(key)) setDetectedLocation(null);
     setError("");
   }
@@ -260,10 +269,11 @@ export function PlannerWizard({
       setError("Your ending time must be after your starting time.");
       return;
     }
+    onAnswer?.(stage.id, updated);
     if (step === plannerQuestionCount - 1) void onGenerate();
     else if (reviewing && stage.id === "city") advance(plannerQuestions.findIndex((question) => question.id === "area"), updated);
     else if (reviewing) { setReviewing(false); advance(plannerQuestionCount - 1, updated); }
-    else advance(step + 1, updated);
+    else advance(questionSteps[position + 1] ?? plannerQuestionCount - 1, updated);
   }
   function choose<K extends keyof PlanRequest>(key: K, value: PlanRequest[K]) {
     if (transitioning || loading) return;
@@ -377,12 +387,12 @@ export function PlannerWizard({
   if (feedback) return <PlannerReaction key={feedback.target} line={feedback.line} theme={theme} onComplete={() => { setStep(feedback.target); setFeedback(null); }} />;
   return (
     <main className={`typeform-shell ${styles.wizard} ${stage.id === "review" ? "planner-review" : ""}`}>
-      {(step > 0 || reviewing) && !(editingPlan && stage.id === "review") && <div className="typeform-stage-bar">
+      {(position > 0 || reviewing) && !(editingPlan && stage.id === "review") && <div className="typeform-stage-bar">
         <button
           type="button"
           className="typeform-back"
           disabled={transitioning}
-          onClick={() => { if (reviewing) { setReviewing(false); move(plannerQuestionCount - 1); } else move(step - 1); }}
+          onClick={() => { if (reviewing) { setReviewing(false); move(plannerQuestionCount - 1); } else move(questionSteps[position - 1] ?? 0); }}
         >
           {reviewing ? editingPlan ? "Back to edit plan" : "Back to review" : "Back"}
         </button>
@@ -392,11 +402,11 @@ export function PlannerWizard({
         role="progressbar"
         aria-label="Planning questions"
         aria-valuemin={0}
-        aria-valuemax={plannerQuestionCount}
-        aria-valuenow={step + 1}
+        aria-valuemax={questionSteps.length}
+        aria-valuenow={position + 1}
       >
         <span
-          style={{ width: `${((step + 1) / plannerQuestionCount) * 100}%` }}
+          style={{ width: `${((position + 1) / questionSteps.length) * 100}%` }}
         />
       </div>
       <form

@@ -32,6 +32,19 @@ export const intakeOutputSchema = z.object({ acknowledgement: z.string().trim().
 export const intakeReplySchema = z.object({ request: requestSchema, answered: z.array(fieldSchema).max(8), nextField: fieldSchema.nullable(), ready: z.boolean(), message: z.string().max(1000) });
 
 const questionFields: Partial<Record<PlannerQuestionId, IntakeField>> = { city: "location", area: "location", occasion: "occasion", people: "people", vibes: "vibe", budget: "budget", date: "date", time: "time", duration: "duration" };
+export function intakeFieldForQuestion(id: PlannerQuestionId) { return questionFields[id]; }
+export function wizardQuestionSteps(request: PlanRequest, answered: readonly IntakeField[], today = zonedNow(request.timeZone).date) {
+  const valid = requestSchema.safeParse(request);
+  return plannerQuestions.flatMap((question, index) => {
+    const field = questionFields[question.id];
+    if (!field || question.id === "area" || !answered.includes(field)) return [index];
+    if (field === "date" && (!request.date || request.date < today)) return [index];
+    if (field === "time" && (!request.startTime || scheduleError({ ...request, endTime: "" }, today))) return [index];
+    if (field === "duration" && scheduleError(request, today)) return [index];
+    if (!valid.success && valid.error.issues.some((issue) => question.fields.some((key) => key === issue.path[0]))) return [index];
+    return [];
+  });
+}
 export function answeredThroughStep(step: number): IntakeField[] {
   return [...new Set(plannerQuestions.slice(0, step).flatMap(({ id }) => questionFields[id] ? [questionFields[id]!] : []))];
 }

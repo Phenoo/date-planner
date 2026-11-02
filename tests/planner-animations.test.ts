@@ -72,3 +72,24 @@ test("the companion has distinct theme artwork rather than a color filter", () =
   const sources = (["white", "red", "dark"] satisfies CompanionTheme[]).map((theme) => readFileSync(join(process.cwd(), "public", humanAtlasAsset("discover", theme).src.replace(/\.lottie$/, ".json")), "utf8"));
   assert.equal(new Set(sources).size, 3);
 });
+
+test("Oge's walking cycle has alternating leg and arm motion with a seamless static fallback", () => {
+  for (const theme of ["white", "red", "dark"] satisfies CompanionTheme[]) {
+    const asset = humanAtlasAsset("walking", theme);
+    const data = animationSchema.parse(JSON.parse(readFileSync(join(process.cwd(), "public", asset.src.replace(/\.lottie$/, ".json")), "utf8")));
+    const legs = data.layers.filter(({ nm }) => nm.endsWith("leg joint"));
+    assert.equal(legs.length, 2);
+    for (const leg of legs) {
+      assert.equal(leg.ks.r.a, 1);
+      if (leg.ks.r.a === 1) {
+        assert.ok(Math.abs(leg.ks.r.k[0].s[0] - leg.ks.r.k[1].s[0]) >= 40);
+        assert.deepEqual(leg.ks.r.k[0].s, leg.ks.r.k.at(-1)?.s);
+      }
+    }
+    const arms = data.layers.filter(({ nm }) => nm.endsWith("shoulder joint"));
+    assert.equal(arms.length, 2);
+    for (const arm of arms) if (arm.ks.r.a === 1) assert.ok(Math.abs(arm.ks.r.k[0].s[0] - arm.ks.r.k[1].s[0]) >= 40);
+    assert.equal(readFileSync(join(process.cwd(), "public", asset.src)).subarray(0, 2).toString(), "PK");
+    assert.match(readFileSync(join(process.cwd(), "public", asset.fallback), "utf8"), /viewBox="0 0 360 360"/);
+  }
+});
