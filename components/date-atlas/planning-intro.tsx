@@ -6,11 +6,11 @@ import { AtlasCompanion } from "@/components/animations/atlas-companion";
 import styles from "./planning-intro.module.css";
 import { useSlideAdvance } from "@/components/animations/use-slide-advance";
 
-const planningChapterIntervalMs = 3000;
+const planningChapterIntervalMs = 6000;
 const chapters = [
-  { label: "A PLACE TO BEGIN", title: "Start with somewhere.", description: "Your city is just the beginning. Choose how far you’d love to go.", pose: "location" },
-  { label: "THE LITTLE DETAILS", title: "Make it your kind of date.", description: "Tell Oge what you have in mind, by text or voice. A few questions work too. Set a budget, or leave it open.", pose: "preferences" },
-  { label: "LET’S FIND YOUR PLACE", title: "We’ll help with the details.", description: "We’ll look for a place that fits, check the time and available costs, and let you decide if it feels right.", pose: "itinerary" },
+  { label: "A PLACE TO BEGIN", title: "Start with somewhere.", description: "Your city is just the beginning. Choose how far you’d love to go.", caption: "Choose a place", detail: "Your city & how far to go", pose: "location" },
+  { label: "THE LITTLE DETAILS", title: "Make it your kind of date.", description: "Tell Oge what you have in mind, by text or voice. A few questions work too. Set a budget, or leave it open.", caption: "Make it personal", detail: "Occasion, people, vibe & time", pose: "preferences" },
+  { label: "LET’S FIND YOUR PLACE", title: "We’ll help with the details.", description: "We’ll look for a place that fits, check the time and available costs, and let you decide if it feels right.", caption: "Leave it to us", detail: "Places, timing & estimated costs", pose: "itinerary" },
 ] as const;
 
 const dateMoments = [
@@ -26,18 +26,16 @@ function Title({ text }: { text: string }) {
 export function PlanningIntro({ onStart }: { onStart: () => void }) {
   const [chapter, setChapter] = useState(0);
   const [pending, startTransition] = useTransition();
-  const screen = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [paused, setPaused] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const ready = chapter === chapters.length;
   const current = chapters[Math.min(chapter, chapters.length - 1)];
 
-  const { reduced, visible } = useSlideAdvance(chapter, planningChapterIntervalMs, paused || hovered || ready, () => setChapter((value) => Math.min(chapters.length, value + 1)));
+  const { reduced, visible } = useSlideAdvance(chapter, planningChapterIntervalMs, paused || ready, () => setChapter((value) => Math.min(chapters.length, value + 1)));
+  const playing = !paused && visible && !reduced;
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
-  function chooseChapter(index: number) { setPaused(true); setChapter(index); }
 
-  return <main ref={screen} className={styles.screen} aria-label="Before you plan your date" data-chapter={chapter} data-paused={!visible || paused || hovered || reduced} style={{ "--intro-progress": String(chapter / chapters.length) } as CSSProperties}>
+  return <main className={styles.screen} aria-label="Before you plan your date" data-chapter={chapter} data-paused={!playing} style={{ "--intro-progress": String(chapter / chapters.length) } as CSSProperties}>
     <div className={styles.backdrop} aria-hidden="true">
       <span /><span /><span /><div className={styles.orbit} />
       {[styles.loveLeft, styles.loveRight, styles.loveBottom].map((placement) => <svg key={placement} className={`${styles.loveArt} ${placement}`} viewBox="70 55 340 280" fill="none" focusable="false">
@@ -45,11 +43,7 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
         <path d="M133 145C130 112 158 91 186 103M250 279C299 233 351 199 349 153" />
       </svg>)}
     </div>
-    <div className={styles.topline}>
-      <span>A LITTLE THOUGHT GOES A LONG WAY</span>
-    </div>
-
-    <div className={styles.story} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onPointerDown={() => setPaused(true)} onFocusCapture={(event) => { if (event.target !== heading.current) setPaused(true); }}>
+    <div className={styles.story}>
       <div className={styles.copy} aria-live={paused ? "polite" : "off"} aria-atomic="true">
         <span className={styles.eyebrow}>{ready ? "YOUR TURN TO MAKE IT PERSONAL" : current.label}</span>
         <h1 ref={heading} tabIndex={-1}><span key={chapter}><Title text={ready ? "Ready to make their day?" : current.title} /></span></h1>
@@ -66,9 +60,9 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
             <div className={styles.cityLabel}>Your city<span>A starting point, not a limit.</span></div>
           </div>
           <div className={`${styles.floatingNote} ${styles.exploreNote}`}>Somewhere new?</div>
-          <div className={styles.locationCompanion}><AtlasCompanion pose="location" label="Oge finding possibilities" width="100%" height="100%" idle={false} /></div>
+          <div className={styles.locationCompanion}><AtlasCompanion pose="location" label="Oge finding possibilities" width="100%" height="100%" playing={playing} idle={false} /></div>
         </div> : chapter === 1 ? <div className={styles.detailsScene}>
-          <div className={styles.detailCompanion}><AtlasCompanion pose="preferences" label="Oge getting to know your date" width="100%" height="100%" idle={false} /></div>
+          <div className={styles.detailCompanion}><AtlasCompanion pose="preferences" label="Oge getting to know your date" width="100%" height="100%" playing={playing} idle={false} /></div>
           <div className={`${styles.detailCard} ${styles.vibeCard}`}><span>YOUR VIBE</span><strong>A little creative.</strong><div className={styles.swatches}><i /><i /><i /></div></div>
           <div className={`${styles.detailCard} ${styles.timeCard}`}><span>YOUR TIME</span><strong>Make room for two.</strong><div className={styles.clock}><i /><i /></div></div>
           <div className={`${styles.detailCard} ${styles.budgetCard}`}><span>YOUR BUDGET</span><strong>Comfort comes first.</strong><small>Set a limit, or keep it open.</small></div>
@@ -79,20 +73,21 @@ export function PlanningIntro({ onStart }: { onStart: () => void }) {
             <Image src={`/illustrations/vibes/editorial-v2/${moment.image}.webp`} alt="" width={360} height={240} sizes="(max-width:700px) 30vw, 170px" />
             <span>{moment.detail}</span><strong>{moment.title}</strong>
           </div>)}</div>
-          <div className={styles.planFooter}><span className={styles.routeDots}><i /><i /><i /></span><span>Connected around you.</span><div className={styles.planCompanion}><AtlasCompanion pose={current.pose} label="Oge connecting your plan" width="100%" height="100%" playing={!ready} idle={false} /></div></div>
+          <div className={styles.planFooter}><span className={styles.routeDots}><i /><i /><i /></span><span>Connected around you.</span><div className={styles.planCompanion}><AtlasCompanion pose={current.pose} label="Oge connecting your plan" width="100%" height="100%" playing={playing && !ready} idle={false} /></div></div>
         </div>}
       </div>
 
-      <ol className={styles.chapters} aria-label="How planning works">
-        <li data-active={chapter >= 0}><button type="button" aria-current={chapter === 0 ? "step" : undefined} onClick={() => chooseChapter(0)}>Choose a place</button><small>Your city &amp; how far to go</small></li>
-        <li data-active={chapter >= 1}><button type="button" aria-current={chapter === 1 ? "step" : undefined} onClick={() => chooseChapter(1)}>Make it personal</button><small>Occasion, people, vibe &amp; time</small></li>
-        <li data-active={chapter >= 2}><button type="button" aria-current={chapter === 2 ? "step" : undefined} onClick={() => chooseChapter(2)}>Leave it to us</button><small>Places, timing &amp; estimated costs</small></li>
-      </ol>
+      <div className={styles.chapters} aria-live={paused || reduced ? "polite" : "off"} aria-atomic="true">
+        <strong>{current.caption}</strong><small>{current.detail}</small>
+      </div>
     </div>
 
     <footer className={styles.footer}>
       <div className={styles.progress} aria-hidden="true"><span /></div>
-      <div className={styles.slideControls}><button type="button" disabled={chapter === 0} onClick={() => chooseChapter(chapter - 1)}>Previous</button><button type="button" disabled={ready} onClick={() => chooseChapter(Math.min(chapters.length, chapter + 1))}>Next</button>{!reduced && !ready && <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? "Play introduction" : "Pause introduction"}</button>}</div>
+      <div className={styles.slideControls}>
+        <div className={styles.chapterDots} role="group" aria-label="Introduction slides">{chapters.map((item, index) => <button key={item.pose} type="button" aria-label={item.caption} aria-current={current === item ? "step" : undefined} onClick={() => setChapter(index)}><span aria-hidden="true" /></button>)}</div>
+        {!reduced && !ready && <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? "Play introduction" : "Pause introduction"}</button>}
+      </div>
       <div className={styles.actionSlot}><button type="button" className={styles.start} disabled={pending} aria-busy={pending} onClick={() => startTransition(onStart)}>{pending ? "Opening your planner…" : "Start my date plan"}<span aria-hidden="true">→</span></button>
 
       </div>
