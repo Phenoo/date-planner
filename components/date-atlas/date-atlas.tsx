@@ -1034,11 +1034,6 @@ export function DateAtlas({
             </>
           )}
         </header>
-        {planning && draftReady && plannerMode !== null && !busy && <nav className={plannerStyles.modeBar} aria-label="Planning style">
-          <button type="button" aria-pressed={plannerMode === "chat"} onClick={() => choosePlannerMode("chat")}>Chat with Oge</button>
-          <button type="button" aria-pressed={plannerMode === "steps"} onClick={() => choosePlannerMode("steps")}>Questions</button>
-          {error && <span role="alert">{error}</span>}
-        </nav>}
         {view === "home" && <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />}
         {view === "explore" && (
           <Explore
