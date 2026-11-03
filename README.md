@@ -22,7 +22,7 @@ For an isolated local preview, start Auth/Firestore emulators under `demo-date-a
 
 Set `NEXT_PUBLIC_GA_MEASUREMENT_ID` to the production GA4 web stream ID in Vercel's Production environment, then redeploy. Development and Preview deployments do not load the tag. The current stream is for `https://date-atlas.vercel.app`, with reporting in Nigeria time and NGN. Keep Enhanced Measurement disabled in the stream: the app sends explicit, sanitized page views and its existing client planning events, without private tokens, query parameters, account IDs or planning text. Google signals and advertising personalization are disabled in the tag configuration.
 
-The tag loads after a visitor allows optional analytics. “No thanks” keeps it unloaded; visitors can change their choice on the Privacy page. Withdrawing consent disables measurement and clears this stream's GA cookies. Local app reliability events in Firebase remain separate from Google Analytics.
+The tag loads automatically on supported production pages without a banner or preference controls. Previous analytics choices do not gate collection. Local app reliability events in Firebase remain separate from Google Analytics.
 
 ## Firebase
 

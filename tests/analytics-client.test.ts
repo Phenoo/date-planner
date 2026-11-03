@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runInNewContext } from "node:vm";
-import { getAnalyticsChoice, googleTagBootstrap, setAnalyticsChoice, syncAnalytics, trackAnalyticsEvent } from "../lib/analytics/client";
+import { googleTagBootstrap, stopAnalytics, syncAnalytics, trackAnalyticsEvent } from "../lib/analytics/client";
 import type { GoogleTag } from "../lib/analytics/policy";
 
 test("the Google bootstrap queues genuine Arguments objects recognized by gtag.js", () => {
@@ -17,29 +17,49 @@ test("the Google bootstrap queues genuine Arguments objects recognized by gtag.j
   }
 });
 
-test("blocked storage, cookie access and a failing Google tag do not interrupt planning or withdrawal", () => {
+test("analytics starts automatically, ignores previous choices and preserves actions queued before the tag loads", () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
-  const storage = { getItem() { throw new Error("Storage blocked"); } };
+  let storageReads = 0;
+  const browser: { dataLayer?: unknown[]; gtag?: GoogleTag; location: { origin: string; pathname: string }; localStorage: { getItem: () => string } } = {
+    location: { origin: "https://date-atlas.vercel.app", pathname: "/plan" },
+    localStorage: { getItem: () => { storageReads++; return "declined"; } },
+  };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: browser });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { referrer: "" } });
+  try {
+    trackAnalyticsEvent("planner_started");
+    syncAnalytics("G-GBKWTQBD2N", "/plan");
+    assert.equal(browser.dataLayer, undefined);
+    runInNewContext(googleTagBootstrap, { window: browser });
+    syncAnalytics("G-GBKWTQBD2N", "/plan");
+    const events = Array.from(browser.dataLayer ?? []).flatMap((command) => typeof command === "object" && command !== null && "0" in command && command[0] === "event" && "1" in command ? [command[1]] : []);
+    assert.deepEqual(events, ["page_view", "planner_started"]);
+    assert.equal(storageReads, 0);
+    const count = browser.dataLayer?.length;
+    syncAnalytics("G-GBKWTQBD2N", "/plan");
+    assert.equal(browser.dataLayer?.length, count);
+  } finally {
+    stopAnalytics();
+    if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow); else Reflect.deleteProperty(globalThis, "window");
+    if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument); else Reflect.deleteProperty(globalThis, "document");
+  }
+});
+
+test("a failing Google tag does not interrupt planning", () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
   const document = { referrer: "" };
-  Object.defineProperty(document, "cookie", { set() { throw new Error("Cookies blocked"); } });
   Object.defineProperty(globalThis, "window", { configurable: true, value: {
-    localStorage: storage,
     location: { origin: "https://date-atlas.vercel.app", hostname: "date-atlas.vercel.app", pathname: "/plan" },
     gtag() { throw new Error("Tag blocked"); },
-    dispatchEvent() { return true; },
   } });
   Object.defineProperty(globalThis, "document", { configurable: true, value: document });
   try {
-    assert.equal(getAnalyticsChoice(), null);
-    assert.doesNotThrow(() => setAnalyticsChoice("accepted"));
-    assert.equal(getAnalyticsChoice(), "accepted");
-    assert.doesNotThrow(() => syncAnalytics("G-GBKWTQBD2N", true, "/plan"));
-    assert.doesNotThrow(() => trackAnalyticsEvent("planner_started"));
-    assert.doesNotThrow(() => setAnalyticsChoice("declined"));
-    assert.equal(getAnalyticsChoice(), "declined");
+    assert.doesNotThrow(() => syncAnalytics("G-ABCDEFGHIJ", "/plan"));
     assert.doesNotThrow(() => trackAnalyticsEvent("planner_started"));
   } finally {
+    stopAnalytics();
     if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow); else Reflect.deleteProperty(globalThis, "window");
     if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument); else Reflect.deleteProperty(globalThis, "document");
   }

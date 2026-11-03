@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyticsMeasurementId, analyticsPage, analyticsReferrer, createAnalyticsSession, readAnalyticsChoice, type GoogleTag } from "../lib/analytics/policy";
+import { analyticsMeasurementId, analyticsPage, analyticsReferrer, createAnalyticsSession, type GoogleTag } from "../lib/analytics/policy";
 
 const id = "G-GBKWTQBD2N";
 const origin = "https://date-atlas.vercel.app";
@@ -11,12 +11,9 @@ function session() {
   return { calls, disabled, analytics: createAnalyticsSession(id, origin, (...command) => { calls.push(command); }, (value) => disabled.push(value)) };
 }
 
-test("analytics accepts only a GA4 measurement ID and known consent values", () => {
+test("analytics accepts only a GA4 measurement ID", () => {
   assert.equal(analyticsMeasurementId(id), id);
   for (const invalid of [undefined, "", "GTM-ABCDEF", "UA-123-1", `${id}<script>`, "G-incomplete"]) assert.equal(analyticsMeasurementId(invalid), null);
-  for (const value of ["accepted", "declined"]) assert.equal(readAnalyticsChoice({ getItem: () => value }), value);
-  assert.equal(readAnalyticsChoice({ getItem: () => "true" }), null);
-  assert.equal(readAnalyticsChoice({ getItem: () => { throw new Error("Storage blocked"); } }), null);
 });
 
 test("analytics page names exclude query strings, hashes, invitation tokens and experience IDs", () => {
@@ -35,7 +32,7 @@ test("analytics referrers retain acquisition hosts without private paths or para
   assert.equal(analyticsReferrer("", origin), "");
 });
 
-test("analytics sends nothing before consent, after declining, or for excluded pages", () => {
+test("inactive sessions and excluded pages send no analytics events", () => {
   const { analytics, calls, disabled } = session();
   analytics.pageView("/plan", ""); analytics.event("planner_started"); analytics.consent(false);
   assert.equal(calls.length, 0);
@@ -72,7 +69,7 @@ test("navigation records one page view per visit and no dynamic identifiers in p
   assert.deepEqual(event[2], { page_location: `${origin}/experiences`, page_title: "Experience · adal", page_referrer: `${origin}/experiences`, send_to: id });
 });
 
-test("withdrawing consent stops queued and future events and permits a fresh consented visit", () => {
+test("stopping a session prevents later events until it is restarted", () => {
   const { analytics, calls, disabled } = session();
   analytics.consent(true); analytics.pageView("/plan", "");
   analytics.consent(false);

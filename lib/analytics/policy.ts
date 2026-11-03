@@ -1,9 +1,7 @@
-export type AnalyticsChoice = "accepted" | "declined";
 export type AnalyticsEvent = "planner_started" | "recommendation_accepted" | "recommendation_rejected" | "authentication_completed";
 type Parameters = Record<string, string | number | boolean>;
 export type GoogleTag = (...command: ["js", Date] | ["consent", "default" | "update", Parameters] | ["config", string, Parameters] | ["set", Parameters] | ["event", string, Parameters]) => void;
 
-export const analyticsChoiceKey = "date-atlas:analytics-choice:v1";
 const pageTitles = {
   "/": "Home", "/plan": "Planner", "/explore": "Explore", "/saved": "My dates",
   "/favorites": "Favorites", "/profile": "Profile", "/privacy": "Privacy", "/terms": "Terms",
@@ -28,13 +26,6 @@ export function analyticsReferrer(raw: string, origin: string) {
     if (!["http:", "https:"].includes(url.protocol)) return "";
     return url.origin === origin ? new URL(analyticsPage(url.pathname)?.path ?? "/", origin).href : `${url.origin}/`;
   } catch { return ""; }
-}
-
-export function readAnalyticsChoice(storage: Pick<Storage, "getItem">): AnalyticsChoice | null {
-  try {
-    const choice = storage.getItem(analyticsChoiceKey);
-    return choice === "accepted" || choice === "declined" ? choice : null;
-  } catch { return null; }
 }
 
 const advertisingDenied = { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" };
