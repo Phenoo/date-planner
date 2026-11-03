@@ -1,22 +1,26 @@
-.choice { max-width: 980px; margin: 0 auto; padding: 70px 24px 60px; text-align: center; color: var(--planner-text); }
-.choice h1 { font-size: clamp(38px,5vw,68px); line-height: 1.08; letter-spacing: -.055em; font-weight: 500; margin: 20px 0; outline: none; }
-.choice > p { font-size: 15px; line-height: 1.8; }
-.modeCards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; margin-top: 45px; text-align: left; }
-.modeCards > button { text-align: left; border: 1px solid var(--planner-border); border-radius: 26px; padding: 24px; background: var(--planner-surface); color: var(--planner-text); transition: transform 250ms,border-color 250ms,background 250ms; }
-.modeCards > button:hover { transform: translateY(-5px); background: var(--planner-hover); border-color: var(--planner-accent); }
-.modeCards strong { font-size: clamp(23px,2.5vw,31px); font-weight: 500; letter-spacing: -.04em; display: block; margin: 12px 0; }
-.modeCards p { font-size: 13px; line-height: 1.8; min-height: 48px; }
-.modeLabel { display: block; font-size: 9px; letter-spacing: .13em; color: var(--planner-muted); }
-.modeAction { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--planner-border); padding-top: 20px; margin-top: 24px; font-size: 12px; }
+.choice { width: min(620px,100%); margin: 0 auto; padding: 32px 24px max(24px,env(safe-area-inset-bottom)); text-align: center; color: var(--planner-text); }
+.choice > :global(.eyebrow) { margin-bottom: 0; }
+.choice h1 { font-size: clamp(32px,4.5vw,48px); line-height: 1.08; letter-spacing: -.055em; font-weight: 500; margin: 12px 0; outline: none; }
+.choice > p { font-size: 14px; line-height: 1.6; }
+.modeTabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; padding: 4px; margin: 24px 0 16px; border: 1px solid var(--planner-border); border-radius: 99px; background: var(--planner-surface); }
+.modeTabs button { min-height: 44px; padding: 10px 16px; border-radius: 99px; font-size: 14px; font-weight: 600; color: var(--planner-text); }
+.modeTabs button[aria-selected="true"] { background: var(--planner-primary-bg); color: var(--planner-primary-text); }
+.modeTabs button:hover:not([aria-selected="true"]) { background: var(--planner-hover); }
+.modePanels { text-align: left; }
+.modeCard { border: 1px solid var(--planner-border); border-radius: 24px; padding: 24px; background: var(--planner-surface); color: var(--planner-text); }
+.modeCard h2 { font-size: 28px; font-weight: 550; line-height: 1.15; letter-spacing: -.04em; margin: 0 0 12px; }
+.modeCard p { font-size: 14px; line-height: 1.65; }
+.modeAction { width: 100%; display: flex; justify-content: space-between; align-items: center; min-height: 48px; border-radius: 12px; padding: 12px 16px; margin-top: 20px; background: var(--planner-primary-bg); color: var(--planner-primary-text); font-size: 14px; font-weight: 600; }
+.modeAction:hover { filter: brightness(.94); }
 .modeAction > span { font-size: 22px; }
-.chatPreview,.stepsPreview { min-height: 150px; margin-bottom: 30px; display: flex; flex-direction: column; justify-content: center; gap: 10px; font-size: 11px; }
+.chatPreview,.stepsPreview { min-height: 110px; margin-bottom: 20px; display: flex; flex-direction: column; justify-content: center; gap: 8px; font-size: 11px; }
 .chatPreview > span { padding: 12px 16px; background: var(--planner-selected-bg); color: var(--planner-selected-text); border-radius: 15px 15px 2px 15px; align-self: end; max-width: 85%; }
 .chatPreview > span:nth-child(2) { background: transparent; color: var(--planner-text); border: 1px solid var(--planner-border); border-radius: 15px 15px 15px 2px; align-self: start; animation: arrive 700ms 200ms both; }
 .chatPreview i { display: block; width: 45px; height: 3px; border-radius: 8px; background: var(--planner-accent); opacity: .5; margin-left: 8px; animation: pulse 2s infinite; }
 .stepsPreview > span { display: block; padding: 12px 16px; border: 1px solid var(--planner-border); border-radius: 10px; }
 .stepsPreview > span:first-child { border: 0; padding-inline: 0; font-size: 15px; font-weight: 500; }
 .stepsPreview > span:nth-child(2) { background: var(--planner-selected-bg); color: var(--planner-selected-text); border-color: var(--planner-accent); }
-.choice button:focus-visible,.chat button:focus-visible,.chat summary:focus-visible { outline: 2px solid var(--planner-accent); outline-offset: 4px; }
+.choice button:focus-visible,.modeCard:focus-visible,.chat button:focus-visible,.chat summary:focus-visible { outline: 2px solid var(--planner-accent); outline-offset: 4px; }
 .chat { position: relative; display: flex; flex: 1; flex-direction: column; width: 100%; min-height: 0; color: var(--planner-text); }
 .chatHeading { position: relative; z-index: 3; display: flex; justify-content: space-between; align-items: center; gap: 16px; width: min(800px,100%); margin: 0 auto; padding: 14px 24px; }
 .chatHeading > div { display: flex; gap: 10px; align-items: center; }
@@ -85,7 +89,9 @@
 .voiceHelp { color: var(--planner-muted); font-size: 10px; line-height: 1.5; padding: 8px 8px 0; }
 @keyframes arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes pulse { 50% { opacity: .3; transform: translateY(-2px); } }
-@media(max-width:600px) { .choice { padding-top: 35px; } .choice h1 { font-size: 41px; } .modeCards { grid-template-columns: 1fr; gap: 16px; margin-top: 30px; } .modeCards > button { padding: 20px; } .chatPreview,.stepsPreview { min-height: 110px; margin-bottom: 22px; } .modeCards p { min-height: 0; } .chatHeading { padding: 8px 20px; } .thread { padding: 18px 20px 24px; } .welcome { padding-top: 6vh; } .welcome h2 { font-size: 30px; } .messages p { font-size: 15px; } .user { padding: 12px 16px; } .dock { padding-inline: 14px; } .composer textarea { font-size: 16px; } .starters { flex-direction: column; align-items: center; } .starters > button { width: fit-content; } }
+@media(max-width:600px) { .choice { padding: 24px 20px max(20px,env(safe-area-inset-bottom)); } .choice h1 { font-size: 34px; } .choice > p { font-size: 13px; } .modeTabs { margin-top: 20px; } .modeCard { padding: 20px; } .modeCard h2 { font-size: 25px; margin-bottom: 10px; } .modeCard p { font-size: 13px; } .modeAction { margin-top: 18px; } .chatPreview,.stepsPreview { min-height: 80px; margin-bottom: 16px; gap: 6px; font-size: 10px; } .chatPreview > span,.stepsPreview > span { padding: 8px 12px; } .stepsPreview > span:first-child { font-size: 13px; padding: 0; } .chatHeading { padding: 8px 20px; } .thread { padding: 18px 20px 24px; } .welcome { padding-top: 6vh; } .welcome h2 { font-size: 30px; } .messages p { font-size: 15px; } .user { padding: 12px 16px; } .dock { padding-inline: 14px; } .composer textarea { font-size: 16px; } .starters { flex-direction: column; align-items: center; } .starters > button { width: fit-content; } }
+@media(max-width:600px) and (max-height:760px) { .chatPreview,.stepsPreview { display: none; } }
+@media(max-width:600px) and (max-height:650px) { .choice { padding-top: 16px; padding-bottom: 16px; } .choice > :global(.eyebrow) { display: none; } .choice h1 { margin-top: 0; font-size: 30px; } .modeTabs { margin-top: 16px; margin-bottom: 12px; } .modeCard { padding: 16px; } }
 @media(prefers-reduced-motion:reduce) { .choice *,.chat * { animation: none !important; transition: none !important; } }
 
 .chatHeading > div { min-width: 0; }
