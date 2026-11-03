@@ -30,7 +30,8 @@ test("analytics starts automatically, ignores previous choices and preserves act
   try {
     trackAnalyticsEvent("planner_started");
     syncAnalytics("G-GBKWTQBD2N", "/plan");
-    assert.equal(browser.dataLayer, undefined);
+    const beforeBootstrap = browser.dataLayer;
+    assert.equal(beforeBootstrap, undefined);
     runInNewContext(googleTagBootstrap, { window: browser });
     syncAnalytics("G-GBKWTQBD2N", "/plan");
     const events = Array.from(browser.dataLayer ?? []).flatMap((command) => typeof command === "object" && command !== null && "0" in command && command[0] === "event" && "1" in command ? [command[1]] : []);
