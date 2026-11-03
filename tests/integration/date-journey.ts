@@ -78,6 +78,10 @@ assert.equal(exactTime.status, 200, "An exact selected time must work without an
 const timeReply = intakeReplySchema.parse(await exactTime.json());
 assert.equal(timeReply.ready, true);
 assert.deepEqual(timeReply.request, { ...preferences, startTime: "19:45", endTime: "" }, "The server keeps the exact minutes, timezone and other preferences");
+const spokenTime = await intake(req({ request: { ...preferences, endTime: "20:00" }, message: "Start at seven forty-five pm.", answered: intakeFields, nextField: "time", today: zonedNow(preferences.timeZone).date, history: [] }, guest.idToken));
+assert.equal(spokenTime.status, 200, "A clear spoken clock reply works without an AI API key");
+const spokenReply = intakeReplySchema.parse(await spokenTime.json());
+assert.deepEqual(spokenReply.request, timeReply.request, "Spoken and numeric times preserve the same validated date preferences");
 const choices: NearbyResult = { city: "Lagos", area: "Lekki", country: "Nigeria", places: Array.from({ length: 3 }, (_, index) => ({ id: `TEST_PLACE_${index}`, name: `TEST FIXTURE ${index}`, category: "Art gallery", address: "TEST FIXTURE ADDRESS", distanceKm: 1, reason: "Test only", mapsUrl: "https://www.google.com/maps/", attributions: [], story: fallbackDateStory("Art gallery") })) };
 choices.places[0].story = { ...fallbackDateStory("Art gallery"), introduction: "PRIVATE TEST NOTES — simulate sensitive text in an AI-written explanation" };
 const session = await persistDiscoverySession(req({}, guest.idToken), choices, preferences);

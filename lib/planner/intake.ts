@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requestSchema, type PlanRequest } from "./schema";
 import { plannerQuestions, type PlannerQuestionId } from "./questions";
 import { calendarDay, calendarLabel, clockLabel, zonedNow, scheduleError, timeMinutes } from "./schedule";
+import { explicitSpendingAmounts, explicitSpokenTimes, normalizeClockPunctuation, spokenClockReply } from "./spoken-values";
 
 export const intakeFields = ["location", "occasion", "people", "vibe", "budget", "date", "time", "duration"] as const;
 export type IntakeField = typeof intakeFields[number];
@@ -77,12 +78,15 @@ export function intakeQuestion(field: IntakeField | null) {
 
 export function intakeTimeReply(input: IntakeInput, now = new Date()) {
   if (input.nextField !== "time" && input.nextField !== null && !/^start(?:ing)?\b/i.test(input.message.trim())) return null;
-  const match = input.message.trim().match(/^(?:start(?:ing)?(?: the date)?(?: at)?\s+|at\s+)?(\d{1,2})(?:[:.]([0-5]\d))?\s*(am|pm)?[.!]?$/i);
-  if (!match || !match[2] && !match[3]) return null;
-  const hour = Number(match[1]);
-  const period = match[3]?.toLowerCase();
-  if (period ? hour < 1 || hour > 12 : hour > 23) return null;
-  const startTime = `${String(period ? hour % 12 + (period === "pm" ? 12 : 0) : hour).padStart(2, "0")}:${match[2] ?? "00"}`;
+  const match = normalizeClockPunctuation(input.message).match(/^(?:start(?:ing)?(?: the date)?(?: at)?\s+|at\s+)?(\d{1,2})(?:[:.]([0-5]\d))?\s*(am|pm)?[.!]?$/i);
+  let startTime = spokenClockReply(input.message);
+  if (match && (match[2] || match[3])) {
+    const hour = Number(match[1]);
+    const period = match[3]?.toLowerCase();
+    if (period ? hour < 1 || hour > 12 : hour > 23) return null;
+    startTime = `${String(period ? hour % 12 + (period === "pm" ? 12 : 0) : hour).padStart(2, "0")}:${match[2] ?? "00"}`;
+  }
+  if (!startTime) return null;
   const current = zonedNow(input.request.timeZone, now);
   if (input.request.date && (input.request.date < current.date || input.request.date === current.date && startTime <= current.time)) {
     return { request: input.request, answered: input.answered, nextField: input.request.date < current.date ? "date" as const : "time" as const, ready: false, message: input.request.date < current.date ? "Choose today or a future date, then we can set the time." : "That time has already passed. Choose a later time for your date." };
@@ -103,7 +107,7 @@ export function applyIntakeOutput(input: IntakeInput, output: unknown) {
   const answered = new Set(input.answered);
   let clarify: IntakeField | null = null;
   if (patch.budget !== undefined) {
-    const amounts = input.message.match(/\d[\d,]*(?:\.\d+)?\s*k?/gi)?.map((value) => Number(value.replace(/[,k\s]/gi, "")) * (/k/i.test(value) ? 1000 : 1)) ?? [];
+    const amounts = explicitSpendingAmounts(input.message, input.nextField === "budget");
     const open = /\b(open|no budget|without a budget|skip|unset|remove.*budget|no spending limit)\b/i.test(input.message) && (input.nextField === "budget" || /\b(budget|spend|spending|limit)\b/i.test(input.message));
     if (patch.budget === null ? !open : !amounts.includes(patch.budget)) { delete patch.budget; clarify = "budget"; answered.delete("budget"); }
   }
@@ -111,7 +115,7 @@ export function applyIntakeOutput(input: IntakeInput, output: unknown) {
     const explicitDay = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\d{4}-\d{2}-\d{2}|\b\d{1,2}[/-]\d{1,2}\b/i.test(input.message);
     if (!patch.date || patch.date < input.today || !explicitDay) { delete patch.date; clarify = "date"; answered.delete("date"); }
   }
-  if (patch.startTime !== undefined && !/\b(morning|afternoon|evening|noon|midnight)\b|\b\d{1,2}(?::\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b/i.test(input.message)) { delete patch.startTime; clarify = "time"; answered.delete("time"); }
+  if (patch.startTime !== undefined && !/\b(morning|afternoon|evening|noon|midnight)\b|\b\d{1,2}(?::\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b/i.test(normalizeClockPunctuation(input.message)) && !explicitSpokenTimes(input.message).includes(patch.startTime)) { delete patch.startTime; clarify = "time"; answered.delete("time"); }
   if (patch.duration !== undefined && !/\b(hours?|hrs?|minutes?|mins?|full day)\b|\d\s*h\b/i.test(input.message) && input.nextField !== "duration") delete patch.duration;
   if (patch.city !== undefined && patch.city !== input.request.city) {
     patch.area ??= patch.city;
