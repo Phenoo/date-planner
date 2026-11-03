@@ -46,7 +46,7 @@ test("spoken clock replies retain exact minutes, AM/PM and the existing no-AI ro
 
 test("ambiguous, relative, negated and invalid spoken times still ask for a clearer answer", () => {
   for (const text of ["seven", "seven pm or eight pm", "not seven pm", "after seven pm", "quarter past seven pm", "half past seven pm", "one two pm", "seven sixty pm", "thirty seven pm", "tomorrow at seven pm"]) assert.equal(spokenClockReply(text), null, text);
-  for (const text of ["seven pm or eight pm", "not seven pm", "after seven pm", "quarter past seven pm", "thirty seven pm"]) assert.deepEqual(explicitSpokenTimes(text), [], text);
+  for (const text of ["seven pm or eight pm", "not seven pm", "minus seven pm", "negative seven pm", "after seven pm", "quarter past seven pm", "thirty seven pm"]) assert.deepEqual(explicitSpokenTimes(text), [], text);
 });
 
 test("a spoken time that has already passed cannot change the selected date or bypass schedule checks", () => {

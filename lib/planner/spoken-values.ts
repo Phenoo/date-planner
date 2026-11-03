@@ -58,7 +58,7 @@ export function explicitSpendingAmounts(message: string, answeringBudget = false
 }
 
 function clockText(message: string) {
-  return message.toLowerCase().replace(/([ap])\s*\.\s*m\s*\.?/g, "$1m").replace(/-/g, " ").trim();
+  return message.toLowerCase().replace(/([ap])\s*\.\s*m\s*\.?/g, "$1m").replace(/([a-z])-(?=[a-z])/g, "$1 ").trim();
 }
 const hourWords = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
 const minuteWord = `${Object.keys(small).join("|")}|oh`;
@@ -71,7 +71,7 @@ export function explicitSpokenTimes(message: string) {
   const times: string[] = [];
   for (const match of matches) {
     const preceding = normalized.slice(0, match.index).trim().split(/\s+/).at(-1) ?? "";
-    if (Object.hasOwn(small, preceding) || /^(hundred|thousand|million|not|or|after|before|between|around|about|past|to|quarter|half)$/.test(preceding)) continue;
+    if (Object.hasOwn(small, preceding) || /^(hundred|thousand|million|not|minus|negative|or|after|before|between|around|about|past|to|quarter|half)$/.test(preceding)) continue;
     const minuteText = match[2]?.replace(/^(?:oh|zero)\s+/, "") ?? "zero";
     const minutes = belowHundred(minuteText.split(/\s+/));
     if (minutes === null || minutes > 59) continue;

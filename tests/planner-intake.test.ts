@@ -33,7 +33,7 @@ test("time edits still reject past times in the venue timezone without changing 
   assert.equal(expiredDate?.ready, false);
 });
 test("ambiguous or invalid clock replies stay in the existing conversational validation path", () => {
-  for (const message of ["25:00", "7:60 pm", "0pm", "13pm", "8", "not 8 PM", "7 PM or 8 PM", "two hours", "tomorrow at 7 PM"]) assert.equal(intakeTimeReply(input(message, { nextField: "time" })), null);
+  for (const message of ["25:00", "7:60 pm", "0pm", "13pm", "8", "Start at -7pm", "At -8 AM", "not 8 PM", "7 PM or 8 PM", "two hours", "tomorrow at 7 PM"]) assert.equal(intakeTimeReply(input(message, { nextField: "time" })), null);
   assert.equal(intakeTimeReply(input("7:45", { nextField: "duration" })), null);
   assert.equal(intakeTimeReply(input("Start at 19:45", { request: { ...request, date: "2030-11-02" }, nextField: "duration" }))?.request.startTime, "19:45");
 });
