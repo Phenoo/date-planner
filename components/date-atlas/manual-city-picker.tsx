@@ -5,6 +5,7 @@ import { Field } from "@/components/ui/field";
 import { countryCitiesSchema, manualCitySuggestions, type CountryCities } from "@/lib/maps/cities";
 import type { Coordinates } from "@/lib/maps/schema";
 import { browserLocationError } from "@/lib/maps/client-location";
+import { LocationPermissionHelp } from "./location-permission-help";
 import styles from "./nearby-cities.module.css";
 
 type State = { key: string; status: "ready"; data: CountryCities } | { key: string; status: "error" };
@@ -18,6 +19,7 @@ export function ManualCityPicker({ country, city, countryHint, onCountryChange, 
   const [origin, setOrigin] = useState<Coordinates>();
   const [finding, setFinding] = useState(false);
   const [geoMessage, setGeoMessage] = useState("");
+  const [locationSettingsNeeded, setLocationSettingsNeeded] = useState(false);
   const geoSession = useRef({ active: false, version: 0, pending: false });
   const cityInput = useRef<HTMLInputElement>(null);
   const countryDetails = useRef<HTMLDetailsElement>(null);
@@ -45,7 +47,7 @@ export function ManualCityPicker({ country, city, countryHint, onCountryChange, 
     if (session.pending) return;
     const version = ++session.version;
     session.pending = true;
-    setFinding(true); setGeoMessage("");
+    setFinding(true); setGeoMessage(""); setLocationSettingsNeeded(false);
     navigator.geolocation.getCurrentPosition((position) => {
       if (!session.active || version !== session.version) return;
       // Keep device coordinates in this component only; country city data is public.
@@ -54,7 +56,7 @@ export function ManualCityPicker({ country, city, countryHint, onCountryChange, 
     }, (failure) => {
       if (!session.active || version !== session.version) return;
       session.pending = false; setFinding(false);
-      if (!quiet) setGeoMessage(browserLocationError(failure.code));
+      if (!quiet) { setGeoMessage(browserLocationError(failure.code)); setLocationSettingsNeeded(failure.code === 1 || failure.code === 2); }
     }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
   }, []);
 
@@ -100,6 +102,7 @@ export function ManualCityPicker({ country, city, countryHint, onCountryChange, 
     <section className={styles.suggestions} aria-label="City suggestions for your country" aria-busy={!data && !failed}>
       <button type="button" className={styles.locate} disabled={finding} onClick={() => locate()}>{finding ? "Finding nearby cities…" : origin ? "Refresh nearby cities" : "Suggest cities near me"}</button>
       {geoMessage && <p role="status">{geoMessage}</p>}
+      {locationSettingsNeeded && <LocationPermissionHelp onRetry={() => locate()} disabled={finding} />}
       {!data && !failed && <p role="status">Finding cities in your country…</p>}
       {failed && <p role="status">City suggestions are unavailable. You can type your city, or <button type="button" onClick={() => setAttempt((value) => value + 1)}>try again</button>.</p>}
       {data && !data.country && <p role="status">Choose a country to see its cities. You can also type your city directly.</p>}

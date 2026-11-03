@@ -6,6 +6,7 @@ import { Field } from "@/components/ui/field";
 import { GeneratingScreen } from "./generating-screen";
 import { NearbyCities } from "./nearby-cities";
 import { ManualCityPicker } from "./manual-city-picker";
+import { LocationPermissionHelp } from "./location-permission-help";
 import { VibeChoices } from "./vibe-choices";
 import { GenderChoices } from "./gender-choices";
 import { DatePicker } from "./date-picker";
@@ -133,6 +134,7 @@ export function PlannerWizard({
   const [locating, setLocating] = useState(false);
   const [resolvingArea, setResolvingArea] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
+  const [locationSettingsNeeded, setLocationSettingsNeeded] = useState(false);
   const [locationMode, setLocationMode] = useState<"choose" | "manual" | "selected">(() => request.currentCity.trim() ? "selected" : "choose");
   const manualLocation = locationMode === "manual";
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
@@ -155,6 +157,7 @@ export function PlannerWizard({
     return () => controller.abort();
   }, [setRequest]);
   function detectLocation() {
+    setLocationSettingsNeeded(false);
     if (!window.isSecureContext) { setLocationMessage("Location access needs a secure connection. Open this site with HTTPS, or choose your area manually."); return; }
     if (!navigator.geolocation) { setLocationMessage("Location detection isn't supported. Choose your area manually."); return; }
     locationController.current?.abort();
@@ -174,7 +177,7 @@ export function PlannerWizard({
         setLocationMessage("");
       } catch (failure) { if (!controller.signal.aborted) setLocationMessage(failure instanceof Error ? failure.message : "We couldn't detect your area. Please try again or choose it manually."); }
       finally { if (!controller.signal.aborted) setLocating(false); }
-    }, (failure) => { if (!controller.signal.aborted) { setLocating(false); setLocationMessage(browserLocationError(failure.code)); } }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
+    }, (failure) => { if (!controller.signal.aborted) { setLocating(false); setLocationMessage(browserLocationError(failure.code)); setLocationSettingsNeeded(failure.code === 1 || failure.code === 2); } }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
   }
   const stage = plannerQuestions[step];
   const title = editingPlan && stage.id === "review" ? "What would you like to change?" : stage.title;
@@ -187,7 +190,7 @@ export function PlannerWizard({
   }, [step, selectedCity]);
   function editLocation(mode: "choose" | "manual") {
     locationController.current?.abort();
-    setLocating(false); setLocationMessage(""); setError(""); setLocationMode(mode);
+    setLocating(false); setLocationMessage(""); setLocationSettingsNeeded(false); setError(""); setLocationMode(mode);
     if (mode === "manual") setRequest((previous) => previous.currentCity.trim() ? previous : { ...previous, city: "", area: "", startingArea: "" });
   }
   function update<K extends keyof PlanRequest>(key: K, value: PlanRequest[K]) {
@@ -451,6 +454,7 @@ export function PlannerWizard({
                 <span>or</span>
                 <button type="button" className="location-manual-toggle" aria-expanded={manualLocation} aria-controls="manual-location" onClick={() => editLocation(manualLocation ? "choose" : "manual")}>{manualLocation ? "Hide manual selection" : "Choose manually"}</button>
                 {locationMessage && <p role="status">{locationMessage}</p>}
+                {locationSettingsNeeded && <LocationPermissionHelp onRetry={detectLocation} disabled={locating || transitioning || loading} />}
               </div>
               {manualLocation && <div className="location-manual typeform-answer" id="manual-location">
                 <ManualCityPicker country={request.country} city={currentCity} countryHint={estimatedCountry && estimatedCountry === request.country ? "Estimated from your network. Change if needed." : undefined} onCountryChange={setOriginCountry} onCityChange={setOriginCity} onSelect={(city) => {
