@@ -9,8 +9,8 @@ import { useSlideAdvance } from "@/components/animations/use-slide-advance";
 const planningChapterIntervalMs = 3000;
 const chapters = [
   { label: "A PLACE TO BEGIN", title: "Start with somewhere.", description: "Your city is just the beginning. Choose how far you’d love to go.", pose: "location" },
-  { label: "THE LITTLE DETAILS", title: "Make it your kind of date.", description: "Your occasion, your people, your vibe and your time. Set a budget, or leave it open.", pose: "preferences" },
-  { label: "THOUGHTFULLY CONNECTED", title: "We’ll put it all together.", description: "Tell us what they love. We’ll connect the places, timing and costs into a plan for you.", pose: "itinerary" },
+  { label: "THE LITTLE DETAILS", title: "Make it your kind of date.", description: "Tell Oge what you have in mind, by text or voice. A few questions work too. Set a budget, or leave it open.", pose: "preferences" },
+  { label: "LET’S FIND YOUR PLACE", title: "We’ll help with the details.", description: "We’ll look for a place that fits, check the time and available costs, and let you decide if it feels right.", pose: "itinerary" },
 ] as const;
 
 const dateMoments = [

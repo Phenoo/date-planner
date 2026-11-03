@@ -68,7 +68,7 @@ export function Dashboard({
           </h1>
           <p>
             {signedIn
-              ? "Your plans, in one lovely place."
+              ? "The dates you’ve saved, ready when you are."
               : "Sign in to see your saved plans across devices."}
           </p>
           <Button onClick={onPlan}>
@@ -132,16 +132,16 @@ export function Dashboard({
           <LottieAnimation animation="empty" label="Your next great memory has not been planned yet" width={240} height={170} />
           <h2>
             {tab === "Past dates"
-              ? "A story yet to be written."
-              : "No plans yet? Let's change that."}
+              ? "No past dates here yet."
+              : tab === "Upcoming" ? "Nothing coming up yet." : "Your next date starts here."}
           </h2>
           <p>
             {tab === "Past dates"
-              ? "Plans scheduled before today appear here. A past date doesn't confirm attendance."
-              : "A little inspiration can turn into your next favourite memory."}
+              ? "Dates scheduled before today appear here. Only you can tell us whether they happened."
+              : "Save a plan you like, and we’ll keep it here for when you’re ready."}
           </p>
           <Button onClick={onPlan}>
-            Plan your first date
+            Plan a date
             <ArrowRight size={16} />
           </Button>
         </div>

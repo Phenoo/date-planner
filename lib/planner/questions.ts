@@ -4,7 +4,7 @@ const originalQuestions = [
   {
     id: "city",
     title: "What city are you starting from?",
-    description: "Tell us where you are. Next, we'll choose how far your date could take you.",
+    description: "Choose your city. Next, we’ll work out where you’d like to go.",
     fields: ["country", "city", "currentCity"],
   },
   {
@@ -32,13 +32,13 @@ const originalQuestions = [
     id: "budget",
     title: "Do you have a budget in mind?",
     description:
-      "Set a comfortable amount, or keep your options open.",
+      "Choose an amount that feels comfortable. We’ll keep that limit, or you can leave it open.",
     fields: ["budget", "budgetType", "includeFood", "includeTransport", "contingency"],
   },
   {
     id: "people",
     title: "Who's coming along?",
-    description: "Just the two of you, or a little more company?",
+    description: "Just you, two of you, or a few more? Tell us how many people to plan for.",
     fields: [
       "guests",
     ],
@@ -58,9 +58,9 @@ const originalQuestions = [
   },
   {
     id: "requirements",
-    title: "Any little things we should consider?",
+    title: "What would help you feel comfortable?",
     description:
-      "Food preferences, quieter places, or access needs. We'll keep them in mind.",
+      "Food needs, step-free access, or a quieter spot. Tell us what matters so we can plan with it in mind.",
     fields: ["dietary", "quiet", "accessibility", "dislikes"],
   },
   {
@@ -72,14 +72,14 @@ const originalQuestions = [
   {
     id: "time",
     title: "What time works best?",
-    description: "Choose a starting time. We'll check the venue's local opening hours.",
+    description: "Pick a time that works for you. We’ll check it against the venue’s opening hours.",
     fields: ["startTime"],
   },
   {
     id: "duration",
     title: "How much time do you have together?",
     description:
-      "We'll leave room for getting there, settling in, and enjoying the moment.",
+      "Include the journey there and back, so the date doesn’t feel rushed.",
     fields: ["duration", "endTime", "environment", "flexible"],
   },
 ] as const satisfies readonly {
@@ -104,7 +104,7 @@ const versionElevenOrder = ["yourGender", "dateGender", "city", "area", "occasio
 const order = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "duration", "review"] as const;
 export type PlannerQuestionId = typeof order[number];
 export const plannerQuestions: readonly { id: PlannerQuestionId; title: string; description: string; fields: readonly (keyof PlanRequest)[] }[] = order.map((id) => {
-  if (id === "review") return { id, title: "Everything looks good?", description: "One last look. Every detail is yours to change.", fields: [] };
+  if (id === "review") return { id, title: "Does this look right?", description: "Take a quick look. You can change any answer before we find your date.", fields: [] };
   const question = originalQuestions.find((item) => item.id === id) ?? genderQuestions.find((item) => item.id === id)!;
   const titles: Record<string, string> = { occasion: "What's the special occasion?", vibes: "What kind of date are you feeling?", interests: "What makes a date special for you?", duration: "How long are we going out?" };
   return { ...question, title: titles[id] || question.title };

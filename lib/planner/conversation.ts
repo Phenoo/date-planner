@@ -58,26 +58,26 @@ export function conversationAnswerKey(step: ConversationStep, request: PlanReque
 }
 export function localReaction(step: ConversationStep, request: PlanRequest): string {
   const reactions: Record<ConversationStep, string[]> = {
-    yourGender: ["Lovely. Let's meet the other half of this plan.", "That's you. Let's meet your date."],
-    dateGender: ["Introductions, done. Let's set the scene.", "You two, noted. Now for a change of scenery."],
-    city: [`${request.currentCity || request.city}, let's see what you've got.`, "A starting point. The possibilities come next."],
-    area: ["A little room to explore. I like it.", "A new backdrop for your next good story."],
-    occasion: ["That deserves a little thought. I'm on it.", "A good reason to make a little effort."],
-    people: [request.guests === 2 ? "A table for two. Figuratively, for now." : "More company, more stories. Got it.", "The guest list is looking good."],
-    budget: [request.budget === null ? "Options open. We'll leave the spending decisions to you." : "Comfort first. That's our spending ceiling.", "Good memories don't need an awkward bill."],
-    vibes: ["Now we're finding your kind of fun.", "That adds a little personality to the plan.", "A little more you. Keep going."],
-    interests: ["It's the little details that do the heavy lifting.", "A thoughtful touch. Those are the best kind."],
-    requirements: ["Comfort belongs in the plan too. Noted.", "The little things matter. I've got them."],
-    date: [request.datePreference === "weekend" ? "A weekend with a little main-character energy." : "A little plot twist for an ordinary weekday.", "A good day to make time for each other."],
-    time: [request.startTime ? "A little time set aside for something good." : "A little mystery in the timing. You can decide together.", "No rush. This is your time."],
-    duration: ["Room for the date, and a little getting-lost-in-conversation time.", "Time for the good part: bringing it all together."],
-    review: ["The little details are all here. Let's make a plan."],
+    yourGender: ["Thanks. This part is optional.", "Got it. Share only what you’re comfortable with."],
+    dateGender: ["Thanks. Let’s choose where you’d like to go.", "Got it. Let’s talk about the date."],
+    city: [`Starting from ${request.currentCity || request.city}. Let’s choose where to go.`, "Got it. Let’s choose a destination."],
+    area: ["We’ll look around your chosen destination.", "That gives us a place to start."],
+    occasion: ["We’ll keep the occasion in mind.", "Got it. Let’s make it feel right for the occasion."],
+    people: [`${request.guests === 1 ? "One person" : `${request.guests} people`}. Got it.`, "We’ll plan for everyone coming along."],
+    budget: [request.budget === null ? "No spending limit set. We’ll show costs where available." : "That’s the spending limit we’ll work with.", "Got it. We’ll keep your budget choice in place."],
+    vibes: ["I’m getting a feel for what you’d enjoy.", "We’ll use that to guide the search."],
+    interests: ["Thanks. Those details help make this yours.", "Got it. We’ll keep those interests in mind."],
+    requirements: ["Noted. We’ll keep those needs in place.", "Your comfort matters. We’ll use what you’ve told us."],
+    date: ["That day is noted.", "Got it. Let’s work out the timing."],
+    time: [request.startTime ? "That start time is noted." : "We’ll choose a time before searching.", "We’ll check the time against the venue’s hours."],
+    duration: ["We’ll allow for getting there and back.", "Got it. Let’s look at the details together."],
+    review: ["Your details are here. We’re ready to look for a match."],
   };
   const options = reactions[step];
   return options[Math.floor(Math.random() * options.length)];
 }
 export function fallbackConversation(input: ConversationInput): ConversationReply {
-  return { step: input.step, ai: false, prompt: plannerQuestions.find(({ id }) => id === input.step)?.description ?? "Let's make this your kind of date.", responses: conversationChoices(input.step).map(({ key }) => ({ key, line: "A little more you. Let's keep going." })) };
+  return { step: input.step, ai: false, prompt: plannerQuestions.find(({ id }) => id === input.step)?.description ?? "Let’s find a date that suits you.", responses: conversationChoices(input.step).map(({ key }) => ({ key, line: "Got it. Let’s keep going." })) };
 }
 export function validateConversationCopy(input: ConversationInput, output: unknown) {
   const parsed = conversationCopySchema.safeParse(output);

@@ -74,6 +74,15 @@
 .composer > button { flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: var(--planner-primary-bg); color: var(--planner-primary-text); display: grid; place-items: center; }
 .composer > button:hover:not(:disabled) { filter: brightness(.9); }
 .composer > button:disabled { opacity: .35; cursor: default; }
+.composer > .voiceButton { background: transparent; color: var(--planner-accent); border: 1px solid var(--planner-border); }
+.composer > .voiceButton[aria-pressed="true"] { background: var(--planner-selected-bg); color: var(--planner-selected-text); }
+.voiceCapture { border: 1px solid var(--planner-border); border-radius: 18px; padding: 10px 14px; margin-bottom: 10px; background: var(--planner-surface); }
+.voiceStatus { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.voiceStatus > span:first-child { flex: 1; }
+.voiceStatus > button { flex-shrink: 0; width: 44px; height: 44px; display: grid; place-items: center; color: var(--planner-text); }
+.voiceTranscript { font-size: 14px; line-height: 1.6; max-height: 100px; overflow-y: auto; overflow-wrap: anywhere; white-space: pre-wrap; }
+.voiceFeedback { font-size: 12px; line-height: 1.6; padding: 0 8px 10px; overflow-wrap: anywhere; }
+.voiceHelp { color: var(--planner-muted); font-size: 10px; line-height: 1.5; padding: 8px 8px 0; }
 @keyframes arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes pulse { 50% { opacity: .3; transform: translateY(-2px); } }
 @media(max-width:600px) { .choice { padding-top: 35px; } .choice h1 { font-size: 41px; } .modeCards { grid-template-columns: 1fr; gap: 16px; margin-top: 30px; } .modeCards > button { padding: 20px; } .chatPreview,.stepsPreview { min-height: 110px; margin-bottom: 22px; } .modeCards p { min-height: 0; } .chatHeading { padding: 8px 20px; } .thread { padding: 18px 20px 24px; } .welcome { padding-top: 6vh; } .welcome h2 { font-size: 30px; } .messages p { font-size: 15px; } .user { padding: 12px 16px; } .dock { padding-inline: 14px; } .composer textarea { font-size: 16px; } .starters { flex-direction: column; align-items: center; } .starters > button { width: fit-content; } }

@@ -119,10 +119,10 @@ const defaultRequest = () =>
 function PlannerInitializing() {
   return <main className={plannerStyles.initializing} aria-busy="true">
     <span className="eyebrow">A LITTLE SPACE FOR YOUR IDEAS</span>
-    <h1>Let’s make it personal.</h1>
-    <p role="status">Opening your planner and checking for recent answers…</p>
+    <h1>Let’s get you started.</h1>
+    <p role="status">Getting your planner ready and checking for recent answers…</p>
     <div className={plannerStyles.skeleton} aria-hidden="true"><span /><span /><span /></div>
-    <small>This usually takes a moment. Your current tab keeps valid core answers for one hour.</small>
+    <small>This tab keeps your core date details for one hour. Personal notes stay out of browser drafts.</small>
   </main>;
 }
 

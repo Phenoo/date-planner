@@ -177,8 +177,8 @@ export function PlannerWizard({
     }, (failure) => { if (!controller.signal.aborted) { setLocating(false); setLocationMessage(browserLocationError(failure.code)); } }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
   }
   const stage = plannerQuestions[step];
-  const title = editingPlan && stage.id === "review" ? "Edit your plan" : stage.title;
-  const description = editingPlan && stage.id === "review" ? "Change any detail below, then update your date plan." : stage.description;
+  const title = editingPlan && stage.id === "review" ? "What would you like to change?" : stage.title;
+  const description = editingPlan && stage.id === "review" ? "Your other answers are kept. Change what you need, then find a fresh match." : stage.description;
   const dialogue = usePlannerConversation(stage.id, request);
   const selectedCity = stage.id === "city" && locationMode === "selected";
   useEffect(() => {
@@ -791,7 +791,7 @@ export function PlannerWizard({
         )}
         {(stage.id !== "city" || locationMode !== "choose") && <div className="typeform-confirm">
           <Button type="submit" disabled={transitioning || locating}>
-            {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? editingPlan ? "Update My Date Plan" : "Create My Date Plan" : reviewing ? editingPlan ? "Back to edit plan" : "Back to review" : "Continue"}
+            {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? editingPlan ? "Find a new match" : "Find my date" : reviewing ? "Back to my details" : "Continue"}
           </Button>
           {selectedCity ? <Button type="button" variant="outline" disabled={pending !== null} onClick={() => editLocation("choose")}>Change</Button> : <span>
             press <strong>Enter</strong>

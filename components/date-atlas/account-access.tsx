@@ -62,15 +62,15 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
   }
   if (hasPendingAccountTransfer()) return <div className={styles.account}>
     <span className={styles.eyebrow}>YOUR DATE IS STILL HERE</span>
-    <h1>One last connection.</h1>
-    <p className={styles.lead}>You’re signed in. Finish keeping your current date with your account, then we’ll return you to it.</p>
+    <h1>Your date is still here.</h1>
+    <p className={styles.lead}>You’re signed in. We just need to finish moving your current date to your account, then you can pick up where you left off.</p>
     <Button className={styles.submit} disabled={busy} onClick={() => void authenticate()}>{busy ? "Keeping your date together…" : "Finish sign-in"}</Button>
     {error && <p role="alert" className="auth-message">{error}</p>}
   </div>;
   return <div className={styles.account}>
     <span className={styles.eyebrow}>YOUR NEXT CHAPTER</span>
     <h1>{reset ? "Forgot your password?" : create ? "Create your account." : "Welcome back."}</h1>
-    <p className={styles.lead}>{reset ? "Enter your account email and we'll send you a link to reset your password." : create ? "Give your favorite plans a home. Your next great date starts here." : "Sign in to keep your date plans together, wherever you go."}</p>
+    <p className={styles.lead}>{reset ? "It happens. Enter your email and we’ll send you a link to choose a new password." : create ? "Create an account to save the dates you like and come back to them later." : "Sign in to keep the dates you like and pick up where you left off."}</p>
     {!reset && <>
       <Button type="button" variant="outline" className={styles.google} disabled={busy} onClick={() => void authenticate(true)}><Image src="/images/google-g.png" alt="" aria-hidden="true" width={20} height={20} unoptimized />Continue with Google</Button>
       <div className={styles.divider} aria-hidden="true">or continue with email</div>

@@ -13,7 +13,7 @@ export function PlannerModeChoice({ onChoose }: { onChoose: (mode: PlannerMode) 
     <div className={styles.modeCards}>
       <button type="button" onClick={() => onChoose("chat")}>
         <div className={styles.chatPreview} aria-hidden="true"><span>A little romantic. A little unexpected.</span><span>I like where this is going.</span><i /></div>
-        <span className={styles.modeLabel}>LET’S TALK IT THROUGH</span><strong>Chat with the planner</strong><p>Describe your date in your own words. We’ll work out the details together.</p><span className={styles.modeAction}>Start a conversation <span aria-hidden="true">↗</span></span>
+        <span className={styles.modeLabel}>LET’S TALK IT THROUGH</span><strong>Chat with the planner</strong><p>Type or speak your date ideas. We’ll work out the details together.</p><span className={styles.modeAction}>Start a conversation <span aria-hidden="true">↗</span></span>
       </button>
       <button type="button" onClick={() => onChoose("steps")}>
         <div className={styles.stepsPreview} aria-hidden="true"><span>What’s your kind of date?</span><span>Romantic</span><span>Something playful</span></div>
