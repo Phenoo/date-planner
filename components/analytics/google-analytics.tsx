@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { analyticsPage, type AnalyticsChoice } from "@/lib/analytics/policy";
-import { getAnalyticsChoice, openAnalyticsChoices, setAnalyticsChoice, stopAnalytics, subscribeAnalyticsChoice, syncAnalytics } from "@/lib/analytics/client";
+import { getAnalyticsChoice, googleTagBootstrap, openAnalyticsChoices, setAnalyticsChoice, stopAnalytics, subscribeAnalyticsChoice, syncAnalytics } from "@/lib/analytics/client";
 import styles from "./google-analytics.module.css";
 
 const pendingChoice = () => "pending" as const;
@@ -35,7 +35,10 @@ export function GoogleAnalytics({ measurementId }: { measurementId: string }) {
   }
 
   return <>
-    {accepted && analyticsPage(pathname) && <Script id="adal-google-analytics" src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`} strategy="afterInteractive" referrerPolicy="origin" />}
+    {accepted && analyticsPage(pathname) && <>
+      <Script id="adal-google-analytics-bootstrap" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: googleTagBootstrap }} />
+      <Script id="adal-google-analytics" src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`} strategy="afterInteractive" referrerPolicy="origin" onReady={() => syncAnalytics(measurementId, getAnalyticsChoice() === "accepted", window.location.pathname)} />
+    </>}
     {choice !== "pending" && (choice === null || open) && <section className={styles.notice} aria-label="Analytics choice">
       <div><h2 ref={heading} tabIndex={-1}>Help us make adal better?</h2><p>Optional Google Analytics cookies help us understand visits and planning actions. Your chat messages and personal planning answers stay out of Analytics. <a href="/privacy">Privacy details</a></p></div>
       <div className={styles.actions}><button type="button" onClick={() => choose("declined")}>No thanks</button><button type="button" onClick={() => choose("accepted")}>Allow analytics</button></div>

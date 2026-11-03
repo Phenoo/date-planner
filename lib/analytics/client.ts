@@ -8,6 +8,8 @@ declare global {
 
 const choiceChanged = "date-atlas:analytics-choice-changed";
 export const openAnalyticsChoices = "date-atlas:open-analytics-choices";
+// Google distinguishes Arguments objects from arrays in its command queue.
+export const googleTagBootstrap = "window.dataLayer = window.dataLayer || []; window.gtag = window.gtag || function(){window.dataLayer.push(arguments);};";
 let memoryChoice: AnalyticsChoice | null = null;
 let active: { id: string; session: ReturnType<typeof createAnalyticsSession> } | null = null;
 const pending: AnalyticsEvent[] = [];
@@ -55,11 +57,9 @@ export function syncAnalytics(id: string, accepted: boolean, pathname: string) {
   if (!accepted) { stopAnalytics(); return; }
   if (active?.id !== id) {
     stopAnalytics();
-    const queue = window.dataLayer ?? [];
-    window.dataLayer = queue;
-    const tag: GoogleTag = window.gtag ?? ((...command) => { queue.push(command); });
+    const tag = window.gtag;
+    if (!tag) return;
     const send: GoogleTag = (...command) => { try { tag(...command); } catch { /* Analytics must not interrupt planning. */ } };
-    window.gtag = tag;
     active = { id, session: createAnalyticsSession(id, window.location.origin, send, (disabled) => { Reflect.set(window, `ga-disable-${id}`, disabled); }) };
   }
   active.session.consent(true);

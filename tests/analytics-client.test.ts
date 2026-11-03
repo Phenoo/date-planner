@@ -1,6 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getAnalyticsChoice, setAnalyticsChoice, syncAnalytics, trackAnalyticsEvent } from "../lib/analytics/client";
+import { runInNewContext } from "node:vm";
+import { getAnalyticsChoice, googleTagBootstrap, setAnalyticsChoice, syncAnalytics, trackAnalyticsEvent } from "../lib/analytics/client";
+import type { GoogleTag } from "../lib/analytics/policy";
+
+test("the Google bootstrap queues genuine Arguments objects recognized by gtag.js", () => {
+  const browser: { dataLayer?: unknown[]; gtag?: GoogleTag } = {};
+  runInNewContext(googleTagBootstrap, { window: browser });
+  assert.ok(browser.gtag);
+  browser.gtag("consent", "default", { analytics_storage: "granted" });
+  browser.gtag("event", "page_view", { page_location: "https://date-atlas.vercel.app/" });
+  assert.equal(browser.dataLayer?.length, 2);
+  for (const command of browser.dataLayer ?? []) {
+    assert.equal(Object.prototype.toString.call(command), "[object Arguments]");
+    assert.equal(Array.isArray(command), false);
+  }
+});
 
 test("blocked storage, cookie access and a failing Google tag do not interrupt planning or withdrawal", () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
