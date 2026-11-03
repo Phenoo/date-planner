@@ -33,6 +33,8 @@ import { LottieAnimation } from "@/components/animations/lottie-animation";
 import { DateMap } from "./date-map";
 import { SinglePlaceJourney } from "./single-place-journey";
 import { GeneratingScreen } from "./generating-screen";
+import { searchFeedback } from "@/lib/planner/search-feedback";
+import type { PlannerQuestionId } from "@/lib/planner/questions";
 import { CinematicReveal } from "./cinematic-reveal";
 import type { NearbyResult } from "@/lib/maps/schema";
 import { Dialog } from "@/components/ui/dialog";
@@ -53,6 +55,7 @@ export function Results({
   onActivePlan,
   setResult,
   onCustomize,
+  onEditPreference,
   onChangeTiming,
   onBack,
   onSave,
@@ -71,6 +74,7 @@ export function Results({
   onActivePlan: (plan: DatePlan) => void;
   setResult: (result: RecommendationResult) => void;
   onCustomize: () => void;
+  onEditPreference: (question: PlannerQuestionId) => void;
   onChangeTiming: () => void;
   onBack: () => void;
   onSave: (plan: DatePlan) => void;
@@ -142,37 +146,50 @@ export function Results({
       void onRegenerate(reason === "distance" ? { ...planningRequest, maxDistance: Math.max(1, Math.floor(planningRequest.maxDistance / 2)) } : planningRequest, { excludePlaceIds: [place.id], ...(reason === "activity" ? { excludeCategories: [place.category] } : {}) });
     }} />;
   }
-  if (!plan)
+  if (!plan && busy) return <GeneratingScreen stage={loadingStage} onCancel={onCancelGeneration} />;
+  if (!plan) {
+    const issues = result.nearby?.searchIssues ?? [];
+    const warnings = result.warnings.filter((warning) => !issues.length || !["No single verified catalog experience fits all selected requirements.", "No places in this search matched your preferences closely enough. Try a different destination or vibe."].includes(warning));
     return (
-      <main className="empty-state page-container">
-        <LottieAnimation animation="empty" label="Atlas is finding your next date" width={240} height={170} />
+      <main className="empty-state search-empty-state page-container">
+        <LottieAnimation animation="empty" label="Oge is finding your next date" width={144} height={102} />
         <span className="eyebrow">LET&apos;S FIND ANOTHER WAY</span>
         <h1>
-          A little adjustment
-          <br />
-          could make all the difference.
+          Let’s find a way forward.
         </h1>
         <p>
-          No plans fit all your preferences yet. Your spending limit has been kept exactly as you set it.
+          We couldn’t confirm a match from this search. Your answers are kept{issues.length ? "; here’s what needs attention" : ""}.
         </p>
         <div className="empty-reasons">
-          {result.warnings.map((warning) => (
+          {issues.map((issue) => {
+            const feedback = searchFeedback(issue, planningRequest);
+            return <section className="empty-reason" key={issue}>
+              <h2>{feedback.title}</h2>
+              <p>{feedback.message}</p>
+              <Button variant="outline" onClick={() => onEditPreference(feedback.question)}>{feedback.action}<ArrowRight size={16} /></Button>
+            </section>;
+          })}
+          {warnings.map((warning) => (
             <p key={warning}>
               <Info size={16} />
               {warning}
             </p>
           ))}
         </div>
+        {requestError && <p className="error-message" role="alert">{requestError}</p>}
+        {issues.some((issue) => ["unverified-dietary", "vegetarian", "accessible-entrance"].includes(issue)) && <Button variant="outline" onClick={() => onEditPreference("area")}>Try another destination<ArrowRight size={16} /></Button>}
         <Button onClick={onCustomize}>
-          Adjust my preferences
+          Review all answers
           <ArrowRight size={16} />
         </Button>
+        {!issues.length && <Button variant="outline" onClick={() => void onRegenerate(planningRequest)}>Try this search again<RefreshCw size={16} /></Button>}
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft size={16} />
           Back to inspiration
         </Button>
       </main>
     );
+  }
   async function editActivities(ids: string[]) {
     if (busy || chatBusy || editing) return;
     setEditing(true);

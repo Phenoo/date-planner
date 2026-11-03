@@ -6,6 +6,7 @@ import { authenticatedClient } from "@/lib/firebase/server";
 import { RequestError } from "@/lib/planner/http";
 import { datePlanSchema, recommendationResultSchema } from "@/lib/planner/response-schema";
 import { dateStorySchema } from "@/lib/planner/date-story";
+import { nearbyResultSchema } from "@/lib/maps/schema";
 import type { GenerateInput, RecommendationResult } from "@/lib/planner/schema";
 import { venueControls } from "./venue-controls";
 import { getCatalog } from "@/lib/planner/catalog";
@@ -20,6 +21,7 @@ const leaseMs = 90000;
 const cachedSchema = recommendationResultSchema.omit({ plans: true, nearby: true }).extend({
   plans: z.array(datePlanSchema.omit({ request: true })).max(1),
   nearby: z.object({ sessionId: z.uuid().optional(), ai: z.boolean().optional(), headline: z.string().optional(), introduction: z.string().optional(), warnings: z.array(z.string()).optional(),
+    searchIssues: nearbyResultSchema.shape.searchIssues,
     picks: z.array(z.object({ id: z.string(), distanceKm: z.number(), reason: z.string(), story: dateStorySchema.optional() })).max(1),
   }).optional(),
 });

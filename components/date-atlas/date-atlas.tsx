@@ -70,6 +70,7 @@ import {
   plannerDraftVersion,
   plannerQuestions,
   restorePlannerStep,
+  type PlannerQuestionId,
 } from "@/lib/planner/questions";
 
 const PlannerWizard = dynamic(() =>
@@ -574,8 +575,8 @@ export function DateAtlas({
       experience.id,
     );
   }
-  function customize() {
-    const step = plannerQuestions.findIndex((question) => question.id === "review");
+  function customize(questionId: PlannerQuestionId = "review") {
+    const step = plannerQuestions.findIndex((question) => question.id === questionId);
     setError("");
     setEditingPlan(true);
     setPlannerMode("steps");
@@ -674,7 +675,8 @@ export function DateAtlas({
       try {
         if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(data.nearby.sessionId ? { flow, sessionId: data.nearby.sessionId, placeId: data.nearby.places[0].id, expiresAt: Date.now() + 3600000, accepted: false } : { flow, request: draftRequest(preferences), result: data, expiresAt: Date.now() + 3600000, accepted: false }));
         else sessionStorage.removeItem(activeDiscoveryKey);
-        sessionStorage.removeItem(draftKey);
+        if (data.plans.length || data.nearby?.places.length) sessionStorage.removeItem(draftKey);
+        else sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds, editingPlan: true, plannerMode: "steps", chatSession }));
         sessionStorage.removeItem("date-atlas:planning-draft:v11");
         sessionStorage.removeItem("date-atlas:planning-draft:v10");
         sessionStorage.removeItem("date-atlas:planning-draft:v9");
@@ -1193,7 +1195,8 @@ export function DateAtlas({
               if (next.plans.length) setRequest(next.plans[0].request);
             }}
             onCustomize={() => customize()}
-            onChangeTiming={() => customize()}
+            onEditPreference={customize}
+            onChangeTiming={() => customize("time")}
             onBack={() => router.push("/")}
             onSave={(plan) => void savePlan(plan)}
             onShare={(plan) => void sharePlan(plan)}

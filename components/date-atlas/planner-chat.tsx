@@ -8,6 +8,7 @@ import { zonedNow } from "@/lib/planner/schedule";
 import type { PlanRequest } from "@/lib/planner/schema";
 import { DatePicker } from "./date-picker";
 import { GeneratingScreen } from "./generating-screen";
+import { requirementsGuidance } from "@/lib/planner/search-feedback";
 import styles from "./planner-chat.module.css";
 
 const quickReplies: Record<IntakeField, string[]> = {
@@ -151,7 +152,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
         </form>}
         {!sending && !error && suggestions.length > 0 && <div className={`${styles.suggestions} ${starting ? styles.starters : ""}`} aria-label="Suggested replies">{suggestions.map((text) => <button key={text} type="button" onClick={() => void send(text)}>{text}</button>)}</div>}
         {(error || serverError) && <div className={styles.error} role="alert"><p>{error || serverError}</p>{retryMessage && <button type="button" disabled={sending} onClick={() => void send(retryMessage, true)}>Try that message again</button>}</div>}
-        {ready && !sending && !error && <div className={styles.ready}><Button onClick={() => void onGenerate()}>Find my date <span aria-hidden="true">↗</span></Button></div>}
+        {ready && !sending && !error && <div className={styles.ready}>{(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance">{requirementsGuidance(request)}</p>}<Button onClick={() => void onGenerate()}>Find my date <span aria-hidden="true">↗</span></Button></div>}
       </div>
     </div>
     {showLatest && <button className={styles.latest} type="button" onClick={scrollToLatest}><ArrowDown size={16} aria-hidden="true" /> Latest messages</button>}

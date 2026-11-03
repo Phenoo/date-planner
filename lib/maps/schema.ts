@@ -25,6 +25,8 @@ export const nearbySearchSchema = z.object({
   accessibility: z.boolean().default(false), dietary: z.array(z.string()).default([]),
 });
 export type NearbySearch = z.infer<typeof nearbySearchSchema>;
+export const searchIssueSchema = z.enum(["travel-time", "accessible-entrance", "vegetarian", "unverified-dietary", "opening-hours", "budget", "distance", "preferences", "no-places", "venue-changed"]);
+export type SearchIssue = z.infer<typeof searchIssueSchema>;
 export const nearbyPlaceSchema = z.object({
   id: z.string().min(1).max(200), name: z.string(), address: z.string(), category: z.string(), distanceKm: z.number().nonnegative(), reason: z.string(),
   mapsUrl: z.url({ protocol: /^https$/ }),
@@ -44,5 +46,6 @@ export const nearbyResultSchema = z.object({
   sessionId: z.uuid().optional(),
   ai: z.boolean().optional(), headline: z.string().max(90).optional(), introduction: z.string().max(350).optional(),
   warnings: z.array(z.string()).max(8).optional(),
+  searchIssues: z.array(searchIssueSchema).max(10).optional(),
 });
 export type NearbyResult = z.infer<typeof nearbyResultSchema>;

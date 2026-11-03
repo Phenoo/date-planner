@@ -9,7 +9,7 @@ import { persistDiscoverySession, tokenKey } from "../../lib/server/date-invitat
 import { invitations } from "../../lib/server/actions/invitations";
 import { dateHistory } from "../../lib/server/actions/date-history";
 import { POST as mergeGuest } from "../../app/api/account/merge/route";
-import { generateSchema, requestSchema } from "../../lib/planner/schema";
+import { generateSchema, requestSchema, type RecommendationResult } from "../../lib/planner/schema";
 import { demoCatalog } from "../../lib/planner/demo-catalog";
 import { generateSinglePlan } from "../../lib/planner/engine";
 import { decodeRecipe, encodeExperience } from "../../lib/planner/money";
@@ -299,6 +299,12 @@ await assert.rejects(coordinateGeneration(generationRequest(), { ...input, reque
 const cached = (await db.collection("users").doc(guest.localId).collection("generationRequests").get()).docs[0].data();
 assert.doesNotMatch(JSON.stringify(cached), /PRIVATE TEST NOTES/);
 assert.equal(cached.status, "complete");
+const noMatchKey = randomUUID();
+const noMatchResult: RecommendationResult = { ...generationResult, plans: [], nearby: { city: input.request.city, area: input.request.area, country: input.request.country, places: [], searchIssues: ["accessible-entrance", "unverified-dietary"] } };
+const emptyRequest = () => generationRequest(input, guest.idToken, noMatchKey);
+assert.equal((await coordinateGeneration(emptyRequest(), input, async () => noMatchResult)).status, 200);
+const replayedEmpty = await coordinateGeneration(emptyRequest(), input, async () => { throw new Error("Empty result replay must use its cached feedback"); });
+assert.deepEqual((await replayedEmpty.json()).nearby.searchIssues, noMatchResult.nearby?.searchIssues, "A completed retry preserves the actual search blockers");
 const cancelKey = randomUUID();
 const cancelController = new AbortController();
 let cancelReady!: () => void; let cancelRelease!: () => void;
@@ -352,6 +358,10 @@ assert.equal(blockedDiscovery.places.length, 0, "Disabled Google records cannot 
 assert.equal((await controlVenue(req({ ...mapsControl, disabled: false }, admin.idToken))).status, 200);
 const allowedDiscovery = await discoverDatePlaces(preferences, { lat: 6.45, lng: 3.46 });
 assert.equal(allowedDiscovery.places.length, 1);
+const unverifiedDiscovery = await discoverDatePlaces({ ...preferences, dietary: ["halal"], accessibility: true }, { lat: 6.45, lng: 3.46 });
+assert.equal(unverifiedDiscovery.places.length, 0);
+assert.deepEqual(unverifiedDiscovery.searchIssues, ["accessible-entrance", "unverified-dietary"]);
+assert.ok(!unverifiedDiscovery.warnings?.some((warning) => warning.includes("access or dietary needs")), "Generic restriction blame is replaced by actual filter feedback");
 const categoryExcluded = await discoverDatePlaces(preferences, { lat: 6.45, lng: 3.46 }, { excludeCategories: ["Art gallery"] });
 assert.equal(categoryExcluded.places.length, 0);
 const previouslyRejected = await discoverDatePlaces(preferences, { lat: 6.45, lng: 3.46 }, { excludePlaceIds: ["TEST_PLACE_0"] });

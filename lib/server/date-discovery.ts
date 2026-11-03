@@ -10,7 +10,7 @@ import { z } from "zod";
 import { RequestError } from "@/lib/planner/http";
 import type { NearbyResult } from "@/lib/maps/schema";
 
-export async function discoverDatePlaces(request: PlanRequest, center: Coordinates | undefined, options: DiscoveryOptions = {}, progress?: (stage: string) => void) {
+export async function discoverDatePlaces(request: PlanRequest, center: Coordinates | undefined, options: DiscoveryOptions = {}, progress?: (stage: string) => void): Promise<NearbyResult> {
   progress?.("Understanding your kind of date");
   const brief = await createDiscoveryBrief(request, options);
   progress?.("Finding real places for your date");
@@ -23,13 +23,12 @@ export async function discoverDatePlaces(request: PlanRequest, center: Coordinat
     try {
       Object.assign(chosen, await refreshDiscoveryPick(chosen, request));
     } catch (error) {
-      if (error instanceof RequestError && error.status === 409) return { ...ranked, places: [], warnings: [error.message] };
+      if (error instanceof RequestError && error.status === 409) return { ...ranked, places: [], searchIssues: ["venue-changed"], warnings: [error.message] };
       ranked.warnings = [...(ranked.warnings ?? []), "Detailed venue information is temporarily unavailable. Confirm opening hours, prices and booking availability with the venue."];
     }
   }
-  const restrictionWarning = !ranked.places.length && (request.accessibility || request.dietary.length)
-    ? ["No place could be confirmed to meet your required access or dietary needs from the available source data. Your requirements have been kept. Try a different destination or a venue with confirmed information."] : [];
-  const warnings = [...new Set([...(result.warnings ?? []), ...(ranked.warnings ?? []), ...restrictionWarning])];
+  if (result.places.length && !ranked.places.length) ranked.searchIssues = ["preferences"];
+  const warnings = [...new Set([...(result.warnings ?? []), ...(ranked.warnings ?? [])])];
   return attachPlacePhotos({ ...ranked, warnings }, records);
 }
 

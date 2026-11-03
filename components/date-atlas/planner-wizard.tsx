@@ -33,6 +33,8 @@ import type { PlannerQuestionId } from "@/lib/planner/questions";
 import type { CompanionTheme } from "@/lib/animations/registry";
 import type { DetectedLocation } from "@/lib/maps/schema";
 import { browserLocationError, resolveCountry, resolveLocation } from "@/lib/maps/client-location";
+import { requirementsGuidance } from "@/lib/planner/search-feedback";
+import { plannerValidationIssues } from "@/lib/planner/validation";
 
 export { Field } from "@/components/ui/field";
 export { plannerQuestionCount } from "@/lib/planner/questions";
@@ -218,6 +220,10 @@ export function PlannerWizard({
   }
   function next(updated = request) {
     if (transitioning || loading) return;
+    if (stage.id === "review") {
+      const issues = plannerValidationIssues(updated);
+      if (issues.length) { setError(issues[0].message); return; }
+    }
     if ((stage.id === "date" || stage.id === "review") && (!updated.date || updated.date < zonedNow(updated.timeZone).date)) { setError("Choose today or a future day for your date."); return; }
     if ((stage.id === "time" || stage.id === "review") && !updated.startTime) { setError("Choose a time for your date."); return; }
     if (stage.id === "time") { const issue = scheduleError({ ...updated, endTime: "" }); if (issue) { setError(issue); return; } }
@@ -248,9 +254,7 @@ export function PlannerWizard({
         return;
       }
       if (step === plannerQuestionCount - 1) {
-        setError(
-          "A previous answer needs another look. Use Back to check your answers.",
-        );
+        setError(plannerValidationIssues(updated)[0]?.message ?? "Review the highlighted answers before planning.");
         return;
       }
     }
@@ -383,6 +387,7 @@ export function PlannerWizard({
   ];
   const total =
     (request.budget ?? 0) * (request.budgetType === "per-person" ? request.guests : 1);
+  const reviewIssues = stage.id === "review" ? plannerValidationIssues(request) : [];
   if (loading) return <GeneratingScreen stage={loadingStage} theme={theme} onCancel={onCancelGeneration} />;
   if (feedback) return <PlannerReaction key={feedback.target} line={feedback.line} theme={theme} onComplete={() => { setStep(feedback.target); setFeedback(null); }} />;
   return (
@@ -434,7 +439,11 @@ export function PlannerWizard({
         <p className="typeform-description">{description}</p>
         <fieldset className="typeform-answer" disabled={transitioning}>
           {selectedCity && <div className="detected-location" role="status"><strong>{currentCity}</strong><p>{request.country}</p></div>}
-          {stage.id === "review" && <div className="review-answers">{reviewGroups.map((item) => <div className="review-answer" key={item.id}><div><small>{item.label}</small><p>{item.value}</p></div><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex((question) => question.id === item.id)); }}>Edit {item.label.toLowerCase()}</button></div>)}</div>}
+          {stage.id === "review" && <>
+            {reviewIssues.length > 0 && <div className="review-missing" role="alert"><strong>A few details need attention</strong>{reviewIssues.map((issue) => <div key={issue.question}><p>{issue.message}</p><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex((question) => question.id === issue.question)); }}>Fix this answer</button></div>)}</div>}
+            {(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance">{requirementsGuidance(request)}</p>}
+            <div className="review-answers">{reviewGroups.map((item) => <div className="review-answer" key={item.id}><div><small>{item.label}</small><p>{item.value}</p></div><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex((question) => question.id === item.id)); }}>Edit {item.label.toLowerCase()}</button></div>)}</div>
+          </>}
           {stage.id === "city" && !selectedCity && (
             <>
               <div className="location-methods">
@@ -650,7 +659,7 @@ export function PlannerWizard({
           )}
           {stage.id === "requirements" && (
             <div className="form-stack">
-              <div className="pill-group">
+              <div className="pill-group" role="group" aria-label="Dietary requirements" aria-describedby="requirements-guidance">
                 {(["vegetarian", "vegan", "halal", "gluten-free"] as const).map(
                   (diet) => (
                     <button
@@ -690,6 +699,7 @@ export function PlannerWizard({
                 />
                 Step-free access required
               </label>
+              <p id="requirements-guidance" className="requirements-guidance" role="status">{requirementsGuidance(request)}</p>
               <details className="flow-details">
                 <summary>Anything you&apos;d rather skip?</summary>
                 <Field label="Activities or settings to avoid">
