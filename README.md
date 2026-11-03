@@ -18,6 +18,12 @@ The current project is `date-atlas-20261026`. Its web app, Firestore database in
 
 For an isolated local preview, start Auth/Firestore emulators under `demo-date-atlas`, then run `npm run dev:demo` on port 3004. This command overrides the child process environment so it uses demo data and local emulators, with external AI, Maps and private-function credentials cleared. It never edits your environment file.
 
+## Google Analytics
+
+Set `NEXT_PUBLIC_GA_MEASUREMENT_ID` to the production GA4 web stream ID in Vercel's Production environment, then redeploy. Development and Preview deployments do not load the tag. The current stream is for `https://date-atlas.vercel.app`, with reporting in Nigeria time and NGN. Keep Enhanced Measurement disabled in the stream: the app sends explicit, sanitized page views and its existing client planning events, without private tokens, query parameters, account IDs or planning text. Google signals and advertising personalization are disabled in the tag configuration.
+
+The tag loads after a visitor allows optional analytics. “No thanks” keeps it unloaded; visitors can change their choice on the Privacy page. Withdrawing consent disables measurement and clears this stream's GA cookies. Local app reliability events in Firebase remain separate from Google Analytics.
+
 ## Firebase
 
 The browser uses the four `NEXT_PUBLIC_FIREBASE_*` values. These identify the Firebase web app; they do not grant database access. Add each production domain to Firebase Authentication's authorized domains. Email sign-in sends a link; opening it on another device asks for the same email before completing sign-in.

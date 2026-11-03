@@ -2,6 +2,7 @@
 import { planningToken, plannerFetch } from "@/lib/firebase/planner-client";
 import type { z } from "zod";
 import type { clientEventSchema } from "./funnel";
+import { trackAnalyticsEvent } from "@/lib/analytics/client";
 const delivered = new Set<string>();
 let memoryScope = "";
 export function funnelScope(suffix = "") {
@@ -16,6 +17,7 @@ export function trackFunnel(event: z.infer<typeof clientEventSchema>["event"], s
   const key = `${event}:${scope}`;
   if (delivered.has(key)) return;
   delivered.add(key);
+  trackAnalyticsEvent(event);
   void planningToken().then(() => plannerFetch("/api/funnel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event, scope, reason }), keepalive: true })).then((response) => { if (!response.ok) delivered.delete(key); }).catch(() => delivered.delete(key));
 }
 export function trackInvitationOpened(token: string) {
