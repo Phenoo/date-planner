@@ -8,7 +8,6 @@ import { dateTimingLabel, fallbackDateStory } from "@/lib/planner/date-story";
 import type { NearbyResult } from "@/lib/maps/schema";
 import type { PlanRequest } from "@/lib/planner/schema";
 import { Button } from "@/components/ui/button";
-import { AtlasCompanion } from "@/components/animations/atlas-companion";
 import { ChosenPlaceCard } from "./chosen-place-card";
 import { DateStoryView } from "./date-story-view";
 import { VenueDetails } from "./venue-details";
@@ -104,7 +103,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     finally { if (!controller.signal.aborted) setChecking(false); }
   }
   return <main className={styles.reveal}>
-    <div className={styles.revealIntro}><AtlasCompanion pose="review" lively width={120} height={100} label="Atlas celebrates your chosen date" /><span className={styles.eyebrow}>YOUR DATE, THOUGHTFULLY PLANNED</span><h1 ref={title} tabIndex={-1}>It feels like a date.</h1><p>{request.date ? `${calendarLabel(request.date)} · ${clockLabel(timeMinutes(request.startTime))}` : dateTimingLabel(request.datePreference, request.startTime)}</p><button type="button" className={styles.textButton} onClick={onTiming}>Change day or time ↗</button></div>
+    <div className={styles.revealIntro}><span className={styles.eyebrow}>YOUR DATE, THOUGHTFULLY PLANNED</span><h1 ref={title} tabIndex={-1}>It feels like a date.</h1><p>{request.date ? `${calendarLabel(request.date)} · ${clockLabel(timeMinutes(request.startTime))}` : dateTimingLabel(request.datePreference, request.startTime)}</p><button type="button" className={styles.textButton} onClick={onTiming}>Change day or time ↗</button></div>
     <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} request={request} animated /></div>
     <ReadyForDate place={place} request={request} showFacts={false}>
     <section className={styles.sharePanel} aria-label="Invite your date"><h2>Now, make their day.</h2><p>{signedIn ? "Send a little invitation. They can say yes right from the link." : "Create an account or sign in to share this invitation and keep your dates together."}</p>
