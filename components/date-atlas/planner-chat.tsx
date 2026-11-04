@@ -48,7 +48,13 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   const [greeting] = useState(() => !session.messages.length && session.answered.length
     ? `Let’s pick up from here.\n\n${ready ? "Your details are here. Want to change anything, or shall we find your date?" : intakeQuestion(focus)}`
     : "Hi, I’m Oge.\n\nTell me the date you have in mind. We’ll work out the details together.");
-  const [animateGreeting] = useState(() => !session.messages.length);
+  const [animateGreeting, setAnimateGreeting] = useState(() => !session.messages.length);
+  useEffect(() => {
+    if (!animateGreeting) return;
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Array.from(greeting).length * 24;
+    const timer = window.setTimeout(() => setAnimateGreeting(false), duration);
+    return () => window.clearTimeout(timer);
+  }, [animateGreeting, greeting]);
   useEffect(() => { if (focus) trackFunnel("planner_step_viewed", funnelScope(`step:${focus}`), undefined, focus); }, [focus]);
   const summary = intakeSummary(request, session.answered);
   const starting = !session.messages.length && !summary.length;
