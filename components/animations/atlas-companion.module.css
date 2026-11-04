@@ -1,2 +1,0 @@
-.onRed { isolation: isolate; }
-.onRed::before { content: ""; position: absolute; inset: 14%; z-index: -1; border-radius: 50%; background: #fff0f3; }

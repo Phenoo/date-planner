@@ -21,13 +21,28 @@ const animationSchema = z.object({
 
 test("the live companion uses the original heart assets, including its loading loop", () => {
   const otherPoses = ["walking", "idle", "success", "swap", "lock"] as const;
-  for (const pose of [...Object.values(plannerAnimations), ...otherPoses]) for (const lively of [false, true]) {
-    const asset = heartAtlasAsset(pose, lively);
+  for (const theme of ["white", "red", "dark"] satisfies CompanionTheme[]) for (const pose of [...Object.values(plannerAnimations), ...otherPoses]) for (const lively of [false, true]) {
+    const asset = heartAtlasAsset(pose, lively, theme);
     assert.doesNotMatch(asset.src, /\/human\//);
     assert.equal(readFileSync(join(process.cwd(), "public", asset.src)).subarray(0, 2).toString(), "PK");
     assert.match(readFileSync(join(process.cwd(), "public", asset.fallback), "utf8"), /<svg[^>]+viewBox=/);
     const data = animationSchema.parse(JSON.parse(readFileSync(join(process.cwd(), "public", asset.src.replace(/\.lottie$/, ".json")), "utf8")));
     assert.ok(data.layers.some(({ nm }) => nm === "Atlas location-pin silhouette"));
+  }
+});
+
+test("heart colors and static fallbacks match each surface theme", () => {
+  const shape = z.object({ ty: z.string(), c: z.object({ k: z.array(z.number()) }).optional() });
+  const source = z.object({ layers: z.array(z.object({ nm: z.string(), shapes: z.array(shape).optional() })) });
+  const palettes = { white: { body: [217, 19, 53], face: [38, 16, 20] }, red: { body: [255, 255, 255], face: [173, 13, 42] }, dark: { body: [255, 173, 196], face: [52, 29, 44] } };
+  for (const theme of ["white", "red", "dark"] satisfies CompanionTheme[]) for (const lively of [false, true]) {
+    const asset = heartAtlasAsset("discover", lively, theme);
+    const data = source.parse(JSON.parse(readFileSync(join(process.cwd(), "public", asset.src.replace(/\.lottie$/, ".json")), "utf8")));
+    for (const [part, expected] of [["Atlas location-pin silhouette", palettes[theme].body], ["Eye", palettes[theme].face]] as const) {
+      const color = data.layers.find(({ nm }) => nm === part)?.shapes?.find(({ ty }) => ty === "fl")?.c?.k;
+      assert.ok(color); assert.deepEqual(color.slice(0, 3).map(channel => Math.round(channel * 255)), expected);
+      assert.ok(readFileSync(join(process.cwd(), "public", asset.fallback), "utf8").includes(`rgb(${expected.join(",")})`));
+    }
   }
 });
 

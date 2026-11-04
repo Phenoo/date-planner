@@ -10,6 +10,8 @@ The Atlas pin-shaped companion is adapted from the expressive shape animation co
 
 Run `npm run build:animations` to regenerate the Atlas JSON, SVG fallbacks and compressed dotLottie archives. Packaging uses Python 3's standard library. The self-hosted player runtime is distributed under the adjacent PLAYER-LICENSE.
 
+The shared companion uses the original animated heart. White surfaces keep the original red character; red surfaces use a white heart with red facial details, and dark surfaces use a pink heart with dark facial details. `scripts/build-atlas-heart-themes.mjs` derives those colors from the original vector sources without changing their geometry or motion. Matching still fallbacks live beside the themed archives under `atlas/themed/`.
+
 ## Lively planner loops
 
 `atlas/lively/` contains nine continuous planner variants derived from the same editable vector character by `scripts/build-atlas-lively.mjs`. They add springy body movement, expressive brows and blinks, hand gestures, and moving contextual props. Loop endpoints return the character to its starting pose. The planner questions and plan-generation screen opt into these variants; other screens retain their original animation behavior. Reduced-motion preferences use static SVG fallbacks, and the existing player pauses when the page or character is hidden.
