@@ -13,7 +13,7 @@ export function WalkingCompanion() {
   }, []);
   return <div className={styles.lane} aria-hidden="true" data-paused={hidden}>
     <div className={styles.walker}><div className={styles.direction}>
-      <AtlasCompanion pose="walking" theme="red" lively idle={false} eager playing={!hidden} label="Oge taking a thoughtful stroll" width={110} height={110} />
+      <AtlasCompanion pose="walking" theme="red" lively idle={false} eager playing={!hidden} label="A couple taking a stroll together" width={110} height={110} />
     </div></div>
   </div>;
 }

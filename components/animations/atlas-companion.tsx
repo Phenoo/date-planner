@@ -3,7 +3,7 @@ import { useState } from "react";
 import { LottieAnimation } from "./lottie-animation";
 import { humanAtlasAsset, type AnimationName, type CompanionTheme } from "@/lib/animations/registry";
 type Props = { pose?: AnimationName; theme?: CompanionTheme; label?: string; width?: number | string; height?: number | string; playing?: boolean; idle?: boolean; lively?: boolean; reactionKey?: string | number; className?: string; eager?: boolean };
-function Pose({ pose = "discover", theme = "white", label = "Oge, your date-planning companion", width = 250, height = 230, playing = true, idle = true, lively = false, className = "", eager = false }: Props) {
+function Pose({ pose = "discover", theme = "white", label = "A couple planning their date", width = 250, height = 230, playing = true, idle = true, lively = false, className = "", eager = false }: Props) {
   const [settled, setSettled] = useState(false);
   const animation = settled && idle && !lively ? "idle" : pose;
   const human = humanAtlasAsset(animation, theme);
