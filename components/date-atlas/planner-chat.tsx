@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, LoaderCircle, Mic, Square, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, ChevronDown, LoaderCircle, Mic, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { intakeNextField, intakeQuestion, intakeReplySchema, intakeSummary, type ChatSession, type IntakeField } from "@/lib/planner/intake";
@@ -45,6 +45,10 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   const input = useRef<HTMLTextAreaElement>(null);
   const focus = editingField ?? session.nextField ?? intakeNextField(request, session.answered);
   const ready = !focus;
+  const [greeting] = useState(() => !session.messages.length && session.answered.length
+    ? `Let’s pick up from here.\n\n${ready ? "Your details are here. Want to change anything, or shall we find your date?" : intakeQuestion(focus)}`
+    : "Hi, I’m Oge.\n\nTell me the date you have in mind. We’ll work out the details together.");
+  const [animateGreeting] = useState(() => !session.messages.length);
   useEffect(() => { if (focus) trackFunnel("planner_step_viewed", funnelScope(`step:${focus}`), undefined, focus); }, [focus]);
   const summary = intakeSummary(request, session.answered);
   const starting = !session.messages.length && !summary.length;
@@ -134,10 +138,10 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   }
   if (loading) return <GeneratingScreen stage={loadingStage} onCancel={onCancelGeneration} />;
   return <main ref={screen} className={styles.chat}>
-    <header className={styles.chatHeading}>
-      <div><span className={styles.chatAvatar} aria-hidden="true">o.</span><h1>Oge · Your planning companion</h1></div>
-      {summary.length > 0 && <details className={styles.summary}><summary>Date details <ChevronDown size={14} aria-hidden="true" /></summary><dl>{summary.map(({ field, value }) => <div key={field}><dt>{field === "vibe" ? "Vibe" : field === "people" ? "Guests" : field.charAt(0).toUpperCase() + field.slice(1)}</dt><dd>{value}</dd></div>)}</dl></details>}
-    </header>
+    <h1 className="sr-only">Plan your date</h1>
+    {summary.length > 0 && <div className={styles.detailsBar}>
+      <details className={styles.summary}><summary>Date details <ChevronDown size={14} aria-hidden="true" /></summary><dl>{summary.map(({ field, value }) => <div key={field}><dt>{field === "vibe" ? "Vibe" : field === "people" ? "Guests" : field.charAt(0).toUpperCase() + field.slice(1)}</dt><dd>{value}</dd></div>)}</dl></details>
+    </div>}
     {summary.length > 0 && <div className={styles.detailChips} aria-label="Edit date details">{summary.map(({ field, value }) => <button key={field} type="button" aria-label={`Change ${field === "location" ? "city" : field}: ${value}`} aria-pressed={editingField === field} disabled={sending || voice.active} onClick={() => { setEditingField(field); scrollToLatest(); if (field !== "time") input.current?.focus(); }}>{value}</button>)}</div>}
     <div ref={conversation} className={styles.transcript} onScroll={(event) => {
       const viewport = event.currentTarget;
@@ -146,8 +150,11 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       setShowLatest(!nearBottom);
     }}>
       <div className={styles.thread}>
-        {!session.messages.length && <div className={styles.welcome}><span className="eyebrow">A DATE AT LAS</span><h2>{starting ? "Hi, I’m Oge." : "Let’s pick up from here."}</h2><p>{starting ? voice.supported ? "Tell me what you’d enjoy, or tap the mic and talk it through. We’ll fill in any gaps together." : "Tell me what you’d enjoy. We’ll fill in any gaps together." : ready ? "Your details are here. Want to change anything, or shall we find your date?" : `Welcome back. ${intakeQuestion(focus)}`}</p></div>}
         <div className={styles.messages} role="log" aria-label="Conversation with Oge" aria-live="polite" aria-relevant="additions">
+          <article className={styles.assistant}>
+            <span className={styles.speaker}>Oge</span>
+            <p><span className="sr-only">{greeting}</span><span aria-hidden="true">{Array.from(greeting).map((character, index) => <span key={index} className={animateGreeting ? styles.typedCharacter : undefined} style={animateGreeting ? { animationDelay: `${index * 24}ms` } : undefined}>{character}</span>)}</span></p>
+          </article>
           {session.messages.map((item) => <article key={item.id} className={item.role === "user" ? styles.user : styles.assistant}><span className={item.role === "user" ? "sr-only" : styles.speaker}>{item.role === "user" ? "You" : "Oge"}</span><p>{item.text}</p></article>)}
           {sending && <div className={styles.typing} role="status" aria-label="Oge is thinking"><span className={styles.speaker}>Oge</span><div aria-hidden="true"><i /><i /><i /></div></div>}
         </div>
@@ -173,7 +180,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
         </form>}
         {!sending && !error && suggestions.length > 0 && <div className={`${styles.suggestions} ${starting ? styles.starters : ""}`} aria-label="Suggested replies">{suggestions.map((text) => <button key={text} type="button" disabled={voice.active} onClick={() => void send(text)}>{text}</button>)}</div>}
         {(error || serverError) && <div className={styles.error} role="alert"><p>{error || serverError}</p>{retryMessage && <button type="button" disabled={sending || voice.active} onClick={() => void send(retryMessage, true)}>Try that message again</button>}</div>}
-        {ready && !sending && !error && <div className={styles.ready}>{(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance">{requirementsGuidance(request)}</p>}<Button disabled={voice.active} onClick={() => void onGenerate()}>Find my date <span aria-hidden="true">↗</span></Button></div>}
+        {ready && !sending && !error && <div className={styles.ready}>{(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance">{requirementsGuidance(request)}</p>}<Button disabled={voice.active} onClick={() => void onGenerate()}>Find my date <ArrowUpRight size={18} aria-hidden="true" /></Button></div>}
       </div>
     </div>
     {showLatest && <button className={styles.latest} type="button" onClick={scrollToLatest}><ArrowDown size={16} aria-hidden="true" /> Latest messages</button>}

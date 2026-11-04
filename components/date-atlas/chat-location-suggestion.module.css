@@ -1,10 +1,10 @@
-.location { margin: 20px 0; text-align: center; color: var(--planner-text); }
+.location { margin: 20px 0; text-align: left; color: var(--planner-text); }
 .location p { font-size: 14px; line-height: 1.7; margin: 12px 0; overflow-wrap: anywhere; }
 .location strong { font-weight: 600; }
 .location button:focus-visible { outline: 2px solid var(--planner-accent); outline-offset: 4px; }
 .locate,.actions button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--planner-border); border-radius: 22px; font-size: 13px; color: var(--planner-text); }
 .locate { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .locate:hover:not(:disabled),.actions button:hover:not(:disabled) { background: var(--planner-hover); border-color: var(--planner-accent); }
-.actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.actions { display: flex; justify-content: flex-start; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .actions button:first-child { background: var(--planner-primary-bg); color: var(--planner-primary-text); border-color: var(--planner-primary-bg); }
 .actions button:first-child:hover:not(:disabled) { background: var(--planner-primary-bg); filter: brightness(.94); }
