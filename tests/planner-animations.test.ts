@@ -40,10 +40,6 @@ test("lively loops have valid layer parents, bounded keyframes and matching visi
     assert.ok(animation.op > animation.ip);
     assert.ok((animation.op - animation.ip) / animation.fr >= 3);
     assert.equal(animation.assets.length, 0, "Planner loops must remain self-contained vector artwork");
-    assert.equal(animation.layers.filter(({ nm }) => nm === "Human face").length, 2, `Missing a partner in ${source}`);
-    assert.ok(animation.layers.some(({ nm }) => nm === "Woman composition"), `Missing the woman in ${source}`);
-    assert.ok(animation.layers.some(({ nm }) => nm === "Long wavy hair"), `Missing the woman's artwork in ${source}`);
-    assert.ok(animation.layers.some(({ nm }) => nm === "A shared heart"), `Missing the couple's shared heart in ${source}`);
     for (const part of ["Human face", "Shirt", "Left trouser leg", "Right trouser leg", "Little sneaker", "Open human hand"]) assert.ok(animation.layers.some(({ nm }) => nm === part), `Missing ${part}`);
     const ids = new Set(animation.layers.map((layer) => layer.ind));
     assert.equal(ids.size, animation.layers.length, `Duplicate layer IDs in ${source}`);
@@ -77,15 +73,12 @@ test("the companion has distinct theme artwork rather than a color filter", () =
   assert.equal(new Set(sources).size, 3);
 });
 
-test("both partners walk with alternating leg and arm motion and a seamless static fallback", () => {
+test("Oge's walking cycle has alternating leg and arm motion with a seamless static fallback", () => {
   for (const theme of ["white", "red", "dark"] satisfies CompanionTheme[]) {
     const asset = humanAtlasAsset("walking", theme);
     const data = animationSchema.parse(JSON.parse(readFileSync(join(process.cwd(), "public", asset.src.replace(/\.lottie$/, ".json")), "utf8")));
     const legs = data.layers.filter(({ nm }) => nm.endsWith("leg joint"));
-    assert.equal(data.layers.filter(({ nm }) => nm === "Human face").length, 2);
-    assert.ok(data.layers.some(({ nm }) => nm === "Woman composition"));
-    assert.ok(data.layers.some(({ nm }) => nm === "Long wavy hair"));
-    assert.equal(legs.length, 4);
+    assert.equal(legs.length, 2);
     for (const leg of legs) {
       assert.equal(leg.ks.r.a, 1);
       if (leg.ks.r.a === 1) {
@@ -94,7 +87,7 @@ test("both partners walk with alternating leg and arm motion and a seamless stat
       }
     }
     const arms = data.layers.filter(({ nm }) => nm.endsWith("shoulder joint"));
-    assert.equal(arms.length, 4);
+    assert.equal(arms.length, 2);
     for (const arm of arms) if (arm.ks.r.a === 1) assert.ok(Math.abs(arm.ks.r.k[0].s[0] - arm.ks.r.k[1].s[0]) >= 40);
     assert.equal(readFileSync(join(process.cwd(), "public", asset.src)).subarray(0, 2).toString(), "PK");
     assert.match(readFileSync(join(process.cwd(), "public", asset.fallback), "utf8"), /viewBox="0 0 360 360"/);
