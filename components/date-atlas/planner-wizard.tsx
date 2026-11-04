@@ -1,6 +1,6 @@
 "use client";
 
-import { DestinationTimeZone } from "./destination-time-zone";
+import { useDestinationTimeZone } from "./use-destination-time-zone";
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -79,12 +79,6 @@ function AnswerChoices<T extends string | number>({
     </div>
   );
 }
-const timeOptions = [
-  { value: "10:00", label: "Morning · 10:00 AM" },
-  { value: "14:00", label: "Afternoon · 2:00 PM" },
-  { value: "18:00", label: "Evening · 6:00 PM" },
-];
-const durationOptions = [{ value: 120, label: "1–2 hours" }, { value: 240, label: "3–5 hours" }, { value: 420, label: "6–8 hours" }, { value: 720, label: "Full day" }];
 type DestinationChoice = "city" | "area" | "elsewhere";
 
 export function PlannerWizard({
@@ -178,6 +172,7 @@ export function PlannerWizard({
     }, (failure) => { if (!controller.signal.aborted) { setLocating(false); setLocationMessage(browserLocationError(failure.code)); setLocationSettingsNeeded(failure.code === 1 || failure.code === 2); } }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
   }
   const stage = plannerQuestions[step];
+  useDestinationTimeZone(request, setRequest, ["date", "time", "review"].includes(stage.id));
   useEffect(() => { const field = intakeFieldForQuestion(stage.id); if (field) trackFunnel("planner_step_viewed", funnelScope(`step:${field}`), undefined, field); }, [stage.id]);
   const title = editingPlan && stage.id === "review" ? "What would you like to change?" : stage.title;
   const description = editingPlan && stage.id === "review" ? "Your other answers are kept. Change what you need, then find a fresh match." : stage.description;
@@ -228,8 +223,8 @@ export function PlannerWizard({
     }
     if ((stage.id === "date" || stage.id === "review") && (!updated.date || updated.date < zonedNow(updated.timeZone).date)) { setError("Choose today or a future day for your date."); return; }
     if ((stage.id === "time" || stage.id === "review") && !updated.startTime) { setError("Choose a time for your date."); return; }
-    if (stage.id === "time") { const issue = scheduleError({ ...updated, endTime: "" }); if (issue) { setError(issue); return; } }
-    if (stage.id === "review") { const issue = scheduleError(updated); if (issue) { setError(issue); return; } }
+    if (stage.id === "time") { const issue = scheduleError({ ...updated, timeZoneConfirmed: true, endTime: "" }); if (issue) { setError(issue); return; } }
+    if (stage.id === "review") { const issue = scheduleError({ ...updated, timeZoneConfirmed: true, endTime: "" }); if (issue) { setError(issue); return; } }
     if (stage.id === "city" && (locationMode === "choose" || locating)) {
       setError(locating ? "Finding your area. Please wait a moment." : "Use your location or choose an area manually to continue.");
       return;
@@ -265,14 +260,6 @@ export function PlannerWizard({
       setRequest((previous) => ({ ...previous, currentCity: (updated.currentCity || updated.city).trim() }));
       setLocationMode("selected");
       setLocationMessage("");
-      return;
-    }
-    if (
-      stage.id === "duration" &&
-      updated.endTime &&
-      updated.endTime <= updated.startTime
-    ) {
-      setError("Your ending time must be after your starting time.");
       return;
     }
     onAnswer?.(stage.id, updated);
@@ -363,14 +350,7 @@ export function PlannerWizard({
       event.preventDefault();
       toggleVibe(vibes[index]);
     }
-    if (stage.id === "time" && timeOptions[index]) {
-      event.preventDefault();
-      choose("startTime", timeOptions[index].value);
-    }
-    if (stage.id === "duration" && durationOptions[index]) {
-      event.preventDefault();
-      choose("duration", durationOptions[index].value);
-    }
+
   }
   const reviewGroups = [
     { id: "yourGender", label: "Your gender", value: genderLabel(request.yourGender) },
@@ -385,7 +365,6 @@ export function PlannerWizard({
     { id: "budget", label: "Spending limit", value: request.budget === null ? "No spending limit set" : `${money(request.budget, request.currency)} ${request.budgetType === "total" ? "total" : "per person"} · ${request.includeFood ? "Food included" : "Food excluded"} · ${request.includeTransport ? "Transport included" : "Transport excluded"}` },
     { id: "date", label: "Date", value: request.date ? calendarLabel(request.date) : "Choose a day" },
     { id: "time", label: "Starting time", value: request.startTime || "Choose a time" },
-    { id: "duration", label: "Duration", value: `${request.duration / 60} hours${request.endTime ? ` · Be back by ${request.endTime}` : ""}` },
   ];
   const total =
     (request.budget ?? 0) * (request.budgetType === "per-person" ? request.guests : 1);
@@ -704,6 +683,8 @@ export function PlannerWizard({
                 />
                 Step-free access required
               </label>
+              <Field label="Indoors or outdoors?"><select value={request.environment} onChange={(event) => update("environment", event.target.value === "indoor" ? "indoor" : event.target.value === "outdoor" ? "outdoor" : "any")}><option value="any">A little of either</option><option value="indoor">Indoors</option><option value="outdoor">Outdoors</option></select></Field>
+              <label className="plain-toggle"><input type="checkbox" checked={request.flexible} onChange={(event) => update("flexible", event.target.checked)} />We can be flexible with the time</label>
               <p id="requirements-guidance" className="requirements-guidance" role="status">{requirementsGuidance(request)}</p>
               <details className="flow-details">
                 <summary>Anything you&apos;d rather skip?</summary>
@@ -718,77 +699,11 @@ export function PlannerWizard({
               </details>
             </div>
           )}
-          {(["date", "time", "review"].includes(stage.id) || !request.timeZoneConfirmed && stage.id === "duration") && <DestinationTimeZone request={request} setRequest={setRequest} disabled={transitioning} />}
           {stage.id === "date" && (
-            <DatePicker timeZone={request.timeZone} value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
+            <DatePicker key={request.timeZone} timeZone={request.timeZone} value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
           )}
-          {stage.id === "time" && (
-            <>
-              <AnswerChoices
-                options={timeOptions}
-                selected={[request.startTime]}
-                disabled={pending !== null}
-                onChoose={(value) => choose("startTime", value)}
-              />
-              <Field label="Choose a time · venue local time">
-                <input
-                  type="time"
-                  value={request.startTime}
-                  onChange={(event) => update("startTime", event.target.value)}
-                />
-              </Field>
-            </>
-          )}
-          {stage.id === "duration" && (
-            <>
-              <AnswerChoices
-                options={durationOptions}
-                selected={[request.duration]}
-                disabled={pending !== null}
-                onChoose={(value) => choose("duration", value)}
-              />
-              <Field label="Custom duration (hours)"><input type="number" min={1} max={12} step={0.5} value={request.duration / 60} onChange={(event) => { const hours = event.target.valueAsNumber; if (Number.isFinite(hours)) update("duration", Math.round(hours * 60)); }} /><small>We&apos;ll plan for {request.duration / 60} hours, including estimated travel.</small></Field>
-              <details className="flow-details">
-                <summary>A little more about the timing and setting</summary>
-                <div className="form-stack">
-                  <Field label="Be back by (optional)">
-                    <input
-                      type="time"
-                      value={request.endTime}
-                      onChange={(event) =>
-                        update("endTime", event.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field label="Indoors or outdoors?">
-                    <select
-                      value={request.environment}
-                      onChange={(event) =>
-                        update(
-                          "environment",
-                          event.target.value as PlanRequest["environment"],
-                        )
-                      }
-                    >
-                      <option value="any">A little of either</option>
-                      <option value="indoor">Indoors</option>
-                      <option value="outdoor">Outdoors</option>
-                    </select>
-                  </Field>
-                  <label className="plain-toggle">
-                    <input
-                      type="checkbox"
-                      checked={request.flexible}
-                      onChange={(event) =>
-                        update("flexible", event.target.checked)
-                      }
-                    />
-                    We can be flexible with the time
-                  </label>
-                </div>
-              </details>
-            </>
-          )}
+          {stage.id === "time" && <Field label="Choose your start time"><input type="time" required value={request.startTime} onChange={(event) => update("startTime", event.target.value)} /></Field>}
+
         </fieldset>
         {(error || serverError) && (
           <p className="error-message" role="alert">

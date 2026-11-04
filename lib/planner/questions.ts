@@ -61,7 +61,7 @@ const originalQuestions = [
     title: "What would help you feel comfortable?",
     description:
       "Food needs, step-free access, or a quieter spot. Tell us what matters so we can plan with it in mind.",
-    fields: ["dietary", "quiet", "accessibility", "dislikes"],
+    fields: ["dietary", "quiet", "accessibility", "dislikes", "environment", "flexible"],
   },
   {
     id: "date",
@@ -73,14 +73,7 @@ const originalQuestions = [
     id: "time",
     title: "What time works best?",
     description: "Pick a time that works for you. We’ll check it against the venue’s opening hours.",
-    fields: ["startTime", "timeZone", "timeZoneConfirmed"],
-  },
-  {
-    id: "duration",
-    title: "How much time do you have together?",
-    description:
-      "Include the journey there and back, so the date doesn’t feel rushed.",
-    fields: ["duration", "endTime", "environment", "flexible"],
+    fields: ["startTime"],
   },
 ] as const satisfies readonly {
   id: string;
@@ -90,7 +83,7 @@ const originalQuestions = [
 }[];
 
 
-const originalOrder = [...originalQuestions.map(({ id }) => id), "notes"] as const;
+const originalOrder = ["city", "area", "occasion", "budget", "people", "vibes", "interests", "requirements", "date", "time", "duration", "notes"] as const;
 const genderQuestions = [
   { id: "yourGender", title: "What's your gender?", description: "This is optional. Choose what feels right for you.", fields: ["yourGender"] },
   { id: "dateGender", title: "And your date's gender?", description: "Choose what they've shared with you, or leave this open.", fields: ["dateGender"] },
@@ -101,34 +94,38 @@ const versionSevenOrder = previousOrder.filter((id) => id !== "notes" && id !== 
 const versionNineOrder = ["city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
 const versionTenOrder = ["city", "area", "occasion", "people", "yourGender", "dateGender", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
 const versionElevenOrder = ["yourGender", "dateGender", "city", "area", "occasion", "people", "budget", "vibes", "interests", "requirements", "date", "time", "duration", "review"] as const;
-const order = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "duration", "review"] as const;
+const versionTwelveOrder = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "duration", "review"] as const;
+const order = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "review"] as const;
 export type PlannerQuestionId = typeof order[number];
 export const plannerQuestions: readonly { id: PlannerQuestionId; title: string; description: string; fields: readonly (keyof PlanRequest)[] }[] = order.map((id) => {
   if (id === "review") return { id, title: "Does this look right?", description: "Take a quick look. You can change any answer before we find your date.", fields: [] };
   const question = originalQuestions.find((item) => item.id === id) ?? genderQuestions.find((item) => item.id === id)!;
-  const titles: Record<string, string> = { occasion: "What's the special occasion?", vibes: "What kind of date are you feeling?", interests: "What makes a date special for you?", duration: "How long are we going out?" };
+  const titles: Record<string, string> = { occasion: "What's the special occasion?", vibes: "What kind of date are you feeling?", interests: "What makes a date special for you?" };
   return { ...question, title: titles[id] || question.title };
 });
 export const plannerQuestionCount = plannerQuestions.length;
-export const plannerDraftVersion = 12;
+export const plannerDraftVersion = 13;
+function currentStep(id: string) {
+  const mapped = id === "duration" ? "review" : id === "notes" ? "interests" : id === "intro" ? "city" : id;
+  const index = plannerQuestions.findIndex(question => question.id === mapped);
+  return Math.max(0, index);
+}
 export function restorePlannerStep(step: unknown, version: unknown, questionId?: unknown): number {
+  if (questionId === "duration") return currentStep("review");
   const semanticStep = plannerQuestions.findIndex((question) => question.id === questionId);
   if (semanticStep >= 0) return semanticStep;
   if (typeof step !== "number" || !Number.isInteger(step) || step < 0) return 0;
   if (version === plannerDraftVersion) return Math.min(plannerQuestionCount - 1, step);
-  if (version === 11) return order.indexOf(versionElevenOrder[Math.min(versionElevenOrder.length - 1, step)]);
-  if (version === 10) return order.indexOf(versionTenOrder[Math.min(versionTenOrder.length - 1, step)]);
-  if (version === 8 || version === 9) return order.indexOf(versionNineOrder[Math.min(versionNineOrder.length - 1, step)]);
-  if (version === 7) return order.indexOf(versionSevenOrder[Math.min(versionSevenOrder.length - 1, step)]);
+  if (version === 12) return currentStep(versionTwelveOrder[Math.min(versionTwelveOrder.length - 1, step)]);
+  if (version === 11) return currentStep(versionElevenOrder[Math.min(versionElevenOrder.length - 1, step)]);
+  if (version === 10) return currentStep(versionTenOrder[Math.min(versionTenOrder.length - 1, step)]);
+  if (version === 8 || version === 9) return currentStep(versionNineOrder[Math.min(versionNineOrder.length - 1, step)]);
+  if (version === 7) return currentStep(versionSevenOrder[Math.min(versionSevenOrder.length - 1, step)]);
   if (version === 5 || version === 6) {
     const source = version === 6 ? versionSixOrder : previousOrder;
-    const id = source[Math.min(source.length - 1, step)];
-    return order.indexOf(id === "intro" ? "city" : id === "notes" ? "interests" : id);
+    return currentStep(source[Math.min(source.length - 1, step)]);
   }
   const originalIndex = version === 3 ? [0, 2, 3, 5, 6, 8, 11][Math.min(6, step)] ?? 0 : Math.min(originalOrder.length - 1, step);
-  if (version === 3 || version === 4 || version === 2 || version === undefined) {
-    const id = originalOrder[originalIndex];
-    return order.indexOf(id === "notes" ? "interests" : id);
-  }
+  if (version === 3 || version === 4 || version === 2 || version === undefined) return currentStep(originalOrder[originalIndex]);
   return 0;
 }

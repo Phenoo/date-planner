@@ -1,4 +1,4 @@
-import type { IntakeInput } from "./intake";
+import type { IntakeInput, IntakeField } from "./intake";
 import { explicitLagosNeighborhood } from "./intake-location";
 import { validCurrency } from "./currency";
 
@@ -8,7 +8,14 @@ export function ambiguousBudgetCurrency(input: IntakeInput) {
   return /\$|\bdollars?\b/i.test(input.message) && !dollarCurrencies.includes(input.request.currency) || /¥/.test(input.message) && !["JPY", "CNY"].includes(input.request.currency);
 }
 
+export function intakeEditField(message: string): IntakeField | null {
+  const match = message.trim().replace(/[.!?]+$/, "").match(/^(?:change|edit|choose|pick|set|update)(?:\s+(?:my|the|our|another|a different))?\s+(city|destination|location|occasion|guests|people|vibe|mood|budget|date|day|start(?:ing)? time|time)$/i);
+  const fields: Record<string, IntakeField> = { city: "location", destination: "location", location: "location", occasion: "occasion", guests: "people", people: "people", vibe: "vibe", mood: "vibe", budget: "budget", date: "date", day: "date", "start time": "time", "starting time": "time", time: "time" };
+  return match ? fields[match[1].toLowerCase()] ?? null : null;
+}
+
 export function explicitIntakeCorrection(input: IntakeInput) {
+  if (intakeEditField(input.message)) return { acknowledgement: "Let’s update that. Your other answers are kept.", patch: {} };
   const original = input.message.trim();
   const text = original.replace(/[,;.!]?\s*(?:and\s+)?(?:keep|leave)\s+everything\s+else(?:\s+(?:the\s+same|unchanged|as\s+it\s+is))?[.!]*$/i, "").trim();
   if (!text && /\beverything\s+else\b/i.test(original)) return { acknowledgement: "Everything else stays as we agreed.", patch: {} };

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SearchIssue } from "./schema";
+import { venueVisitMinutes } from "@/lib/planner/timing";
 import { addCalendarDays, calendarDay, timeMinutes } from "@/lib/planner/schedule";
 
 const datePoint = z.object({ year: z.number(), month: z.number(), day: z.number() });
@@ -74,14 +75,14 @@ export function providerPrice(facts: ProviderFacts) {
 export function travelEstimate(distanceKm: number, method = "Ride-hailing") {
   return Math.max(method === "Walking" ? 1 : 5, Math.ceil(distanceKm * 1.35 / (method === "Walking" ? 4.5 : 22) * 60));
 }
-export function venueRequestIssues(facts: ProviderFacts, request: { date: string; startTime: string; duration: number; budget: number | null; budgetType: string; guests: number; includeTransport: boolean; transport: string; accessibility: boolean; dietary: string[]; currency?: string }, distanceKm: number) {
+export function venueRequestIssues(facts: ProviderFacts, request: { date: string; startTime: string; duration: number; budget: number | null; budgetType: string; guests: number; includeTransport: boolean; transport: string; accessibility: boolean; dietary: string[]; currency?: string; durationMode?: "estimated" | "specified" }, distanceKm: number) {
   const issues: SearchIssue[] = [];
   const travel = travelEstimate(distanceKm, request.transport);
-  if (travel * 2 + 30 > request.duration) issues.push("travel-time");
+  if (request.durationMode !== "estimated" && travel * 2 + 30 > request.duration) issues.push("travel-time");
   if (request.accessibility && facts.accessibilityOptions?.wheelchairAccessibleEntrance !== true) issues.push("accessible-entrance");
   if (request.dietary.some((need) => need !== "vegetarian")) issues.push("unverified-dietary");
   if (request.dietary.includes("vegetarian") && facts.servesVegetarianFood !== true) issues.push("vegetarian");
-  const opening = venueOpeningStatus(facts, request.date, timeMinutes(request.startTime) + travel, Math.max(30, request.duration - travel * 2));
+  const opening = venueOpeningStatus(facts, request.date, timeMinutes(request.startTime) + travel, venueVisitMinutes(request, travel));
   if (opening === "closed") issues.push("opening-hours");
   const price = providerPrice(facts);
   if (request.budget !== null && price?.currency === (request.currency ?? "NGN") && price.min !== undefined) {

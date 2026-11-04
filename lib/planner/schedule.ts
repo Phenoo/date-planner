@@ -22,15 +22,15 @@ export function calendarDay(value: string) { return new Date(`${value}T12:00:00Z
 export function calendarLabel(value: string, options: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long" }) {
   return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
 }
-export function scheduleError(request: { date: string; startTime: string; duration: number; endTime?: string; timeZone?: string; timeZoneConfirmed?: boolean }, today?: string, now = new Date()) {
+export function scheduleError(request: { date: string; startTime: string; duration: number; endTime?: string; timeZone?: string; timeZoneConfirmed?: boolean; durationMode?: "estimated" | "specified" }, today?: string, now = new Date()) {
   if (request.timeZoneConfirmed === false) return "Confirm the destination time zone before finding your date.";
   const current = zonedNow(request.timeZone, now);
   if (!z.iso.date().safeParse(request.date).success) return "Choose the actual day for your date.";
   if (request.date < (today ?? current.date)) return "Choose today or a future date.";
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(request.startTime)) return "Choose a time for your date.";
   if ((!today || today === current.date) && request.date === current.date && request.startTime <= current.time) return "That time has already passed. Choose a later time for your date.";
-  if (request.endTime && request.endTime <= request.startTime) return "Your ending time must be after your starting time.";
-  if (request.endTime && timeMinutes(request.startTime) + request.duration > timeMinutes(request.endTime)) return "Your duration runs past the ending time. Adjust either one.";
+  if (request.durationMode !== "estimated" && request.endTime && request.endTime <= request.startTime) return "Your ending time must be after your starting time.";
+  if (request.durationMode !== "estimated" && request.endTime && timeMinutes(request.startTime) + request.duration > timeMinutes(request.endTime)) return "Your duration runs past the ending time. Adjust either one.";
   return "";
 }
 export function timeMinutes(value: string) { const [hour, minute] = value.split(":").map(Number); return hour * 60 + minute; }

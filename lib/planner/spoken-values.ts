@@ -91,3 +91,24 @@ export function spokenClockReply(message: string) {
 export function normalizeClockPunctuation(message: string) {
   return clockText(message);
 }
+
+export function explicitClockTimes(message: string) {
+  const text = clockText(message);
+  const times = [...explicitSpokenTimes(text)];
+  const pattern = /\b(\d{1,2})(?::([0-5]\d))?\s*(am|pm)\b|\b(\d{1,2}):([0-5]\d)\b/g;
+  for (const match of text.matchAll(pattern)) {
+    const before = text.slice(0, match.index);
+    const after = text.slice((match.index ?? 0) + match[0].length);
+    if (/\b(?:not|avoid|except|after|before|around|about|between|or)(?:\s+at)?\s*$/.test(before) || /^\s*(?:or|to)\s*\d/.test(after)) continue;
+    const hour = Number(match[1] ?? match[4]);
+    if (match[3] ? hour < 1 || hour > 12 : hour > 23) continue;
+    const localHour = match[3] ? hour % 12 + (match[3] === "pm" ? 12 : 0) : hour;
+    times.push(`${String(localHour).padStart(2, "0")}:${match[2] ?? match[5] ?? "00"}`);
+  }
+  for (const [word, time] of [["noon", "12:00"], ["midnight", "00:00"]]) {
+    const match = new RegExp(`\\b${word}\\b`).exec(text);
+    if (match && !/\b(?:not|avoid|except|after|before|around|about|or)\s*$/.test(text.slice(0, match.index))) times.push(time);
+  }
+  const unique = [...new Set(times)];
+  return unique.length === 1 ? unique : [];
+}

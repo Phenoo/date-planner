@@ -58,7 +58,7 @@ test("AI preserves an unset budget unless the user names a new spending amount",
 });
 test("AI dietary additions preserve requirements and time changes clear the prior deadline", () => {
   const result = validateModification(
-    "She's vegetarian; afternoon please",
+    "She's vegetarian; start at 2 PM",
     request,
     { ...unchanged, dietary: ["vegetarian"], startTime: "14:00" },
   );

@@ -1,4 +1,6 @@
 import "server-only";
+import { resolvePlanningTimeZone } from "@/lib/maps/resolve-time-zone";
+import { requestForPlace } from "@/lib/planner/timing";
 import { randomBytes } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { authenticatedClient } from "@/lib/firebase/server";
@@ -25,14 +27,14 @@ async function validatePlace(record: StoredDate, request: PlanRequest) {
     const experience = catalog.find((item) => item.id === record.placeId && !item.demo);
     const plan = experience ? recalculateExactPlan(request, [experience], undefined, catalog, await planningOrigin(request)) : null;
     if (!plan) throw new RequestError("This place no longer fits the updated location, schedule, spending limit or requirements. Adjust those details or find another recommendation.", 409);
-    return { story: fallbackDateStory(plan.activities[0].experience.category), recipe: toRecipe(plan) };
+    return { story: fallbackDateStory(plan.activities[0].experience.category), recipe: toRecipe(plan), preferences: plan.request };
   }
   const details = await loadPlaceDetails(record.placeId, false);
   const origin = await planningOrigin(request);
   if (!origin) throw new RequestError("The updated location couldn't be checked. Please retry before saving these changes.", 503);
   const matches = mapNearbyPlaces({ places: [details.record] }, origin, request, 1);
   if (!matches.places.length) throw new RequestError("This place doesn't fit the updated destination, schedule or required preferences. Adjust your details or find another place.", 409);
-  return { story: fallbackDateStory(details.place.category), recipe: null };
+  return { story: fallbackDateStory(details.place.category), recipe: null, preferences: requestForPlace(request, matches.places[0]) };
 }
 
 export async function manageDate(request: Request, input: { action: "context" | "rename" | "delete" | "update" | "publish"; id: string; title?: string; request?: PlanRequest }) {
@@ -51,9 +53,11 @@ export async function manageDate(request: Request, input: { action: "context" | 
     return { request: preferences.data };
   }
   const inputRequest = input.request ?? record.planningRequest;
-  const preferences = inputRequest ? { ...inputRequest, datePreference: [0, 6].includes(calendarDay(inputRequest.date)) ? "weekend" as const : "weekday" as const } : undefined;
+  let preferences = inputRequest ? { ...inputRequest, datePreference: [0, 6].includes(calendarDay(inputRequest.date)) ? "weekend" as const : "weekday" as const } : undefined;
+  if (preferences && (input.action === "update" || input.action === "publish")) preferences = await resolvePlanningTimeZone(preferences);
   const changes = input.action === "update" || input.action === "publish" ? preferences ? await validatePlace(record, preferences) : null : null;
   if ((input.action === "update" || input.action === "publish") && !changes) throw new RequestError("This older date needs its preferences reviewed in the planner first.", 409);
+  if (changes) preferences = changes.preferences;
   const token = randomBytes(24).toString("base64url");
   return auth.db.runTransaction(async (tx) => {
     const current = await tx.get(ref);

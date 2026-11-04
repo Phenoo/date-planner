@@ -2,14 +2,14 @@ import { z } from "zod";
 import { genderOptions, occasions, vibes, type PlanRequest } from "./schema";
 import { plannerQuestions } from "./questions";
 
-export const conversationSteps = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "duration", "review"] as const;
+export const conversationSteps = ["yourGender", "dateGender", "city", "area", "occasion", "people", "vibes", "interests", "requirements", "budget", "date", "time", "review"] as const;
 export type ConversationStep = typeof conversationSteps[number];
 export const conversationInputSchema = z.object({
   step: z.enum(conversationSteps),
   context: z.object({
     city: z.string().max(80), occasion: z.string().max(100), budget: z.number().min(0).max(10000000).nullable(), currency: z.string().length(3).default("NGN"),
     guests: z.number().int().min(1).max(12).nullable(), vibes: z.array(z.enum(vibes)).max(12),
-    interests: z.string().max(240), day: z.enum(["weekday", "weekend"]).nullable(), time: z.string().max(5), duration: z.number().min(60).max(720).nullable(),
+    interests: z.string().max(240), day: z.enum(["weekday", "weekend"]).nullable(), time: z.string().max(5), duration: z.number().min(60).max(720).nullable().default(null),
   }).strict(),
 }).strict();
 export type ConversationInput = z.infer<typeof conversationInputSchema>;
@@ -33,7 +33,7 @@ export function conversationInput(step: ConversationStep, request: PlanRequest):
     interests: answered("interests") ? request.interests.slice(0, 240) : "",
     day: answered("date") ? request.datePreference : null,
     time: answered("time") ? request.startTime : "",
-    duration: answered("duration") ? request.duration : null,
+    duration: null,
   } };
 }
 export function conversationChoices(step: ConversationStep): { key: string; label: string }[] {
@@ -42,9 +42,8 @@ export function conversationChoices(step: ConversationStep): { key: string; labe
   if (step === "vibes") return vibes.map((label) => ({ key: label, label }));
   if (step === "budget") return [{ key: "yes", label: "Set a budget" }, { key: "no", label: "Keep the budget open" }];
   if (step === "date") return [{ key: "weekday", label: "Weekday" }, { key: "weekend", label: "Weekend" }];
-  if (step === "time") return [{ key: "10:00", label: "Morning at 10 AM" }, { key: "14:00", label: "Afternoon at 2 PM" }, { key: "18:00", label: "Evening at 6 PM" }];
+  if (step === "time") return [{ key: "continue", label: "Choose your start time" }];
   if (step === "people") return [2, 4, 6].map((value) => ({ key: String(value), label: `${value} people` }));
-  if (step === "duration") return [120, 240, 420, 720].map((value) => ({ key: String(value), label: `${value / 60} hours` }));
   return [{ key: "continue", label: "Continue with these details" }];
 }
 export function conversationAnswerKey(step: ConversationStep, request: PlanRequest): string {
@@ -54,7 +53,6 @@ export function conversationAnswerKey(step: ConversationStep, request: PlanReque
   if (step === "people") return String(request.guests);
   if (step === "date") return request.datePreference;
   if (step === "time") return request.startTime || "open";
-  if (step === "duration") return String(request.duration);
   return "continue";
 }
 export function localReaction(step: ConversationStep, request: PlanRequest): string {
@@ -71,7 +69,6 @@ export function localReaction(step: ConversationStep, request: PlanRequest): str
     requirements: ["Noted. We’ll keep those needs in place.", "Your comfort matters. We’ll use what you’ve told us."],
     date: ["That day is noted.", "Got it. Let’s work out the timing."],
     time: [request.startTime ? "That start time is noted." : "We’ll choose a time before searching.", "We’ll check the time against the venue’s hours."],
-    duration: ["We’ll allow for getting there and back.", "Got it. Let’s look at the details together."],
     review: ["Your details are here. We’re ready to look for a match."],
   };
   const options = reactions[step];

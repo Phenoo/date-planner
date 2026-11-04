@@ -1,3 +1,4 @@
+import { requestForPlace } from "@/lib/planner/timing";
 import { amountPrecisionError } from "@/lib/planner/currency";
 import { persistPlans } from "@/lib/server/plan-persistence";
 import { incorporatePreferences } from "@/lib/planner/preferences";
@@ -28,10 +29,10 @@ export async function generate(request: Request, progress?: (stage: string) => v
     parsed.data.request = incorporatePreferences(parsed.data.request);
     const invalidAmount = amountPrecisionError(parsed.data.request.budget, parsed.data.request.currency) || amountPrecisionError(parsed.data.request.transportBudget, parsed.data.request.currency);
     if (invalidAmount) return Response.json({ error: invalidAmount }, { status: 400 });
-    const invalidSchedule = scheduleError(parsed.data.request);
+    const invalidSchedule = parsed.data.request.timeZoneConfirmed ? scheduleError(parsed.data.request) : "";
     if (invalidSchedule) return Response.json({ error: invalidSchedule }, { status: 400 });
     const start = parsed.data.request.startTime;
-    if (parsed.data.request.endTime && parsed.data.request.endTime <= start)
+    if (parsed.data.request.durationMode !== "estimated" && parsed.data.request.endTime && parsed.data.request.endTime <= start)
       return Response.json(
         {
           error: "Ending time must be after the starting time on the same day.",
@@ -54,7 +55,8 @@ export async function generate(request: Request, progress?: (stage: string) => v
       }, progress).catch(() => { mapWarnings.push("Google Maps suggestions couldn't be loaded. Please try again or adjust your destination."); return undefined; }) : Promise.resolve(undefined);
       const [result, discovered]: [Awaited<ReturnType<typeof personalize>>, NearbyResult | undefined] = await Promise.all([personalize(candidates, signal), discovery]);
       signal.throwIfAborted();
-      const nearby = discovered ? await persistDiscoverySession(operationRequest, discovered, parsed.data.request) : undefined;
+      const resolvedRequest = result.plans[0]?.request ?? requestForPlace(parsed.data.request, discovered?.places[0]);
+      const nearby = discovered ? await persistDiscoverySession(operationRequest, discovered, resolvedRequest) : undefined;
       signal.throwIfAborted();
       await persistPlans(operationRequest, result.plans);
       const warnings = !catalog.length && nearby?.places.length
@@ -62,7 +64,7 @@ export async function generate(request: Request, progress?: (stage: string) => v
           ? "These are live Google Maps suggestions. We need confirmed venue costs and opening hours before building an itinerary. No spending limit has been set."
           : "These are live Google Maps suggestions. We need confirmed venue costs and opening hours before building a budgeted itinerary. Your spending limit has not changed."]
         : result.warnings;
-      return { ...result, ai: result.ai || nearby?.ai === true, ...(nearby ? { nearby } : {}), warnings: [...warnings, ...(nearby?.warnings ?? []), ...mapWarnings] };
+      return { ...result, request: resolvedRequest, ai: result.ai || nearby?.ai === true, ...(nearby ? { nearby } : {}), warnings: [...warnings, ...(nearby?.warnings ?? []), ...mapWarnings] };
     });
   } catch (error) {
     return apiError(error);

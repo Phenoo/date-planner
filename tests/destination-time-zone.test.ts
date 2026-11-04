@@ -9,10 +9,10 @@ test('destination zones are matched by city and country, including DST-capable I
   assert.equal(cityTimeZone('An unknown city', 'United States'), null);
   assert.equal(cityTimeZone('London', 'Nigeria'), null);
 });
-test('unconfirmed destination zones cannot silently produce calendar times or a ready request', () => {
+test('destination zones remain an internal validation step rather than an extra chat question', () => {
   const request = requestSchema.parse({ city: 'London', country: 'UK', area: 'London', budget: 100, currency: 'GBP', occasion: 'First date', vibes: ['Creative'], duration: 180, date: '2030-01-01', startTime: '12:00', timeZoneConfirmed: false });
   assert.match(scheduleError(request), /time zone/);
-  assert.equal(intakeNextField(request, intakeFields), 'time');
+  assert.equal(intakeNextField(request, intakeFields), null);
   assert.equal(zonedNow('America/New_York', new Date('2030-07-01T15:00:00Z')).time, '11:00');
   assert.equal(zonedNow('America/New_York', new Date('2030-01-01T15:00:00Z')).time, '10:00');
 });

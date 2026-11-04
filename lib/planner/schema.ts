@@ -89,7 +89,8 @@ export const requestSchema = z.object({
   timeZone: z.string().min(1).max(80).refine(validTimeZone, "Choose a valid timezone.").default(defaultTimeZone),
   date: z.union([z.literal(""), z.iso.date()]).default(""),
   startTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
-  duration: z.number().int().min(60).max(720),
+  durationMode: z.enum(["estimated", "specified"]).default("specified"),
+  duration: z.number().int().min(60).max(720).default(180),
   endTime: z
     .union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)])
     .default(""),
@@ -209,6 +210,7 @@ export type DatePlan = {
   unpricedCosts?: ("transport")[];
 };
 export type RecommendationResult = {
+  request?: PlanRequest;
   nearby?: NearbyResult;
   plans: DatePlan[];
   warnings: string[];

@@ -11,7 +11,6 @@ import {
   Bookmark,
   Check,
   ChevronDown,
-  Clock3,
   Copy,
   ExternalLink,
   Info,
@@ -508,11 +507,6 @@ export function Results({
             <div className="itinerary-meta">
               <span>{plan.request.guests} people</span>
               <span>
-                <Clock3 size={15} />
-                {Math.floor(plan.duration / 60)}h {plan.duration % 60}m incl.
-                travel
-              </span>
-              <span>
                 <MapPin size={15} />
                 {plan.totalDistance} km estimated route
               </span>
@@ -744,12 +738,6 @@ export function Results({
                     plan.activities[plan.activities.length - 1].end +
                       plan.returnTravel,
                   )}
-                </dd>
-              </div>
-              <div>
-                <dt>Time together</dt>
-                <dd>
-                  {Math.floor(plan.duration / 60)}h {plan.duration % 60}m
                 </dd>
               </div>
               <div>

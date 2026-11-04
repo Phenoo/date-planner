@@ -1,3 +1,4 @@
+import { venueVisitMinutes } from "@/lib/planner/timing";
 import { z } from "zod";
 import type { Coordinates, NearbyResult, NearbySearch } from "./schema";
 import { venueRequestIssues, providerFactsSchema, providerPrice, travelEstimate, venueOpeningStatus } from "./venue-facts";
@@ -96,7 +97,7 @@ export function mapNearbyPlaces(data: z.infer<typeof placesResponseSchema>, orig
           const url = z.url({ protocol: /^https$/ }).safeParse(item.providerUri);
           return [{ name: item.provider, ...(url.success ? { url: url.data } : {}) }];
         }),
-        details: { checkedAt: new Date().toISOString(), opening: venueOpeningStatus(place, request.date, timeMinutes(request.startTime) + travelEstimate(distanceKm, request.transport), Math.max(30, request.duration - travelEstimate(distanceKm, request.transport) * 2)) === "fits" ? "fits" as const : "unknown" as const, hours: place.regularOpeningHours?.weekdayDescriptions ?? [], timeZone: place.timeZone?.id, rating: place.rating, reviewCount: place.userRatingCount, price: providerPrice(place), travelMinutes: travelEstimate(distanceKm, request.transport), reviews: [] },
+        details: { checkedAt: new Date().toISOString(), opening: venueOpeningStatus(place, request.date, timeMinutes(request.startTime) + travelEstimate(distanceKm, request.transport), venueVisitMinutes(request, travelEstimate(distanceKm, request.transport))) === "fits" ? "fits" as const : "unknown" as const, hours: place.regularOpeningHours?.weekdayDescriptions ?? [], timeZone: place.timeZone?.id, rating: place.rating, reviewCount: place.userRatingCount, price: providerPrice(place), travelMinutes: travelEstimate(distanceKm, request.transport), reviews: [] },
       } };
     }).filter((item) => item.eligible && item.distanceKm <= Math.min(request.maxDistance, 50))
     .sort((a, b) => b.fit - a.fit || (request.locationScope === "city" ? a.providerIndex - b.providerIndex : a.distanceKm - b.distanceKm));

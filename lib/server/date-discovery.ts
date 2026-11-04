@@ -1,3 +1,4 @@
+import { venueVisitMinutes } from "@/lib/planner/timing";
 import "server-only";
 import { createDiscoveryBrief, rankDiscoveredPlaces, type DiscoveryOptions } from "@/lib/planner/discovery-ai";
 import { attachPlacePhotos, loadPlaceCandidates } from "@/lib/maps/places";
@@ -36,7 +37,7 @@ export async function refreshDiscoveryPick(pick: Pick<NearbyResult["places"][num
   const { record, operational, place } = await loadPlaceDetails(pick.id, withPhoto);
   if (!operational || !fitsVenueRequest(record, request, pick.distanceKm)) throw new RequestError("This place no longer fits your selected schedule or requirements. Try another time or update your preferences.", 409);
   const travelMinutes = travelEstimate(pick.distanceKm, request.transport);
-  const opening = venueOpeningStatus(record, request.date, timeMinutes(request.startTime) + travelMinutes, Math.max(30, request.duration - travelMinutes * 2));
+  const opening = venueOpeningStatus(record, request.date, timeMinutes(request.startTime) + travelMinutes, venueVisitMinutes(request, travelMinutes));
   const website = z.url({ protocol: /^https$/ }).safeParse(record.websiteUri);
   return { ...place, ...pick, details: {
         checkedAt: new Date().toISOString(), opening: opening === "fits" ? "fits" : "unknown", hours: record.regularOpeningHours?.weekdayDescriptions ?? [],

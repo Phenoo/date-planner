@@ -20,6 +20,7 @@ export const nearbySearchSchema = z.object({
   dislikes: z.string().max(500).default(""), notes: z.string().max(2000).default(""),
   includeFood: z.boolean().default(true), avoidRestaurants: z.boolean().default(false),
   date: z.union([z.literal(""), z.iso.date()]).default(""), startTime: z.string().default(""), duration: z.number().min(60).max(720).default(180),
+  durationMode: z.enum(["estimated", "specified"]).default("specified"),
   guests: z.number().int().min(1).max(12).default(2), budget: z.number().nullable().default(null), budgetType: z.enum(["total", "per-person"]).default("total"),
   includeTransport: z.boolean().default(true), transport: z.enum(["Ride-hailing", "Driving", "Walking"]).default("Ride-hailing"),
   currency: z.string().regex(/^[A-Z]{3}$/).default("NGN"),

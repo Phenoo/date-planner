@@ -1,3 +1,4 @@
+import { requestForPlace } from "./timing";
 import type { NearbyResult } from "@/lib/maps/schema";
 import type { DatePlan, PlanRequest } from "./schema";
 import { formatMoney } from "./currency";
@@ -37,5 +38,6 @@ export function venueDecision(place: DatePlace, request: PlanRequest, plan?: Dat
   return { cost, costLabel, travel: travel === undefined ? "Travel time unconfirmed" : `About ${travel} min each way`, opening, missing };
 }
 export function localDateCalendar(place: DatePlace, request: PlanRequest, id: string, now = new Date()) {
+  request = requestForPlace(request, place);
   return dateCalendar({ city: request.city, country: request.country, timeZone: request.timeZone, date: request.date, startTime: request.startTime, duration: request.duration, datePreference: request.datePreference, source: "google", place, placeId: place.id, story: fallbackDateStory(place.category), response: "pending", dateStatus: "planned", createdAt: now.toISOString() }, id);
 }

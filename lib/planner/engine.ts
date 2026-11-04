@@ -81,6 +81,10 @@ function normalizedWords(text: string) {
       word.length > 4 && word.endsWith("s") ? word.slice(0, -1) : word,
     );
 }
+function planDeadline(request: PlanRequest) {
+  const start = minuteOfDay(request.startTime);
+  return request.durationMode === "estimated" ? Math.min(start + 720, 1440) : Math.min(start + request.duration, request.endTime ? minuteOfDay(request.endTime) : 1440, 1440);
+}
 function rejectionReasons(
   experience: Experience,
   request: PlanRequest,
@@ -137,11 +141,7 @@ function rejectionReasons(
   )
     reasons.push("Matches an activity you dislike");
   const start = minuteOfDay(request.startTime);
-  const end = Math.min(
-    start + request.duration,
-    request.endTime ? minuteOfDay(request.endTime) : 1440,
-    1440,
-  );
+  const end = planDeadline(request);
   if (
     !experience.hours.some(
       (hours) =>
@@ -233,11 +233,7 @@ function buildItinerary(
   if (!origin) return null;
   let previous = origin;
   const start = minuteOfDay(request.startTime);
-  const deadline = Math.min(
-    start + request.duration,
-    request.endTime ? minuteOfDay(request.endTime) : 1440,
-    1440,
-  );
+  const deadline = planDeadline(request);
   let cursor = start;
   let totalDistance = 0;
   let transportCost = 0;
@@ -335,8 +331,10 @@ function buildItinerary(
         Math.min(5, diversity * 1.5),
     ),
   );
+  const plannedMinutes = cursor + returnTravel - start;
+  const scheduledRequest = request.durationMode === "estimated" ? { ...request, duration: Math.max(60, plannedMinutes), endTime: "" } : request;
   return {
-    id: `${createHash("sha256").update(JSON.stringify(request)).digest("hex").slice(0, 16)}:${experiences.map((experience) => experience.id).join("~")}`,
+    id: `${createHash("sha256").update(JSON.stringify(scheduledRequest)).digest("hex").slice(0, 16)}:${experiences.map((experience) => experience.id).join("~")}`,
     type: "Best overall match",
     title: experiences.some(
       (experience) => experience.category === "Art & culture",
@@ -355,10 +353,10 @@ function buildItinerary(
     total,
     remaining: request.budget === null || unpricedTransport ? null : fromMinorUnits(toMinorUnits(budget - total, request.currency), request.currency),
     budget: request.budget === null ? null : budget,
-    duration: cursor + returnTravel - start,
+    duration: plannedMinutes,
     totalDistance: Math.round(totalDistance * 10) / 10,
     returnTravel,
-    request,
+    request: scheduledRequest,
     demo: experiences.some((experience) => experience.demo),
     ...(unpricedTransport ? { unpricedCosts: ["transport" as const] } : {}),
     tips: [

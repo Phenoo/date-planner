@@ -111,7 +111,8 @@ const defaultRequest = () =>
     datePreference: "weekend",
     date: "",
     startTime: "",
-    duration: 300,
+    duration: 180,
+    durationMode: "estimated",
     interests: "",
     quiet: false,
   });
@@ -308,6 +309,7 @@ export function DateAtlas({
         .then(
           () =>
             sessionStorage.getItem(draftKey) ||
+            sessionStorage.getItem("date-atlas:planning-draft:v12") ||
             sessionStorage.getItem("date-atlas:planning-draft:v11") ||
             sessionStorage.getItem("date-atlas:planning-draft:v10") ||
             sessionStorage.getItem("date-atlas:planning-draft:v9") ||
@@ -329,7 +331,7 @@ export function DateAtlas({
           if (draft && typeof draft === "object" && "request" in draft) {
             const parsed = requestSchema.safeParse(draft.request);
             if (parsed.success) {
-              setRequest(parsed.data);
+              setRequest({ ...parsed.data, durationMode: "estimated", endTime: "" });
               if ("needsPreferenceReview" in draft && draft.needsPreferenceReview === true) setToast("Your core answers are restored. Personal notes and chat messages stay out of browser drafts; please review your preferences.");
               setEditingPlan("editingPlan" in draft && draft.editingPlan === true);
               if ("plannerMode" in draft && savedPlannerMode(draft.plannerMode)) setPlannerMode(savedPlannerMode(draft.plannerMode));
@@ -643,6 +645,7 @@ export function DateAtlas({
     preferences = request,
     extra: Partial<GenerateInput> = {},
   ) {
+    preferences = { ...preferences, durationMode: "estimated", endTime: "" };
     const signature = JSON.stringify({ preferences, extra, preferredIds });
     if (activeGeneration.current === signature && abortRef.current && !abortRef.current.signal.aborted) return;
     activeGeneration.current = signature;
@@ -677,15 +680,16 @@ export function DateAtlas({
       if (controller.signal.aborted || id !== generationId.current) return;
       if ((extra.excludePlaceIds?.length || extra.excludeIds?.length) && !data.plans.length && !data.nearby?.places.length)
         throw new Error("No new place matched these preferences. Try changing the location, time or vibe.");
-      setRequest(data.plans[0]?.request ?? preferences);
+      setRequest(data.request ?? data.plans[0]?.request ?? preferences);
       setResult(data);
       setEditingPlan(false);
       generationAttempt.current = null;
       try {
-        if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(data.nearby.sessionId ? { flow, sessionId: data.nearby.sessionId, placeId: data.nearby.places[0].id, expiresAt: Date.now() + 3600000, accepted: false } : { flow, request: draftRequest(preferences), result: data, expiresAt: Date.now() + 3600000, accepted: false }));
+        if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(data.nearby.sessionId ? { flow, sessionId: data.nearby.sessionId, placeId: data.nearby.places[0].id, expiresAt: Date.now() + 3600000, accepted: false } : { flow, request: draftRequest(data.request ?? preferences), result: { ...data, request: undefined }, expiresAt: Date.now() + 3600000, accepted: false }));
         else sessionStorage.removeItem(activeDiscoveryKey);
         if (data.plans.length || data.nearby?.places.length) sessionStorage.removeItem(draftKey);
         else sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds, editingPlan: true, plannerMode: "steps", chatSession }));
+        sessionStorage.removeItem("date-atlas:planning-draft:v12");
         sessionStorage.removeItem("date-atlas:planning-draft:v11");
         sessionStorage.removeItem("date-atlas:planning-draft:v10");
         sessionStorage.removeItem("date-atlas:planning-draft:v9");

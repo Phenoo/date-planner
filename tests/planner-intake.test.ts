@@ -34,7 +34,7 @@ test("time edits still reject past times in the venue timezone without changing 
 });
 test("ambiguous or invalid clock replies stay in the existing conversational validation path", () => {
   for (const message of ["25:00", "7:60 pm", "0pm", "13pm", "8", "Start at -7pm", "At -8 AM", "not 8 PM", "7 PM or 8 PM", "two hours", "tomorrow at 7 PM"]) assert.equal(intakeTimeReply(input(message, { nextField: "time" })), null);
-  assert.equal(intakeTimeReply(input("7:45", { nextField: "duration" })), null);
+  assert.equal(intakeTimeReply(input("7:45", { nextField: "occasion" })), null);
   assert.equal(intakeTimeReply(input("Start at 19:45", { request: { ...request, date: "2030-11-02" }, nextField: "duration" }))?.request.startTime, "19:45");
 });
 test("explicit occasion replies advance even when the AI omits an unchanged or informal answer", () => {
@@ -52,7 +52,7 @@ test("one chat message can supply every required preference, with the same valid
   assert.equal(result.ready, true);
   assert.deepEqual(result.answered, [...intakeFields]);
   assert.equal(result.request.budget, 60000);
-  assert.equal(result.request.duration, 240);
+  assert.equal(result.request.duration, request.duration, "A supplied stay length does not become a planning requirement");
   assert.equal(result.request.datePreference, "weekend");
   assert.equal(result.request.locationScope, "area");
 });
@@ -108,15 +108,15 @@ test("the questionnaire skips explicit chat answers, keeps defaults unconfirmed 
   const preferences = { ...request, date: "2030-11-02", startTime: "14:00", yourGender: "woman" as const, guests: 4 };
   const ids = (answered: Parameters<typeof wizardQuestionSteps>[1]) => wizardQuestionSteps(preferences, answered, "2030-11-01").map((step) => plannerQuestions[step].id);
   assert.ok(ids([]).includes("people"), "Gender and default values are not a participant count answer");
-  const remaining = ids(["people", "vibe", "budget", "date", "time", "duration"]);
-  for (const id of ["people", "vibes", "budget", "date", "time", "duration"]) assert.equal(remaining.includes(id as typeof remaining[number]), false);
+  const remaining = ids(["people", "vibe", "budget", "date", "time"]);
+  for (const id of ["people", "vibes", "budget", "date", "time"]) assert.equal(remaining.includes(id as typeof remaining[number]), false);
   assert.ok(remaining.includes("review"), "Review always offers editing, including skipped questions");
   assert.ok(remaining.includes("city"));
   assert.ok(remaining.includes("area"), "A named chat city does not answer the separate search-reach question");
   const invalidated = wizardQuestionSteps({ ...preferences, date: "2030-10-31" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
   assert.ok(invalidated.includes("date"));
   const deadline = wizardQuestionSteps({ ...preferences, startTime: "21:00", endTime: "20:00" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
-  assert.ok(deadline.includes("duration"), "A dependent deadline must be reviewed after the start changes");
+  assert.equal(deadline.includes("time"), false, "An old ending-time preference no longer adds another question");
 });
 
 test("an explicitly spoken Lagos neighborhood confirms location when the model supplies only its area", () => {

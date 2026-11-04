@@ -154,7 +154,6 @@ export function Explore({
   const [environment, setEnvironment] = useState("any");
   const [search, setSearch] = useState("");
   const [bookable, setBookable] = useState(false);
-  const [duration, setDuration] = useState(720);
   const [display, setDisplay] = useState("list");
   const [occasion, setOccasion] = useState("");
   const [date, setDate] = useState("");
@@ -194,7 +193,6 @@ export function Explore({
       (budget === null || item.currency === currency && item.price <= budget) &&
       (environment === "any" || item.indoor === (environment === "indoor")) &&
       (!bookable || (!!item.bookingUrl && !item.demo)) &&
-      item.duration <= duration &&
       (!occasion || item.occasions.includes(occasion)) &&
       (!date ||
         item.hours.some(
@@ -300,17 +298,6 @@ export function Explore({
               <option value="outdoor">Outdoors</option>
             </select>
           </Field>
-          <Field label="Max activity duration">
-            <select
-              value={duration}
-              onChange={(event) => setDuration(Number(event.target.value))}
-            >
-              <option value={720}>Any duration</option>
-              <option value={60}>1 hour</option>
-              <option value={90}>1.5 hours</option>
-              <option value={120}>2 hours</option>
-            </select>
-          </Field>
           <Field label="Occasion">
             <select
               value={occasion}
@@ -383,7 +370,6 @@ export function Explore({
               setEnvironment("any");
               setSearch("");
               setBookable(false);
-              setDuration(720);
               setOccasion("");
               setDate("");
             }}

@@ -61,7 +61,7 @@ test("travel and price feedback comes from the same hard checks as venue eligibi
   assert.deepEqual(venueRequestIssues(facts, { ...request, budgetType: "per-person" }, 0), []);
   assert.deepEqual(venueRequestIssues(providerFactsSchema.parse({}), { ...request, duration: 60, transport: "Walking" }, 10), ["travel-time"]);
   assert.equal(searchFeedback("budget", request).question, "budget");
-  assert.equal(searchFeedback("travel-time", request).question, "duration");
+  assert.equal(searchFeedback("travel-time", request).question, "area");
 });
 
 test("optional structured search feedback preserves old payloads and validates new payloads", () => {
@@ -82,9 +82,9 @@ test("review lists every missing answer and its edit destination without changin
   assert.deepEqual(plannerValidationIssues(request, now), []);
 });
 
-test("expired times and conflicting durations lead to their own fields rather than a generic Back message", () => {
+test("expired times remain editable while old stay lengths no longer block review", () => {
   assert.deepEqual(plannerValidationIssues({ ...request, date: "2026-11-03", startTime: "10:00" }, now).map((issue) => issue.question), ["time"]);
   assert.deepEqual(plannerValidationIssues({ ...request, date: "2026-11-02" }, now).map((issue) => issue.question), ["date"]);
-  assert.deepEqual(plannerValidationIssues({ ...request, endTime: "17:00" }, now).map((issue) => issue.question), ["duration"]);
+  assert.deepEqual(plannerValidationIssues({ ...request, endTime: "17:00" }, now).map((issue) => issue.question), []);
   assert.doesNotThrow(() => plannerValidationIssues({ ...request, timeZone: "Invalid/Zone" }, now));
 });

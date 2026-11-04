@@ -1,4 +1,7 @@
 import "server-only";
+import { resolvePlanningTimeZone } from "@/lib/maps/resolve-time-zone";
+import { requestForPlace } from "@/lib/planner/timing";
+import { scheduleError } from "@/lib/planner/schedule";
 import { createHash, randomUUID } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
@@ -18,7 +21,7 @@ import { recordFunnel } from "./funnel";
 
 const lifetime = 10 * 60 * 1000;
 const leaseMs = 90000;
-const cachedSchema = recommendationResultSchema.omit({ plans: true, nearby: true }).extend({
+const cachedSchema = recommendationResultSchema.omit({ plans: true, nearby: true, request: true }).extend({
   plans: z.array(datePlanSchema.omit({ request: true })).max(1),
   nearby: z.object({ sessionId: z.uuid().optional(), ai: z.boolean().optional(), headline: z.string().optional(), introduction: z.string().optional(), warnings: z.array(z.string()).optional(),
     searchIssues: nearbyResultSchema.shape.searchIssues,
@@ -41,13 +44,13 @@ async function restoreResult(value: z.infer<typeof cachedSchema>, input: Generat
     return { ...current, title: plan.title, introduction: plan.introduction };
   });
   if (plans.some((plan) => plan.activities.some((activity) => controls.has(activity.experience.id)))) throw new RequestError("This place is under review. Request another recommendation.", 409);
-  if (!cached) return { ...rest, plans };
+  if (!cached) return { ...rest, plans, request: plans[0]?.request ?? input.request };
   const places = await Promise.all(cached.picks.map(async (pick) => {
     if (controls.has(pick.id)) throw new RequestError("This place is under review. Request another recommendation.", 409);
     return refreshDiscoveryPick(pick, input.request, true);
   }));
   const { picks: _picks, ...metadata } = cached; void _picks;
-  return { ...rest, plans, nearby: { ...metadata, city: input.request.city, area: input.request.area, country: input.request.country, places } };
+  return { ...rest, plans, request: plans[0]?.request ?? requestForPlace(input.request, places[0]), nearby: { ...metadata, city: input.request.city, area: input.request.area, country: input.request.country, places } };
 }
 
 export async function coordinateGeneration(request: Request, input: GenerateInput, run: (signal: AbortSignal) => Promise<RecommendationResult>): Promise<Response> {
@@ -56,6 +59,9 @@ export async function coordinateGeneration(request: Request, input: GenerateInpu
   const auth = await authenticatedClient(request);
   if (!auth) throw new RequestError("Your guest session expired. Please retry planning.", 401);
   await enforcePlannerLimit(request, "polling");
+  input.request = await resolvePlanningTimeZone(input.request);
+  const invalidSchedule = scheduleError(input.request);
+  if (invalidSchedule) throw new RequestError(invalidSchedule, 400);
   const payloadHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
   const suppliedKey = request.headers.get("idempotency-key");
   if (suppliedKey && !z.uuid().safeParse(suppliedKey).success) throw new RequestError("Invalid planning request. Please retry.", 400);

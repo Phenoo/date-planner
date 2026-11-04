@@ -12,7 +12,6 @@ const messages: Partial<Record<PlannerQuestionId, string>> = {
   vibes: "Choose at least one date vibe.",
   date: "Choose a valid day for your date.",
   time: "Choose a valid starting time.",
-  duration: "Choose a duration between 1 and 12 hours and a valid ending time.",
 };
 export type PlannerValidationIssue = { question: PlannerQuestionId; message: string };
 export function plannerValidationIssues(request: PlanRequest, now = new Date()): PlannerValidationIssue[] {
@@ -22,17 +21,16 @@ export function plannerValidationIssues(request: PlanRequest, now = new Date()):
     const question = plannerQuestions.find(({ fields }) => fields.some((field) => field === issue.path[0]))?.id ?? "review";
     if (!issues.has(question)) issues.set(question, messages[question] ?? issue.message);
   }
-  if (request.timeZoneConfirmed === false) issues.set("time", "Confirm the destination time zone.");
   const amountError = amountPrecisionError(request.budget, request.currency) || amountPrecisionError(request.transportBudget, request.currency);
   if (amountError) issues.set("budget", amountError);
   if (!validTimeZone(request.timeZone)) return [...issues].map(([question, message]) => ({ question, message }));
   const current = zonedNow(request.timeZone, now);
   if (!issues.has("date") && (!request.date || request.date < current.date)) issues.set("date", "Choose today or a future day for your date.");
   if (!issues.has("time") && (!request.startTime || request.date === current.date && request.startTime <= current.time)) issues.set("time", request.startTime ? "That time has already passed. Choose a later starting time." : "Choose a starting time for your date.");
-  if (!issues.has("date") && !issues.has("time") && !issues.has("duration")) {
-    const error = scheduleError(request, undefined, now);
+  if (!issues.has("date") && !issues.has("time")) {
+    const error = scheduleError({ ...request, timeZoneConfirmed: true, endTime: "" }, undefined, now);
     if (error) {
-      issues.set("duration", error);
+      issues.set("time", error);
     }
   }
   return [...issues].map(([question, message]) => ({ question, message }));

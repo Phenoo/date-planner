@@ -44,7 +44,7 @@ test("unanswered defaults never masquerade as choices, and gender replies stay n
   assert.equal(beginning.context.day, null);
   assert.deepEqual(beginning.context.vibes, []);
   assert.deepEqual(conversationInput("interests", request).context.vibes, request.vibes);
-  assert.equal(conversationInput("review", request).context.duration, request.duration);
+  assert.equal(conversationInput("review", request).context.duration, null);
   const copy = fallbackConversation(beginning);
   assert.equal(validateConversationCopy(beginning, { ...copy, responses: copy.responses.map(({ key }) => ({ key, line: "She will love romantic restaurants." })) }), null);
   assert.equal(validateConversationCopy(beginning, { ...copy, prompt: "Let's make a lovely evening for you." }), null);
