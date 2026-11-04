@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       if (!input.success) throw new RequestError("Invalid event.", 400);
       const auth = await authenticatedClient(request);
       if (!auth || input.data.event === "authentication_completed" && auth.user.firebase.sign_in_provider === "anonymous") throw new RequestError("Session required.", 401);
-      await recordFunnel(auth.user.uid, input.data.event, input.data.scope, input.data.reason);
+      await recordFunnel(auth.user.uid, input.data.event, input.data.scope, input.data.reason, input.data.flowScope, input.data.step);
     }
     return Response.json({ recorded: true });
   } catch (error) { return apiError(error); }

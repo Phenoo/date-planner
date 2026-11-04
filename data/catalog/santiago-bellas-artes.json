@@ -1,0 +1,93 @@
+{
+  "category": "Art & culture",
+  "image": "/images/gallery.png",
+  "priceType": "per-person",
+  "duration": 120,
+  "vibes": [
+    "Creative",
+    "Relaxed",
+    "Romantic"
+  ],
+  "occasions": [
+    "First date",
+    "Casual date",
+    "Romantic date",
+    "Anniversary",
+    "Just because"
+  ],
+  "tags": [
+    "art",
+    "culture",
+    "gallery"
+  ],
+  "indoor": true,
+  "quiet": false,
+  "accessible": null,
+  "dietary": [],
+  "publicVenue": true,
+  "maxGuests": 9,
+  "active": true,
+  "approved": true,
+  "demo": false,
+  "verifiedAt": "2026-11-04",
+  "verificationExpiresAt": "2026-12-04",
+  "priceSource": "venue",
+  "quality": 0.85,
+  "id": "santiago-bellas-artes",
+  "name": "An art date in Bellas Artes",
+  "venue": "Museo Nacional de Bellas Artes",
+  "city": "Santiago",
+  "area": "Bellas Artes",
+  "country": "Chile",
+  "currency": "CLP",
+  "price": 0,
+  "lat": -33.4351,
+  "lng": -70.6438,
+  "timeZone": "America/Santiago",
+  "description": "Spend time with the museum collections at your own pace. Admission is free; check the current exhibitions before visiting.",
+  "priceNote": "Free general admission for everyone. Food and transport are extra. Last entry is 18:20; lockers are required for bags and umbrellas.",
+  "hours": [
+    {
+      "day": 0,
+      "open": 600,
+      "close": 1110
+    },
+    {
+      "day": 2,
+      "open": 600,
+      "close": 1110
+    },
+    {
+      "day": 3,
+      "open": 600,
+      "close": 1110
+    },
+    {
+      "day": 4,
+      "open": 600,
+      "close": 1110
+    },
+    {
+      "day": 5,
+      "open": 600,
+      "close": 1110
+    },
+    {
+      "day": 6,
+      "open": 600,
+      "close": 1110
+    }
+  ],
+  "closedDates": [
+    "2026-12-25",
+    "2027-01-01",
+    "2027-05-01",
+    "2027-09-18",
+    "2027-09-19"
+  ],
+  "sourceUrl": "https://www.mnba.gob.cl/planifica-tu-visita",
+  "reservation": "Self-guided visits are free. Guided group visits require a separate arrangement.",
+  "hoursSourceUrl": "https://www.mnba.gob.cl/planifica-tu-visita",
+  "bookingUrl": "https://www.mnba.gob.cl/planifica-tu-visita",
+  "phone": "+56 229978721"
+}

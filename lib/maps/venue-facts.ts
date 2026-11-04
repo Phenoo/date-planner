@@ -74,7 +74,7 @@ export function providerPrice(facts: ProviderFacts) {
 export function travelEstimate(distanceKm: number, method = "Ride-hailing") {
   return Math.max(method === "Walking" ? 1 : 5, Math.ceil(distanceKm * 1.35 / (method === "Walking" ? 4.5 : 22) * 60));
 }
-export function venueRequestIssues(facts: ProviderFacts, request: { date: string; startTime: string; duration: number; budget: number | null; budgetType: string; guests: number; includeTransport: boolean; transport: string; accessibility: boolean; dietary: string[] }, distanceKm: number) {
+export function venueRequestIssues(facts: ProviderFacts, request: { date: string; startTime: string; duration: number; budget: number | null; budgetType: string; guests: number; includeTransport: boolean; transport: string; accessibility: boolean; dietary: string[]; currency?: string }, distanceKm: number) {
   const issues: SearchIssue[] = [];
   const travel = travelEstimate(distanceKm, request.transport);
   if (travel * 2 + 30 > request.duration) issues.push("travel-time");
@@ -84,7 +84,7 @@ export function venueRequestIssues(facts: ProviderFacts, request: { date: string
   const opening = venueOpeningStatus(facts, request.date, timeMinutes(request.startTime) + travel, Math.max(30, request.duration - travel * 2));
   if (opening === "closed") issues.push("opening-hours");
   const price = providerPrice(facts);
-  if (request.budget !== null && price?.currency === "NGN" && price.min !== undefined) {
+  if (request.budget !== null && price?.currency === (request.currency ?? "NGN") && price.min !== undefined) {
     const total = request.budget * (request.budgetType === "per-person" ? request.guests : 1);
     if (price.min * request.guests > total) issues.push("budget");
   }

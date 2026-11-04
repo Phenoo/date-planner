@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { budgetSuggestions, currencyForCountry } from "@/lib/planner/currency";
 import {
   ArrowLeft,
   ArrowRight,
@@ -19,8 +20,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import {
-  areas,
-  cities,
   occasions,
   experienceSchema,
   type Experience,
@@ -90,7 +89,7 @@ export function ExperienceCard({
           <p>{experience.description}</p>
           <div className="experience-bottom">
             <div>
-              <strong>{money(experience.price)}</strong>
+              <strong>{money(experience.price, experience.currency)}</strong>
               <span>
                 {" "}
                 / {experience.priceType === "per-person"
@@ -145,9 +144,13 @@ export function Explore({
   const [loading, setLoading] = useState(initialExperiences === undefined);
   const [error, setError] = useState("");
   const [category, setCategory] = useState(initialCategory);
-  const [city, setCity] = useState("Lagos");
+  const [destination, setDestination] = useState(() => ({ city: initialExperiences?.[0]?.city ?? "Lagos", country: initialExperiences?.[0]?.country ?? "Nigeria" }));
+  const { city, country } = destination;
+  const destinations = [...new Map(experiences.map((item) => [JSON.stringify([item.country, item.city]), { country: item.country, city: item.city }])).values()];
+  const areas = [...new Set(experiences.filter((item) => item.city === city && item.country === country).map((item) => item.area))];
+  const currency = currencyForCountry(country) ?? experiences.find((item) => item.city === city && item.country === country)?.currency ?? "NGN";
   const [area, setArea] = useState("All areas");
-  const [budget, setBudget] = useState(100000);
+  const [budget, setBudget] = useState<number | null>(null);
   const [environment, setEnvironment] = useState("any");
   const [search, setSearch] = useState("");
   const [bookable, setBookable] = useState(false);
@@ -165,7 +168,11 @@ export function Explore({
         if (!response.ok) throw new Error(data.error);
         return experienceSchema.array().parse(data.experiences);
       })
-      .then(setExperiences)
+      .then((items) => {
+        if (controller.signal.aborted) return;
+        setExperiences(items);
+        setDestination((previous) => items.some((item) => item.city === previous.city && item.country === previous.country) || !items[0] ? previous : { city: items[0].city, country: items[0].country });
+      })
       .catch((error) => {
         if (!controller.signal.aborted)
           setError(
@@ -182,9 +189,9 @@ export function Explore({
   const filtered = experiences.filter(
     (item) =>
       (category === "All experiences" || item.category === category) &&
-      item.city === city &&
+      item.city === city && item.country === country &&
       (area === "All areas" || item.area === area) &&
-      item.price <= budget &&
+      (budget === null || item.currency === currency && item.price <= budget) &&
       (environment === "any" || item.indoor === (environment === "indoor")) &&
       (!bookable || (!!item.bookingUrl && !item.demo)) &&
       item.duration <= duration &&
@@ -219,8 +226,8 @@ export function Explore({
       <div className="data-notice">
         <Info size={16} />
         <span>
-          Demo records are fictional and always labeled. Photos illustrate the
-          atmosphere; no live availability is claimed.
+          Venue prices and hours carry source and review dates. Photos illustrate the
+          atmosphere. Check the source for special closures and current availability.
         </span>
       </div>
       <div className="explore-search">
@@ -233,14 +240,16 @@ export function Explore({
         />
         <select
           aria-label="Filter by city"
-          value={city}
+          value={JSON.stringify([country, city])}
           onChange={(event) => {
-            setCity(event.target.value);
+            const selected = destinations.find((item) => JSON.stringify([item.country, item.city]) === event.target.value);
+            if (selected) setDestination(selected);
             setArea("All areas");
+            setBudget(null);
           }}
         >
-          {cities.map((item) => (
-            <option key={item}>{item}</option>
+          {destinations.map((item) => (
+            <option key={JSON.stringify([item.country, item.city])} value={JSON.stringify([item.country, item.city])}>{item.city}, {item.country}</option>
           ))}
         </select>
         <Button
@@ -270,12 +279,13 @@ export function Explore({
             hint="Per person or group as shown on each card."
           >
             <select
-              value={budget}
-              onChange={(event) => setBudget(Number(event.target.value))}
+              value={budget ?? ""}
+              onChange={(event) => setBudget(event.target.value === "" ? null : Number(event.target.value))}
             >
-              {[5000, 10000, 25000, 50000, 100000].map((amount) => (
+              <option value="">Any price</option><option value="0">Free admission</option>
+              {budgetSuggestions(currency).map((amount) => (
                 <option key={amount} value={amount}>
-                  {money(amount)}
+                  {money(amount, currency)}
                 </option>
               ))}
             </select>
@@ -369,8 +379,7 @@ export function Explore({
             onClick={() => {
               setArea("All areas");
               setCategory("All experiences");
-              setCity("Lagos");
-              setBudget(100000);
+              setBudget(null);
               setEnvironment("any");
               setSearch("");
               setBookable(false);
@@ -410,7 +419,7 @@ export function Explore({
                     </span>
                     <h3>{item.name}</h3>
                     <p>
-                      {item.duration} minutes · {money(item.price)} estimated{" "}
+                      {item.duration} minutes · {money(item.price, item.currency)} estimated{" "}
                       {item.priceType === "per-person"
                         ? "per person"
                         : "per group"}
@@ -491,7 +500,7 @@ export function ExperienceDetails({
         </div>
         <div className="detail-pricing">
           <strong>
-            {money(experience.price)}{" "}
+            {money(experience.price, experience.currency)}{" "}
             <small>
               / {experience.priceType === "per-person" ? "person" : "group"}{" "}
               estimated

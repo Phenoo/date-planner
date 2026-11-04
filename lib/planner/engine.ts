@@ -1,5 +1,7 @@
+import { canonicalTimeZone } from "./schedule";
 import { areaCenters } from "./demo-catalog";
 import { createHash } from "node:crypto";
+import { fromMinorUnits, toMinorUnits } from "./currency";
 import type {
   DatePlan,
   Experience,
@@ -89,6 +91,11 @@ function rejectionReasons(
     reasons.push("Not active and approved");
   if (!experience.demo && (!experience.verifiedAt || !experience.sourceUrl))
     reasons.push("Missing verified source");
+  if (experience.verificationExpiresAt && experience.verificationExpiresAt < new Date().toISOString().slice(0, 10)) reasons.push("Venue information needs a fresh source review");
+  if (experience.closedDates?.includes(request.date)) reasons.push("Closed on the selected day");
+  if (experience.timeZone && canonicalTimeZone(experience.timeZone) !== canonicalTimeZone(request.timeZone)) reasons.push("Confirm the venue local time zone");
+  if (experience.currency !== request.currency) reasons.push("Venue price uses a different currency; no exchange rate has been applied");
+  if (!experience.demo && experience.priceSource === "provider-estimate") reasons.push("A venue-confirmed price is required for a budgeted itinerary");
   if (
     experience.city.toLowerCase() !== request.city.toLowerCase() ||
     experience.country.toLowerCase() !== request.country.toLowerCase()
@@ -172,7 +179,7 @@ export function scoreExperience(
     ),
     budget: Math.max(
       0,
-      1 - experienceCost(experience, request.guests) / totalBudget(request),
+      totalBudget(request) === 0 ? Number(experienceCost(experience, request.guests) === 0) : 1 - experienceCost(experience, request.guests) / totalBudget(request),
     ),
     location: Math.max(
       0,
@@ -237,7 +244,7 @@ function buildItinerary(
   const activities: PlanActivity[] = [];
   const vehicles = Math.ceil(request.guests / 3);
   const rideCost = (km: number) =>
-    request.transport === "Walking"
+    request.transport === "Walking" || request.currency !== "NGN"
       ? 0
       : Math.ceil(
           (request.transport === "Driving" ? km * 220 + 500 : 1000 + km * 450) /
@@ -289,14 +296,16 @@ function buildItinerary(
   totalDistance += returnDistance;
   transportCost += returnDistance > 0.05 ? rideCost(returnDistance) : 0;
   transportCost = request.includeTransport ? transportCost : 0;
+  const unpricedTransport = request.includeTransport && request.transport !== "Walking" && request.currency !== "NGN" && request.transportBudget === null;
+  if (request.includeTransport && request.transport !== "Walking" && request.transportBudget !== null) transportCost = request.transportBudget;
   const activityCost = activities.reduce(
     (sum, activity) => sum + activity.cost,
     0,
   );
   const contingencyCost = request.contingency
-    ? Math.ceil(((activityCost + transportCost) * 0.1) / 100) * 100
+    ? request.currency === "NGN" ? Math.ceil(((activityCost + transportCost) * 0.1) / 100) * 100 : fromMinorUnits(Math.ceil(toMinorUnits(activityCost + transportCost, request.currency) * .1), request.currency)
     : 0;
-  const total = activityCost + transportCost + contingencyCost;
+  const total = fromMinorUnits(toMinorUnits(activityCost + transportCost + contingencyCost, request.currency), request.currency);
   const budget = totalBudget(request);
   if (
     total > budget ||
@@ -344,14 +353,16 @@ function buildItinerary(
     transportCost,
     contingencyCost,
     total,
-    remaining: request.budget === null ? null : budget - total,
+    remaining: request.budget === null || unpricedTransport ? null : fromMinorUnits(toMinorUnits(budget - total, request.currency), request.currency),
     budget: request.budget === null ? null : budget,
     duration: cursor + returnTravel - start,
     totalDistance: Math.round(totalDistance * 10) / 10,
     returnTravel,
     request,
     demo: experiences.some((experience) => experience.demo),
+    ...(unpricedTransport ? { unpricedCosts: ["transport" as const] } : {}),
     tips: [
+      ...(unpricedTransport ? ["Transport has no confirmed quote in your currency and is excluded from the displayed known costs. The complete date has not been confirmed within your spending limit."] : []),
       "All costs are estimates, including the selected food and drinks. Confirm prices before you go.",
       "Travel uses a distance-based estimate with a buffer; it does not include live traffic.",
       request.meetingTogether

@@ -21,8 +21,8 @@ export async function invitations(request: Request) {
       const result = input.action === "catalog" ? await createCatalogInvitation(request, input.recipe) : await createChosenDate(request, input.sessionId, input.placeId, input.action === "create");
       const auth = await authenticatedClient(request);
       if (auth) {
-        await recordFunnel(auth.user.uid, "plan_saved", result.id);
-        if (input.action !== "save") await recordFunnel(auth.user.uid, "invitation_created", tokenKey(result.token));
+        await recordFunnel(auth.user.uid, "plan_saved", result.id, undefined, input.flowScope);
+        if (input.action !== "save") await recordFunnel(auth.user.uid, "invitation_created", tokenKey(result.token), undefined, input.flowScope);
       }
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }

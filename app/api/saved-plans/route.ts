@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { encodeRecipe, decodeRecipe } from "@/lib/planner/money";
 import { FieldValue } from "firebase-admin/firestore";
 import { savedDocumentId } from "@/lib/firebase/paths";
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
         { error: "Please sign in to sync your plan." },
         { status: 401 },
       );
-    const recipe = savedRecipeSchema.safeParse(await readJson(request));
+    const recipe = savedRecipeSchema.extend({ flowScope: z.uuid().optional() }).safeParse(await readJson(request));
     if (!recipe.success)
       return Response.json(
         { error: "Please save a valid plan." },
@@ -57,12 +58,12 @@ export async function POST(request: Request) {
     batch.set(
       user.collection("savedPlans").doc(savedDocumentId(recipe.data.id)),
       {
-        recipe: encodeRecipe(recipe.data),
+        recipe: encodeRecipe(savedRecipeSchema.parse(recipe.data)),
         updatedAt: FieldValue.serverTimestamp(),
       },
     );
     await batch.commit();
-    await recordFunnel(auth.user.uid, "plan_saved", dateSelectionId("catalog", recipe.data.id));
+    await recordFunnel(auth.user.uid, "plan_saved", dateSelectionId("catalog", recipe.data.id), undefined, recipe.data.flowScope);
     return Response.json({ saved: true });
   } catch (error) {
     return apiError(error);

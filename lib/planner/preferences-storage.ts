@@ -8,6 +8,8 @@ export const preferenceSchema = requestSchema
     country: true,
     budget: true,
     budgetType: true,
+    currency: true,
+    transportBudget: true,
     vibes: true,
     interests: true,
     dislikes: true,

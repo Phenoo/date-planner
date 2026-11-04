@@ -7,6 +7,7 @@ export const defaultTimeZone = "Africa/Lagos";
 export function validTimeZone(value: string) {
   try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return true; } catch { return false; }
 }
+export function canonicalTimeZone(value: string) { return new Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions().timeZone; }
 export function zonedNow(timeZone = defaultTimeZone, now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)?.value ?? "";
@@ -21,7 +22,8 @@ export function calendarDay(value: string) { return new Date(`${value}T12:00:00Z
 export function calendarLabel(value: string, options: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long" }) {
   return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
 }
-export function scheduleError(request: { date: string; startTime: string; duration: number; endTime?: string; timeZone?: string }, today?: string, now = new Date()) {
+export function scheduleError(request: { date: string; startTime: string; duration: number; endTime?: string; timeZone?: string; timeZoneConfirmed?: boolean }, today?: string, now = new Date()) {
+  if (request.timeZoneConfirmed === false) return "Confirm the destination time zone before finding your date.";
   const current = zonedNow(request.timeZone, now);
   if (!z.iso.date().safeParse(request.date).success) return "Choose the actual day for your date.";
   if (request.date < (today ?? current.date)) return "Choose today or a future date.";

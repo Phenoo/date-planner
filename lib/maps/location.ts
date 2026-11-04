@@ -9,6 +9,7 @@ export function discoveryQuery(request: Pick<NearbySearch, "city" | "country" | 
 export const geocodeResponseSchema = z.object({
   status: z.string(),
   results: z.array(z.object({
+    place_id: z.string().optional(),
     address_components: z.array(z.object({ long_name: z.string(), short_name: z.string().optional(), types: z.array(z.string()) })),
     geometry: z.object({ location: coordinatesSchema }).optional(), types: z.array(z.string()).default([]),
   })).default([]),

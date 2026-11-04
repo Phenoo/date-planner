@@ -1,9 +1,9 @@
-export type AnalyticsEvent = "planner_started" | "recommendation_accepted" | "recommendation_rejected" | "authentication_completed";
+export type AnalyticsEvent = "planner_started" | "recommendation_accepted" | "recommendation_rejected" | "authentication_completed" | "planner_step_viewed";
 type Parameters = Record<string, string | number | boolean>;
 export type GoogleTag = (...command: ["js", Date] | ["consent", "default" | "update", Parameters] | ["config", string, Parameters] | ["set", Parameters] | ["event", string, Parameters]) => void;
 
 const pageTitles = {
-  "/": "Home", "/plan": "Planner", "/explore": "Explore", "/saved": "My dates",
+  "/": "Home", "/date-ideas": "Date ideas", "/plan": "Planner", "/explore": "Explore", "/saved": "My dates",
   "/favorites": "Favorites", "/profile": "Profile", "/privacy": "Privacy", "/terms": "Terms",
 };
 

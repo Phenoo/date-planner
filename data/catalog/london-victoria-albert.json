@@ -1,0 +1,96 @@
+{
+  "category": "Art & culture",
+  "image": "/images/gallery.png",
+  "priceType": "per-person",
+  "duration": 120,
+  "vibes": [
+    "Creative",
+    "Relaxed",
+    "Romantic"
+  ],
+  "occasions": [
+    "First date",
+    "Casual date",
+    "Romantic date",
+    "Anniversary",
+    "Just because"
+  ],
+  "tags": [
+    "art",
+    "culture",
+    "gallery"
+  ],
+  "indoor": true,
+  "quiet": false,
+  "accessible": null,
+  "dietary": [],
+  "publicVenue": true,
+  "maxGuests": 9,
+  "active": true,
+  "approved": true,
+  "demo": false,
+  "verifiedAt": "2026-11-04",
+  "verificationExpiresAt": "2026-12-04",
+  "priceSource": "venue",
+  "quality": 0.85,
+  "id": "london-victoria-albert",
+  "name": "A free afternoon of art and design",
+  "venue": "V&A South Kensington",
+  "city": "London",
+  "area": "South Kensington",
+  "country": "United Kingdom",
+  "currency": "GBP",
+  "price": 0,
+  "lat": 51.49664,
+  "lng": -0.1722,
+  "timeZone": "Europe/London",
+  "description": "Browse the permanent art and design collections together. Choose a few galleries and leave room for a conversation afterwards.",
+  "priceNote": "General admission is free; temporary exhibitions and events may require separate tickets. Meals and transport are extra. Galleries begin clearing 30 minutes before closing.",
+  "hours": [
+    {
+      "day": 0,
+      "open": 600,
+      "close": 1035
+    },
+    {
+      "day": 1,
+      "open": 600,
+      "close": 1035
+    },
+    {
+      "day": 2,
+      "open": 600,
+      "close": 1035
+    },
+    {
+      "day": 3,
+      "open": 600,
+      "close": 1035
+    },
+    {
+      "day": 4,
+      "open": 600,
+      "close": 1035
+    },
+    {
+      "day": 5,
+      "open": 600,
+      "close": 1035
+    },
+    {
+      "day": 6,
+      "open": 600,
+      "close": 1035
+    }
+  ],
+  "closedDates": [
+    "2026-12-24",
+    "2026-12-25",
+    "2026-12-26"
+  ],
+  "sourceUrl": "https://www.vam.ac.uk/south-kensington/visit",
+  "reservation": "General admission needs no booking. This plan conservatively uses the daytime gallery hours; some Friday spaces stay open later.",
+  "hoursSourceUrl": "https://www.vam.ac.uk/south-kensington/visit",
+  "bookingUrl": "https://www.vam.ac.uk/south-kensington/visit",
+  "phone": "+44 20 7942 2000"
+}

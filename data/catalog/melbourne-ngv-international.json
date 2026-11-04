@@ -1,0 +1,94 @@
+{
+  "category": "Art & culture",
+  "image": "/images/gallery.png",
+  "priceType": "per-person",
+  "duration": 120,
+  "vibes": [
+    "Creative",
+    "Relaxed",
+    "Romantic"
+  ],
+  "occasions": [
+    "First date",
+    "Casual date",
+    "Romantic date",
+    "Anniversary",
+    "Just because"
+  ],
+  "tags": [
+    "art",
+    "culture",
+    "gallery"
+  ],
+  "indoor": true,
+  "quiet": false,
+  "accessible": null,
+  "dietary": [],
+  "publicVenue": true,
+  "maxGuests": 9,
+  "active": true,
+  "approved": true,
+  "demo": false,
+  "verifiedAt": "2026-11-04",
+  "verificationExpiresAt": "2026-12-04",
+  "priceSource": "venue",
+  "quality": 0.85,
+  "id": "melbourne-ngv-international",
+  "name": "An afternoon in the international collection",
+  "venue": "NGV International",
+  "city": "Melbourne",
+  "area": "Southbank",
+  "country": "Australia",
+  "currency": "AUD",
+  "price": 0,
+  "lat": -37.8226,
+  "lng": 144.96893,
+  "timeZone": "Australia/Melbourne",
+  "description": "Visit the general collection together. Selected gallery spaces may be closed while the next exhibition is installed.",
+  "priceNote": "Free general entry; special exhibitions may have separate fees. Selected spaces may close from 7 September to 13 December 2026 for installation. Meals and transport are extra.",
+  "hours": [
+    {
+      "day": 0,
+      "open": 600,
+      "close": 1020
+    },
+    {
+      "day": 1,
+      "open": 600,
+      "close": 1020
+    },
+    {
+      "day": 2,
+      "open": 600,
+      "close": 1020
+    },
+    {
+      "day": 3,
+      "open": 600,
+      "close": 1020
+    },
+    {
+      "day": 4,
+      "open": 600,
+      "close": 1020
+    },
+    {
+      "day": 5,
+      "open": 600,
+      "close": 1020
+    },
+    {
+      "day": 6,
+      "open": 600,
+      "close": 1020
+    }
+  ],
+  "closedDates": [
+    "2026-12-25",
+    "2027-04-25"
+  ],
+  "sourceUrl": "https://www.ngv.vic.gov.au/plan-your-visit/",
+  "reservation": "Check the official visitor page for gallery closures and any exhibition tickets. ANZAC Day has shorter hours and is excluded from this catalog schedule.",
+  "hoursSourceUrl": "https://www.ngv.vic.gov.au/plan-your-visit/",
+  "bookingUrl": "https://www.ngv.vic.gov.au/plan-your-visit/"
+}

@@ -1,3 +1,4 @@
+import { catalogReviewIssues } from "./catalog-review";
 import { decodeExperience } from "./money";
 import { getDatabase } from "@/lib/firebase/server";
 import { demoCatalog } from "./demo-catalog";
@@ -10,11 +11,12 @@ export async function getCatalog() {
     .where("active", "==", true)
     .where("approved", "==", true)
     .where("demo", "==", false)
-    .limit(200)
+    .limit(1000)
     .get();
   const records = data.docs.map((doc) => decodeExperience(doc.data().record));
   const blocked = await venueControls();
-  if (records.some((record) => !record.success)) throw new Error("The catalog needs a data review before recommendations are available.");
+  const invalid = records.filter(record => !record.success).length;
+  if (invalid) console.warn("Catalog records withheld pending review", { count: invalid });
   return records.flatMap((record) => record.success ? [record.data] : [])
     .filter(
       (record) =>
@@ -23,6 +25,6 @@ export async function getCatalog() {
         record.active &&
         !blocked.has(record.id) &&
         record.verifiedAt &&
-        record.sourceUrl,
+        record.sourceUrl && !catalogReviewIssues(record).length,
     );
 }

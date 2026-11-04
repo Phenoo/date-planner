@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { Suspense } from "react";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { WebVitals } from "@/components/analytics/web-vitals";
 import { analyticsMeasurementId } from "@/lib/analytics/policy";
 import { siteDescription, siteName, siteOrigin } from "@/lib/seo/site";
 import "./globals.css";
@@ -24,7 +25,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-scroll-behavior="smooth"
       className={`${dmSans.variable} h-full antialiased`}
     >
-      <body>{children}{measurementId && <Suspense fallback={null}><GoogleAnalytics measurementId={measurementId} /></Suspense>}</body>
+      <body>{children}{measurementId && <Suspense fallback={null}><GoogleAnalytics measurementId={measurementId} /><WebVitals /></Suspense>}</body>
     </html>
   );
 }

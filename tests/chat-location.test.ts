@@ -9,7 +9,7 @@ const location = { city: "Abuja", area: "Wuse", country: "Nigeria" };
 
 test("a confirmed detected city changes only destination and origin fields", () => {
   const result = confirmChatLocation(request, emptyChatSession(), location, "2026-11-04");
-  assert.deepEqual(result.request, { ...request, city: "Abuja", country: "Nigeria", area: "Abuja", currentCity: "Abuja", startingArea: "Wuse", locationScope: "city" });
+  assert.deepEqual(result.request, { ...request, timeZoneConfirmed: false, city: "Abuja", country: "Nigeria", area: "Abuja", currentCity: "Abuja", startingArea: "Wuse", locationScope: "city" });
   assert.deepEqual(result.answered, ["location"]);
   assert.equal(result.nextField, "occasion");
   assert.match(result.message, /Let’s plan in Abuja/);
@@ -35,16 +35,17 @@ test("confirming location preserves prior answers and asks the next missing ques
   assert.match(result.message, /How many people/);
 });
 
-test("editing a completed date's location keeps its schedule, spending and requirements", () => {
+test("a change of currency keeps the schedule and requirements while requiring a new spending choice", () => {
   const session = { ...emptyChatSession(), answered: [...intakeFields], nextField: null };
   const result = confirmChatLocation(request, session, { city: "Accra", area: "Osu", country: "Ghana" }, "2026-11-04");
   assert.equal(result.request.country, "Ghana");
   assert.equal(result.request.date, request.date);
   assert.equal(result.request.startTime, request.startTime);
-  assert.equal(result.request.budget, request.budget);
+  assert.equal(result.request.budget, null);
+  assert.equal(result.request.currency, "GHS");
   assert.equal(result.request.maxDistance, request.maxDistance);
   assert.equal(result.request.accessibility, request.accessibility);
   assert.deepEqual(result.request.dietary, request.dietary);
-  assert.deepEqual(result.answered, [...intakeFields]);
-  assert.equal(result.nextField, null);
+  assert.deepEqual(result.answered, intakeFields.filter((field) => field !== "budget"));
+  assert.equal(result.nextField, "budget");
 });

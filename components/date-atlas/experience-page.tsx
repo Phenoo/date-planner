@@ -190,7 +190,7 @@ export function ExperiencePage({
           <div className="booking-summary">
             <span className="mini-label">A LITTLE PLAN STARTS HERE</span>
             <div className="detail-price">
-              {money(experience.price)}
+              {money(experience.price, experience.currency)}
               <span>
                 {" "}
                 / {experience.priceType === "per-person"
@@ -204,6 +204,9 @@ export function ExperiencePage({
                 ? `Information last verified ${experience.verifiedAt}`
                 : "Sample price. Not verified in the real world."}
             </p>
+            {experience.priceNote && <p>{experience.priceNote}</p>}
+            {experience.sourceUrl && <p><a className="text-link" href={experience.sourceUrl} target="_blank" rel="noreferrer">Check venue prices and admission ↗</a></p>}
+            {experience.verificationExpiresAt && <p className="secondary-notice">Next review by {experience.verificationExpiresAt}. Special closures and availability can change.</p>}
             <div className="data-notice">
               <Info size={16} />
               {experience.demo
@@ -216,7 +219,7 @@ export function ExperiencePage({
             </Button>
             <p className="booking-included">
               <Check size={14} />
-              We check the complete itinerary against your budget and schedule.
+              Known costs are checked against your budget; unquoted travel fares are shown separately.
             </p>
             {experience.bookingUrl && !experience.demo && (
               <Button asChild variant="outline">

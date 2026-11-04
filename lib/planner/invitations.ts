@@ -38,9 +38,9 @@ export const dateHistoryResponseSchema = z.object({ dates: z.array(chosenDateSch
 export type PublicInvitation = z.infer<typeof publicInvitationSchema>;
 export type ChosenDate = z.infer<typeof chosenDateSchema>;
 export const invitationInputSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("catalog"), recipe: savedRecipeSchema }),
-  z.object({ action: z.literal("create"), sessionId: z.uuid(), placeId: z.string().min(1).max(200) }),
-  z.object({ action: z.literal("save"), sessionId: z.uuid(), placeId: z.string().min(1).max(200) }),
+  z.object({ action: z.literal("catalog"), recipe: savedRecipeSchema, flowScope: z.uuid().optional() }),
+  z.object({ action: z.literal("create"), sessionId: z.uuid(), placeId: z.string().min(1).max(200), flowScope: z.uuid().optional() }),
+  z.object({ action: z.literal("save"), sessionId: z.uuid(), placeId: z.string().min(1).max(200), flowScope: z.uuid().optional() }),
   z.object({ action: z.literal("selection"), sessionId: z.uuid(), placeId: z.string().min(1).max(200) }),
   z.object({ action: z.literal("revoke"), id: selectionIdSchema }),
   z.object({ action: z.literal("message"), id: selectionIdSchema, message: invitationMessageSchema }),

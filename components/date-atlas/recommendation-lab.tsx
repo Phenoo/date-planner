@@ -24,6 +24,8 @@ import { recommendationResultSchema } from "@/lib/planner/response-schema";
 import { money, nextSaturday } from "@/lib/utils";
 import { PrivacyOperations } from "./privacy-operations";
 import { VenueOperations } from "./venue-operations";
+import { catalogCoverage, catalogReviewIssues } from "@/lib/planner/catalog-review";
+import { JourneyDashboard } from "./journey-dashboard";
 export function RecommendationLab() {
   const [profile, setProfile] = useState(() =>
     JSON.stringify(
@@ -157,7 +159,8 @@ export function RecommendationLab() {
           {message}
         </p>
       )}
-      {admin && <><VenueOperations /><PrivacyOperations /></>}
+      {admin && <section className="data-notice"><h2>Reviewed venue coverage</h2><p>Live discovery can search worldwide. This table covers venue-confirmed catalog prices only. Expired or incomplete records are withheld from the public catalog until reviewed.</p>{catalogCoverage(catalog).map(row => <p key={row.country}><strong>{row.country}</strong> · {row.cities.join(", ")} · {row.ready} ready · {row.needsReview} need review</p>)}{catalog.flatMap(record => { const issues = catalogReviewIssues(record); return issues.length ? [<p key={record.id}><strong>{record.venue}</strong>: {issues.join(" ")}</p>] : []; })}</section>}
+      {admin && <><JourneyDashboard /><VenueOperations /><PrivacyOperations /></>}
       <div className="admin-columns">
         <section>
           <h2>A sample couple</h2>
@@ -185,7 +188,7 @@ export function RecommendationLab() {
               {result.plans.map((plan) => (
                 <p key={plan.id}>
                   <Check size={14} />
-                  {plan.type} · {money(plan.total)} · {plan.score}% match
+                  {plan.type} · {money(plan.total, plan.request.currency)} · {plan.score}% match
                 </p>
               ))}
               <h3>Selection decisions</h3>
@@ -211,7 +214,7 @@ export function RecommendationLab() {
           <h2>Experience records</h2>
           <p className="secondary-notice">
             Prices, hours, guest counts, moods, booking links, and verification
-            are maintained together. This editor writes only when a trusted
+            are maintained together. Approved venues require a price basis, venue price source, hours source, local time zone and a review expiry within 90 days. This editor writes only when a trusted
             admin is connected.
           </p>
           <label className="field">

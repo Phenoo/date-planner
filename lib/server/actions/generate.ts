@@ -1,3 +1,4 @@
+import { amountPrecisionError } from "@/lib/planner/currency";
 import { persistPlans } from "@/lib/server/plan-persistence";
 import { incorporatePreferences } from "@/lib/planner/preferences";
 import { generateSchema } from "@/lib/planner/schema";
@@ -25,6 +26,8 @@ export async function generate(request: Request, progress?: (stage: string) => v
         { status: 400 },
       );
     parsed.data.request = incorporatePreferences(parsed.data.request);
+    const invalidAmount = amountPrecisionError(parsed.data.request.budget, parsed.data.request.currency) || amountPrecisionError(parsed.data.request.transportBudget, parsed.data.request.currency);
+    if (invalidAmount) return Response.json({ error: invalidAmount }, { status: 400 });
     const invalidSchedule = scheduleError(parsed.data.request);
     if (invalidSchedule) return Response.json({ error: invalidSchedule }, { status: 400 });
     const start = parsed.data.request.startTime;

@@ -1,5 +1,6 @@
 "use client";
 
+import { DestinationTimeZone } from "./destination-time-zone";
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -29,13 +30,15 @@ import {
   plannerQuestionCount,
 } from "@/lib/planner/questions";
 import { money } from "@/lib/utils";
-import { wizardQuestionSteps, type IntakeField } from "@/lib/planner/intake";
+import { intakeFieldForQuestion, wizardQuestionSteps, type IntakeField } from "@/lib/planner/intake";
+import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 import type { PlannerQuestionId } from "@/lib/planner/questions";
 import type { CompanionTheme } from "@/lib/animations/registry";
 import type { DetectedLocation } from "@/lib/maps/schema";
 import { browserLocationError, resolveCountry, resolveLocation } from "@/lib/maps/client-location";
 import { requirementsGuidance } from "@/lib/planner/search-feedback";
 import { plannerValidationIssues } from "@/lib/planner/validation";
+import { budgetSuggestions, currencyDigits, currencyOptions, destinationCurrency } from "@/lib/planner/currency";
 
 export { Field } from "@/components/ui/field";
 export { plannerQuestionCount } from "@/lib/planner/questions";
@@ -76,12 +79,6 @@ function AnswerChoices<T extends string | number>({
     </div>
   );
 }
-const budgetOptions = [10000, 25000, 50000, 60000, 100000, 200000].map(
-  (value) => ({
-    value,
-    label: value === 10000 ? `Up to ${money(value)}` : money(value),
-  }),
-);
 const timeOptions = [
   { value: "10:00", label: "Morning · 10:00 AM" },
   { value: "14:00", label: "Afternoon · 2:00 PM" },
@@ -122,6 +119,7 @@ export function PlannerWizard({
   onAnswer?: (id: PlannerQuestionId, request: PlanRequest) => void;
 }) {
   const step = Math.max(0, Math.min(requestedStep, plannerQuestionCount - 1));
+  const budgetOptions = budgetSuggestions(request.currency).map((value) => ({ value, label: money(value, request.currency) }));
   const [initialAnswers] = useState(() => answered);
   const questionSteps = [...new Set([...wizardQuestionSteps(request, initialAnswers), step])].sort((a, b) => a - b);
   const position = questionSteps.indexOf(step);
@@ -151,7 +149,7 @@ export function PlannerWizard({
     void resolveCountry(controller.signal).then((country) => {
       if (!country || controller.signal.aborted || countryResolved.current) return;
       countryResolved.current = true;
-      setRequest((previous) => previous.currentCity.trim() || previous.country !== initialCountry.current ? previous : { ...previous, country: country.name });
+      setRequest((previous) => previous.currentCity.trim() || previous.country !== initialCountry.current ? previous : destinationCurrency(previous, country.name));
       setEstimatedCountry(country.name);
     }).catch(() => { /* Country selection remains available if the network has no estimate. */ });
     return () => controller.abort();
@@ -169,7 +167,7 @@ export function PlannerWizard({
       try {
         const detected = await resolveLocation({ lat: position.coords.latitude, lng: position.coords.longitude }, controller.signal);
         if (controller.signal.aborted) return;
-        setRequest((previous) => ({ ...previous, ...detected.location, currentCity: detected.location.city, area: detected.location.city, startingArea: detected.location.area, locationScope: "city", maxDistance: 30 }));
+        setRequest((previous) => ({ ...destinationCurrency(previous, detected.location.country), ...detected.location, timeZoneConfirmed: false, currentCity: detected.location.city, area: detected.location.city, startingArea: detected.location.area, locationScope: "city", maxDistance: 30 }));
         countryResolved.current = true; setEstimatedCountry("");
         setDestinationChoice("city");
         setDetectedLocation(detected); setLocationMode("selected");
@@ -180,6 +178,7 @@ export function PlannerWizard({
     }, (failure) => { if (!controller.signal.aborted) { setLocating(false); setLocationMessage(browserLocationError(failure.code)); setLocationSettingsNeeded(failure.code === 1 || failure.code === 2); } }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
   }
   const stage = plannerQuestions[step];
+  useEffect(() => { const field = intakeFieldForQuestion(stage.id); if (field) trackFunnel("planner_step_viewed", funnelScope(`step:${field}`), undefined, field); }, [stage.id]);
   const title = editingPlan && stage.id === "review" ? "What would you like to change?" : stage.title;
   const description = editingPlan && stage.id === "review" ? "Your other answers are kept. Change what you need, then find a fresh match." : stage.description;
   const dialogue = usePlannerConversation(stage.id, request);
@@ -195,7 +194,7 @@ export function PlannerWizard({
   }
   function update<K extends keyof PlanRequest>(key: K, value: PlanRequest[K]) {
     if (["city", "country", "area"].includes(key)) { locationController.current?.abort(); setLocating(false); }
-    setRequest((previous) => ({ ...previous, [key]: value, ...(["city", "country"].includes(key) ? { area: previous.locationScope === "city" ? key === "city" && typeof value === "string" ? value : previous.city : "", startingArea: "" } : {}), ...(key === "startTime" && value !== previous.startTime ? { endTime: "" } : {}) }));
+    setRequest((previous) => ({ ...previous, [key]: value, ...(["city", "country"].includes(key) ? { timeZoneConfirmed: false, area: previous.locationScope === "city" ? key === "city" && typeof value === "string" ? value : previous.city : "", startingArea: "" } : {}), ...(key === "startTime" && value !== previous.startTime ? { endTime: "" } : {}) }));
     if (["city", "country"].includes(key)) setDetectedLocation(null);
     setError("");
   }
@@ -247,7 +246,7 @@ export function PlannerWizard({
         > = {
           city: "Enter a city and country with at least two characters.",
           area: "Choose a destination and a search reach before continuing.",
-          budget: "Enter a budget between ₦1,000 and ₦10,000,000.",
+          budget: `Enter an amount from 0 to ${money(10000000, request.currency)}.`,
           people: "Choose a whole number of people between 1 and 12.",
           vibes: "Choose at least one vibe to keep going.",
           date: "Choose a valid day for your date.",
@@ -289,7 +288,7 @@ export function PlannerWizard({
     next(updated);
   }
   function openBudget() {
-    update("budget", request.budget ?? 60000);
+    update("budget", request.budget ?? budgetSuggestions(request.currency)[2]);
   }
   function toggleVibe(vibe: PlanRequest["vibes"][number]) {
     if (transitioning) return;
@@ -303,23 +302,23 @@ export function PlannerWizard({
   function setOriginCity(city: string) {
     countryResolved.current = true;
     locationController.current?.abort(); setLocating(false); setDetectedLocation(null); setError(""); setDestinationChoice("city");
-    setRequest((previous) => ({ ...previous, currentCity: city, city, area: city, startingArea: "", locationScope: "city", maxDistance: 30 }));
+    setRequest((previous) => ({ ...previous, timeZoneConfirmed: false, currentCity: city, city, area: city, startingArea: "", locationScope: "city", maxDistance: 30 }));
   }
   function setOriginCountry(country: string) {
     countryResolved.current = true; setEstimatedCountry("");
     locationController.current?.abort(); setLocating(false); setDetectedLocation(null); setError(""); setDestinationChoice("city");
-    setRequest((previous) => ({ ...previous, country, currentCity: "", city: "", area: "", startingArea: "", locationScope: "city", maxDistance: 30 }));
+    setRequest((previous) => ({ ...destinationCurrency(previous, country), currentCity: "", city: "", area: "", startingArea: "", locationScope: "city", maxDistance: 30 }));
   }
   function chooseDestination(choice: DestinationChoice) {
     setDestinationChoice(choice); setError("");
     setRequest((previous) => {
       const home = previous.currentCity || previous.city;
-      return { ...previous, currentCity: home, city: choice === "elsewhere" ? "" : home, area: choice === "city" ? home : "", locationScope: choice === "area" ? "area" : "city", startingArea: choice === "elsewhere" ? "" : detectedLocation?.location.area || "", maxDistance: choice === "area" ? 15 : 30 };
+      return { ...previous, timeZoneConfirmed: false, currentCity: home, city: choice === "elsewhere" ? "" : home, area: choice === "city" ? home : "", locationScope: choice === "area" ? "area" : "city", startingArea: choice === "elsewhere" ? "" : detectedLocation?.location.area || "", maxDistance: choice === "area" ? 15 : 30 };
     });
   }
   function setDestinationCity(city: string) {
     setError("");
-    setRequest((previous) => ({ ...previous, city, area: city, startingArea: "" }));
+    setRequest((previous) => ({ ...previous, timeZoneConfirmed: false, city, area: city, startingArea: "" }));
   }
   function shortcut(event: KeyboardEvent<HTMLFormElement>) {
     if (
@@ -383,7 +382,7 @@ export function PlannerWizard({
     { id: "vibes", label: "Vibe", value: request.vibes.join(", ") },
     { id: "interests", label: "Interests & preferences", value: [request.interests, request.notes, request.surprises ? "Surprises welcome" : "No surprises"].filter(Boolean).join(" · ") },
     { id: "requirements", label: "Requirements", value: [...request.dietary, request.quiet ? "Quiet places" : "", request.accessibility ? "Step-free access" : "", request.dislikes ? `Avoid: ${request.dislikes}` : ""].filter(Boolean).join(" · ") || "None specified" },
-    { id: "budget", label: "Spending limit", value: request.budget === null ? "No spending limit set" : `${money(request.budget)} ${request.budgetType === "total" ? "total" : "per person"} · ${request.includeFood ? "Food included" : "Food excluded"} · ${request.includeTransport ? "Transport included" : "Transport excluded"}` },
+    { id: "budget", label: "Spending limit", value: request.budget === null ? "No spending limit set" : `${money(request.budget, request.currency)} ${request.budgetType === "total" ? "total" : "per person"} · ${request.includeFood ? "Food included" : "Food excluded"} · ${request.includeTransport ? "Transport included" : "Transport excluded"}` },
     { id: "date", label: "Date", value: request.date ? calendarLabel(request.date) : "Choose a day" },
     { id: "time", label: "Starting time", value: request.startTime || "Choose a time" },
     { id: "duration", label: "Duration", value: `${request.duration / 60} hours${request.endTime ? ` · Be back by ${request.endTime}` : ""}` },
@@ -459,7 +458,7 @@ export function PlannerWizard({
               {manualLocation && <div className="location-manual typeform-answer" id="manual-location">
                 <ManualCityPicker country={request.country} city={currentCity} countryHint={estimatedCountry && estimatedCountry === request.country ? "Estimated from your network. Change if needed." : undefined} onCountryChange={setOriginCountry} onCityChange={setOriginCity} onSelect={(city) => {
                   countryResolved.current = true;
-                  const updated = { ...request, currentCity: city, city, area: city, startingArea: "", locationScope: "city" as const, maxDistance: 30 };
+                  const updated = { ...request, timeZoneConfirmed: false, currentCity: city, city, area: city, startingArea: "", locationScope: "city" as const, maxDistance: 30 };
                   setDetectedLocation(null); setDestinationChoice("city"); setRequest(updated); next(updated);
                 }} />
               </div>}
@@ -532,14 +531,16 @@ export function PlannerWizard({
                 onChoose={(value) => value === "no" ? choose("budget", null) : openBudget()}
               />
               {request.budget !== null && <div className="typeform-answer" aria-label="Your budget range">
-                <label className="field"><span>{request.budgetType === "per-person" ? "Budget per person" : request.guests === 2 ? "Total budget for both of you" : `Total budget for ${request.guests} people`}: {money(request.budget)}</span><input className="budget-slider" type="range" min="1000" max="300000" step="1000" value={Math.min(request.budget, 300000)} onChange={(event) => update("budget", Number(event.target.value))} aria-label={request.budgetType === "per-person" ? "Budget per person" : `Total budget for ${request.guests} people`} /></label>
+                <label className="field"><span>{request.budgetType === "per-person" ? "Budget per person" : request.guests === 2 ? "Total budget for both of you" : `Total budget for ${request.guests} people`}: {money(request.budget, request.currency)}</span><input className="budget-slider" type="range" min="0" max={request.currency === "NGN" ? 300000 : budgetOptions.at(-1)?.value ?? 250} step={request.currency === "NGN" ? 1000 : Math.max(1, budgetOptions[0].value / 25)} value={Math.min(request.budget, request.currency === "NGN" ? 300000 : budgetOptions.at(-1)?.value ?? 250)} onChange={(event) => update("budget", Number(event.target.value))} aria-label={request.budgetType === "per-person" ? "Budget per person" : `Total budget for ${request.guests} people`} /></label>
                 <div className="budget-presets">{budgetOptions.map((option) => <button type="button" className={`filter-pill ${request.budget === option.value ? "active" : ""}`} aria-pressed={request.budget === option.value} key={option.value} onClick={() => update("budget", option.value)}>{option.label}</button>)}</div>
-                <Field label="Or your own amount (₦)">
-                  <input type="number" min={1000} max={10000000} value={request.budget || ""} onChange={(event) => update("budget", Number(event.target.value))} />
+                <Field label="Budget currency"><select value={request.currency} onChange={(event) => setRequest((previous) => ({ ...previous, currency: event.target.value, budget: null, transportBudget: null }))}>{currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></Field>
+                <Field label={`Or your own amount (${request.currency})`}>
+                  <input type="number" min={0} max={10000000} step={10 ** -currencyDigits(request.currency)} value={request.budget ?? ""} onChange={(event) => update("budget", Number(event.target.value))} />
                 </Field>
                 <details className="flow-details">
                   <summary>What should the budget include?</summary>
                   <div className="form-stack">
+                    {request.includeTransport && request.transport !== "Walking" && <Field label={`Optional transport allowance (${request.currency}, total)`} hint="Enter a quote or your own allowance. An unknown fare is kept separate from confirmed costs."><input type="number" min={0} max={10000000} step={10 ** -currencyDigits(request.currency)} value={request.transportBudget ?? ""} onChange={(event) => update("transportBudget", event.target.value === "" ? null : Number(event.target.value))} /></Field>}
                     <Field label="Your budget is">
                       <select
                         value={request.budgetType}
@@ -577,7 +578,7 @@ export function PlannerWizard({
                       </label>
                     ))}
                     <p className="answer-help">
-                      Your total spending ceiling is {money(total)}. Confirm estimated venue and transport costs before committing.
+                      Your total spending ceiling is {money(total, request.currency)}. Confirm estimated venue and transport costs before committing.
                     </p>
                   </div>
                 </details>
@@ -717,6 +718,7 @@ export function PlannerWizard({
               </details>
             </div>
           )}
+          {(["date", "time", "review"].includes(stage.id) || !request.timeZoneConfirmed && stage.id === "duration") && <DestinationTimeZone request={request} setRequest={setRequest} disabled={transitioning} />}
           {stage.id === "date" && (
             <DatePicker timeZone={request.timeZone} value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
           )}

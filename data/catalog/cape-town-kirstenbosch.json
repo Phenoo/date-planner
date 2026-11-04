@@ -1,0 +1,93 @@
+{
+  "category": "Nature & outdoors",
+  "image": "/images/outdoors.jpg",
+  "priceType": "per-person",
+  "duration": 120,
+  "vibes": [
+    "Outdoors",
+    "Relaxed",
+    "Romantic"
+  ],
+  "occasions": [
+    "First date",
+    "Casual date",
+    "Romantic date",
+    "Anniversary",
+    "Just because"
+  ],
+  "tags": [
+    "nature",
+    "garden",
+    "walking",
+    "outdoors"
+  ],
+  "indoor": false,
+  "quiet": false,
+  "accessible": null,
+  "dietary": [],
+  "publicVenue": true,
+  "maxGuests": 9,
+  "active": true,
+  "approved": true,
+  "demo": false,
+  "verifiedAt": "2026-11-04",
+  "verificationExpiresAt": "2026-12-04",
+  "priceSource": "venue",
+  "quality": 0.85,
+  "id": "cape-town-kirstenbosch",
+  "name": "A walk beneath the mountain",
+  "venue": "Kirstenbosch National Botanical Garden",
+  "city": "Cape Town",
+  "area": "Newlands",
+  "country": "South Africa",
+  "currency": "ZAR",
+  "price": 270,
+  "lat": -33.9875,
+  "lng": 18.4328,
+  "timeZone": "Africa/Johannesburg",
+  "description": "Enjoy a self-guided garden visit together. Choose a route suited to your mobility; the upper slopes are steep.",
+  "priceNote": "Standard adult rate for visitors from outside Africa and SADC. Qualifying residents, African nationals and other concession groups pay less with proof. Special events, meals and transport are extra.",
+  "hours": [
+    {
+      "day": 0,
+      "open": 480,
+      "close": 1080
+    },
+    {
+      "day": 1,
+      "open": 480,
+      "close": 1080
+    },
+    {
+      "day": 2,
+      "open": 480,
+      "close": 1080
+    },
+    {
+      "day": 3,
+      "open": 480,
+      "close": 1080
+    },
+    {
+      "day": 4,
+      "open": 480,
+      "close": 1080
+    },
+    {
+      "day": 5,
+      "open": 480,
+      "close": 1080
+    },
+    {
+      "day": 6,
+      "open": 480,
+      "close": 1080
+    }
+  ],
+  "sourceUrl": "https://www.sanbi.org/gardens/kirstenboch/visitor-information/information/",
+  "reservation": "Cashless admission; official visitor information links to online tickets. The catalog conservatively uses winter closing time year-round. Some paths are inaccessible to wheelchairs.",
+  "hoursSourceUrl": "https://www.sanbi.org/gardens/kirstenboch/visitor-information/information/",
+  "bookingUrl": "https://www.sanbi.org/gardens/kirstenboch/visitor-information/information/",
+  "closedDates": [],
+  "phone": "+27 21 799 8782"
+}

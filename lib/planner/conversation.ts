@@ -7,7 +7,7 @@ export type ConversationStep = typeof conversationSteps[number];
 export const conversationInputSchema = z.object({
   step: z.enum(conversationSteps),
   context: z.object({
-    city: z.string().max(80), occasion: z.string().max(100), budget: z.number().min(1000).max(10000000).nullable(),
+    city: z.string().max(80), occasion: z.string().max(100), budget: z.number().min(0).max(10000000).nullable(), currency: z.string().length(3).default("NGN"),
     guests: z.number().int().min(1).max(12).nullable(), vibes: z.array(z.enum(vibes)).max(12),
     interests: z.string().max(240), day: z.enum(["weekday", "weekend"]).nullable(), time: z.string().max(5), duration: z.number().min(60).max(720).nullable(),
   }).strict(),
@@ -27,6 +27,7 @@ export function conversationInput(step: ConversationStep, request: PlanRequest):
     city: answered("area") ? request.city : answered("city") ? request.currentCity || request.city : "",
     occasion: answered("occasion") ? request.occasion : "",
     budget: answered("budget") ? request.budget : null,
+    currency: request.currency,
     guests: answered("people") ? request.guests : null,
     vibes: answered("vibes") ? request.vibes : [],
     interests: answered("interests") ? request.interests.slice(0, 240) : "",

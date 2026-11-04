@@ -4,6 +4,8 @@ import { plannerQuestions, type PlannerQuestionId } from "./questions";
 import { calendarDay, calendarLabel, clockLabel, zonedNow, scheduleError, timeMinutes } from "./schedule";
 import { explicitSpendingAmounts, explicitSpokenTimes, normalizeClockPunctuation, spokenClockReply } from "./spoken-values";
 import { explicitLagosNeighborhood } from "./intake-location";
+import { amountPrecisionError, currencyForCountry, formatMoney } from "./currency";
+import { ambiguousBudgetCurrency, explicitIntakeCorrection } from "./intake-corrections";
 
 export const intakeFields = ["location", "occasion", "people", "vibe", "budget", "date", "time", "duration"] as const;
 export type IntakeField = typeof intakeFields[number];
@@ -24,6 +26,7 @@ const patchSchema = z.object({
   country: shape.country.unwrap().optional(), city: shape.city.optional(), currentCity: shape.currentCity.unwrap().optional(), area: shape.area.optional(), locationScope: shape.locationScope.unwrap().optional(),
   maxDistance: shape.maxDistance.unwrap().optional(), meetingTogether: shape.meetingTogether.unwrap().optional(), transport: shape.transport.unwrap().optional(),
   occasion: shape.occasion.optional(), budget: shape.budget.optional(), budgetType: shape.budgetType.unwrap().optional(), guests: shape.guests.unwrap().optional(),
+  currency: shape.currency.unwrap().optional(), transportBudget: shape.transportBudget.unwrap().optional(), timeZone: shape.timeZone.unwrap().optional(),
   includeTransport: shape.includeTransport.unwrap().optional(), includeFood: shape.includeFood.unwrap().optional(), contingency: shape.contingency.unwrap().optional(),
   vibes: shape.vibes.optional(), interests: shape.interests.unwrap().optional(), dislikes: shape.dislikes.unwrap().optional(), dietary: shape.dietary.unwrap().optional(),
   accessibility: shape.accessibility.unwrap().optional(), quiet: shape.quiet.unwrap().optional(), surprises: shape.surprises.unwrap().optional(),
@@ -53,6 +56,7 @@ export function answeredThroughStep(step: number): IntakeField[] {
 export function intakeNextField(request: PlanRequest, answered: readonly IntakeField[], today = zonedNow(request.timeZone).date): IntakeField | null {
   const missing = intakeFields.find((field) => !answered.includes(field));
   if (missing) return missing;
+  if (request.timeZoneConfirmed === false) return "time";
   if (!request.date || request.date < today) return "date";
   const current = zonedNow(request.timeZone);
   if (!request.startTime || today === current.date && request.date === current.date && request.startTime <= current.time) return "time";
@@ -98,7 +102,9 @@ export function intakeTimeReply(input: IntakeInput, now = new Date()) {
 export function applyIntakeOutput(input: IntakeInput, output: unknown) {
   const parsed = intakeOutputSchema.safeParse(output);
   if (!parsed.success) return null;
-  const patch = { ...parsed.data.patch };
+  if (ambiguousBudgetCurrency(input)) return { request: input.request, answered: input.answered, nextField: "budget" as const, ready: false, message: "Which currency do you mean? Please include its code, such as USD or CAD. Your current spending limit and other answers are kept." };
+  const direct = explicitIntakeCorrection(input);
+  const patch: z.infer<typeof patchSchema> = { ...(direct?.patch ?? parsed.data.patch) };
   if (input.nextField === "occasion") {
     const reply = input.message.trim().toLowerCase();
     if (reply === "a first date") patch.occasion = "First date";
@@ -111,11 +117,16 @@ export function applyIntakeOutput(input: IntakeInput, output: unknown) {
   }
   const answered = new Set(input.answered);
   let clarify: IntakeField | null = null;
-  if (patch.budget !== undefined) {
+  const destinationMoney = patch.country && patch.country !== input.request.country ? currencyForCountry(patch.country) : null;
+  if (destinationMoney && patch.currency === undefined) patch.currency = destinationMoney;
+  const resetBudget = patch.currency !== undefined && patch.currency !== input.request.currency && patch.budget === undefined;
+  if (resetBudget) { patch.budget = null; patch.transportBudget = null; answered.delete("budget"); }
+  if (patch.budget !== undefined && !resetBudget) {
     const amounts = explicitSpendingAmounts(input.message, input.nextField === "budget");
     const open = /\b(open|no budget|without a budget|skip|unset|remove.*budget|no spending limit)\b/i.test(input.message) && (input.nextField === "budget" || /\b(budget|spend|spending|limit)\b/i.test(input.message));
     if (patch.budget === null ? !open : !amounts.includes(patch.budget)) { delete patch.budget; clarify = "budget"; answered.delete("budget"); }
   }
+  if (patch.budget !== undefined && amountPrecisionError(patch.budget, patch.currency ?? input.request.currency)) { delete patch.budget; clarify = "budget"; answered.delete("budget"); }
   if (patch.date !== undefined) {
     const explicitDay = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\d{4}-\d{2}-\d{2}|\b\d{1,2}[/-]\d{1,2}\b/i.test(input.message);
     if (!patch.date || patch.date < input.today || !explicitDay) { delete patch.date; clarify = "date"; answered.delete("date"); }
@@ -128,6 +139,7 @@ export function applyIntakeOutput(input: IntakeInput, output: unknown) {
   }
   const dietary = patch.dietary && !/\b(remove|no longer|not needed|no restrictions)\b/i.test(input.message) ? [...new Set([...input.request.dietary, ...patch.dietary])] : patch.dietary ?? input.request.dietary;
   const next = requestSchema.safeParse({ ...input.request, ...patch, dietary,
+    ...((patch.city && patch.city !== input.request.city || patch.country && patch.country !== input.request.country) ? { timeZoneConfirmed: false } : {}),
     ...(patch.city ? { currentCity: patch.currentCity || input.request.currentCity || patch.city, startingArea: patch.city !== input.request.city ? "" : input.request.startingArea } : {}),
     ...(patch.area && patch.locationScope === undefined ? { locationScope: patch.area === (patch.city ?? input.request.city) ? "city" : "area" } : {}),
     ...(patch.startTime !== undefined && patch.startTime !== input.request.startTime && patch.endTime === undefined ? { endTime: "" } : {}),
@@ -138,18 +150,18 @@ export function applyIntakeOutput(input: IntakeInput, output: unknown) {
   if (patch.occasion) answered.add("occasion");
   if (patch.guests !== undefined) answered.add("people");
   if (patch.vibes?.length) answered.add("vibe");
-  if (patch.budget !== undefined) answered.add("budget");
+  if (patch.budget !== undefined && !resetBudget) answered.add("budget");
   if (patch.date) answered.add("date");
   if (patch.startTime) answered.add("time");
   if (patch.duration !== undefined) answered.add("duration");
   const confirmed = intakeFields.filter((field) => answered.has(field));
   const nextField = clarify ?? intakeNextField(next.data, confirmed, input.today);
-  const acknowledgement = clarify ? "Let's pin down that detail before I change it." : /https?:|<[^>]*>|\?/.test(parsed.data.acknowledgement) ? "Thanks — that helps me understand your date." : parsed.data.acknowledgement;
+  const acknowledgement = resetBudget ? `The destination uses ${patch.currency}. Your other details are kept; please confirm a new spending limit rather than converting your previous amount.` : clarify ? "Let's pin down that detail before I change it." : direct?.acknowledgement ?? (/https?:|<[^>]*>|\?/.test(parsed.data.acknowledgement) ? "Thanks — that helps me understand your date." : parsed.data.acknowledgement);
   return { request: next.data, answered: confirmed, nextField, ready: nextField === null, message: `${acknowledgement}\n\n${intakeQuestion(nextField)}` };
 }
 
 export function intakeSummary(request: PlanRequest, answered: readonly IntakeField[]) {
-  const budget = request.budget === null ? "Budget open" : new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(request.budget);
+  const budget = request.budget === null ? "Budget open" : formatMoney(request.budget, request.currency);
   const values: Record<IntakeField, string> = {
     location: request.area !== request.city ? `${request.area}, ${request.city}` : request.city,
     occasion: request.occasion, people: `${request.guests} people`, vibe: request.vibes.join(", "),

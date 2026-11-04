@@ -241,7 +241,7 @@ export function DateAtlas({
           JSON.parse(localStorage.getItem(preferencesKey) || "{}"),
         );
         if (prefs.success)
-          setRequest((previous) => ({ ...previous, ...prefs.data }));
+          setRequest((previous) => ({ ...previous, ...prefs.data, timeZoneConfirmed: !prefs.data.city || prefs.data.city === previous.city && (!prefs.data.country || prefs.data.country === previous.country) }));
       } catch {
         /* Default preferences remain available. */
       }
@@ -572,6 +572,9 @@ export function DateAtlas({
       {
         city: experience.city,
         country: experience.country,
+        currency: experience.currency,
+        budget: null,
+        transportBudget: null,
         area: experience.area,
         vibes: experience.vibes.filter(
           (vibe): vibe is PlanRequest["vibes"][number] =>
@@ -790,7 +793,7 @@ export function DateAtlas({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(recipe),
+        body: JSON.stringify({ ...recipe, flowScope: funnelScope() }),
         signal: AbortSignal.timeout(20000),
       });
       if (!response.ok) throw new Error("Your plan couldn't be saved. Please try again.");
@@ -936,7 +939,7 @@ export function DateAtlas({
     try { sessionStorage.removeItem(pendingSaveKey); localStorage.removeItem(pendingSaveKey); } catch { /* The plan remains available for a retry. */ }
     setShareOpen(true); setShareSelection(null); setShareError("");
     try {
-      const response = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "catalog", recipe }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]) });
+      const response = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "catalog", recipe, flowScope: funnelScope() }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]) });
       const selection = createdInvitationSchema.parse(await readPlanningResponse(response, () => {}));
       if (!controller.signal.aborted && mounted.current && getBrowserAuth()?.currentUser?.uid === user.uid) setShareSelection(selection);
     } catch (failure) { if (!controller.signal.aborted && mounted.current && getBrowserAuth()?.currentUser?.uid === user.uid) setShareError(failure instanceof Error ? failure.message : "Your invitation couldn't be created. Your plan is still here; try again."); }
@@ -1107,7 +1110,7 @@ export function DateAtlas({
                   preferencesKey,
                   JSON.stringify(preferences),
                 );
-                setRequest((previous) => ({ ...previous, ...preferences }));
+                setRequest((previous) => ({ ...previous, ...preferences, timeZoneConfirmed: !preferences.city || preferences.city === previous.city && (!preferences.country || preferences.country === previous.country) }));
                 setToast(
                   "Preferences saved on this device. They'll shape your next plan.",
                 );

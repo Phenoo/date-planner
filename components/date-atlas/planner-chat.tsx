@@ -6,6 +6,7 @@ import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebas
 import { intakeNextField, intakeQuestion, intakeReplySchema, intakeSummary, type ChatSession, type IntakeField } from "@/lib/planner/intake";
 import { zonedNow } from "@/lib/planner/schedule";
 import type { PlanRequest } from "@/lib/planner/schema";
+import { DestinationTimeZone } from "./destination-time-zone";
 import { DatePicker } from "./date-picker";
 import { GeneratingScreen } from "./generating-screen";
 import { requirementsGuidance } from "@/lib/planner/search-feedback";
@@ -13,11 +14,13 @@ import { appendVoiceTranscript, voiceNoteSeconds } from "@/lib/planner/voice-inp
 import { useVoiceInput } from "./use-voice-input";
 import { ChatLocationSuggestion } from "./chat-location-suggestion";
 import { confirmChatLocation } from "@/lib/planner/chat-location";
+import { budgetSuggestions, formatMoney } from "@/lib/planner/currency";
+import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 import styles from "./planner-chat.module.css";
 
 const quickReplies: Record<IntakeField, string[]> = {
   location: [], occasion: ["A first date", "Our anniversary", "Just because"], people: ["2 people", "4 people", "6 people"],
-  vibe: ["Romantic and relaxed", "Creative and playful", "Something adventurous"], budget: ["₦25,000 total", "₦60,000 total", "Keep the budget open"],
+  vibe: ["Romantic and relaxed", "Creative and playful", "Something adventurous"], budget: [],
   date: [], time: ["Morning at 10:00", "Afternoon at 14:00", "Evening at 18:00"], duration: ["2 hours", "4 hours", "A full day"],
 };
 
@@ -42,9 +45,10 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   const input = useRef<HTMLTextAreaElement>(null);
   const focus = editingField ?? session.nextField ?? intakeNextField(request, session.answered);
   const ready = !focus;
+  useEffect(() => { if (focus) trackFunnel("planner_step_viewed", funnelScope(`step:${focus}`), undefined, focus); }, [focus]);
   const summary = intakeSummary(request, session.answered);
   const starting = !session.messages.length && !summary.length;
-  const suggestions = starting ? ["Help me plan something romantic", "Something fun and unexpected", "Let’s celebrate an anniversary"] : focus ? quickReplies[focus] : [];
+  const suggestions = starting ? ["Help me plan something romantic", "Something fun and unexpected", "Let’s celebrate an anniversary"] : focus === "budget" ? [...budgetSuggestions(request.currency).slice(1, 3).map((amount) => `${formatMoney(amount, request.currency)} total`), "Keep the budget open"] : focus ? quickReplies[focus] : [];
   useEffect(() => () => controller.current?.abort(), []);
   useLayoutEffect(() => {
     const app = screen.current?.closest<HTMLElement>(".is-planning") ?? document.querySelector<HTMLElement>('.is-planning[data-planner-mode="chat"]');
@@ -156,7 +160,8 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
           setRequest(reply.request); setEditingField(null); setError(""); setRetryMessage("");
           setSession((previous) => ({ answered: reply.answered, nextField: reply.nextField, messages: [...previous.messages, user, assistant].slice(-24) }));
         }} />}
-        {!sending && !error && focus === "date" && <div className={styles.inlineCalendar}><DatePicker value={request.date} disabled={voice.active} onChange={(date) => void send(`Let's go on ${date}.`)} /></div>}
+        {!sending && !error && focus === "date" && <div className={styles.inlineCalendar}><DatePicker timeZone={request.timeZone} value={request.date} disabled={voice.active} onChange={(date) => void send(`Let's go on ${date}.`)} /></div>}
+        {!sending && !error && (focus === "time" || focus === "date" || !request.timeZoneConfirmed) && <DestinationTimeZone request={request} setRequest={setRequest} disabled={voice.active} />}
         {!sending && !error && focus === "time" && <form className={styles.exactTime} onSubmit={(event) => {
           event.preventDefault();
           const time = new FormData(event.currentTarget).get("startTime");

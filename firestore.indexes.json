@@ -157,6 +157,12 @@
       "collectionGroup": "dateHistory",
       "fieldPath": "story",
       "indexes": []
+    },
+    {
+      "collectionGroup": "webVitals",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
     }
   ]
 }

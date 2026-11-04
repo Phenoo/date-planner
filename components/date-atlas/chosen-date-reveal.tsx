@@ -15,6 +15,8 @@ import { VenueDetails } from "./venue-details";
 import { ReportVenue } from "./report-venue";
 import { RevokeInvitation } from "./revoke-invitation";
 import { InvitationNote } from "./invitation-note";
+import { ReadyForDate } from "./ready-for-date";
+import { funnelScope } from "@/lib/planner/funnel-client";
 import { calendarLabel, clockLabel, timeMinutes } from "@/lib/planner/schedule";
 import styles from "./date-journey.module.css";
 
@@ -44,7 +46,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
         if (!sessionId) throw new Error("Please refresh your ideas before creating an invitation.");
         let resume: "create" | "save" | null = null;
         try { resume = readPendingInvitation(localStorage.getItem(pendingInvitationKey), sessionId, place.id); } catch { /* Existing invitations still load without browser storage. */ }
-        const result = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: resume ?? "selection", sessionId, placeId: place.id }), signal: controller.signal });
+        const result = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: resume ?? "selection", sessionId, placeId: place.id, flowScope: funnelScope() }), signal: controller.signal });
         const raw = await readPlanningResponse(result, () => {});
         const existing = resume ? null : z.object({ saved: z.boolean(), selection: createdInvitationSchema.nullable() }).parse(raw);
         const data = resume === "create" ? createdInvitationSchema.parse(raw) : existing?.selection ?? null;
@@ -72,7 +74,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     try {
       if (!sessionId) throw new Error("Please refresh your ideas before creating an invitation.");
       await planningToken();
-      const result = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, sessionId, placeId: place.id }), signal: controller.signal });
+      const result = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, sessionId, placeId: place.id, flowScope: funnelScope() }), signal: controller.signal });
       const data = createdInvitationSchema.parse(await readPlanningResponse(result, () => {}));
       if (!controller.signal.aborted) { setSavedDate(true); if (action === "create") { setSelection(data); setResponse(data.response); } setNotice(action === "save" ? "Saved privately to your account." : "Your invitation is ready. Choose how to send it below."); }
     } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Your invitation couldn't be prepared. Please try again."); }
@@ -103,7 +105,8 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
   }
   return <main className={styles.reveal}>
     <div className={styles.revealIntro}><AtlasCompanion pose="review" lively width={120} height={100} label="Atlas celebrates your chosen date" /><span className={styles.eyebrow}>YOUR DATE, THOUGHTFULLY PLANNED</span><h1 ref={title} tabIndex={-1}>It feels like a date.</h1><p>{request.date ? `${calendarLabel(request.date)} · ${clockLabel(timeMinutes(request.startTime))}` : dateTimingLabel(request.datePreference, request.startTime)}</p><button type="button" className={styles.textButton} onClick={onTiming}>Change day or time ↗</button></div>
-    <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} animated /></div>
+    <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} request={request} animated /></div>
+    <ReadyForDate place={place} request={request} showFacts={false}>
     <section className={styles.sharePanel} aria-label="Invite your date"><h2>Now, make their day.</h2><p>{signedIn ? "Send a little invitation. They can say yes right from the link." : "Create an account or sign in to share this invitation and keep your dates together."}</p>
       <Button variant="outline" disabled={signedIn && (saving || savedDate)} onClick={() => void prepareInvitation("save")}>{savedDate && signedIn ? "Saved to My dates" : "Save this date"}</Button>
       <p>Anyone with the link can see the chosen venue, day, time and date story, and respond. Your private preferences and account details stay private. You can revoke the link at any time.</p>
@@ -114,7 +117,8 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
       {signedIn && selection && <RevokeInvitation id={selection.id} onRevoked={() => { responseController.current?.abort(); setChecking(false); setSelection(null); setNotice("Invitation revoked. The old link no longer works."); }} />}
       {signedIn && savedDate && <Link className={styles.historyLink} href="/saved">Your dates are kept in My dates ↗</Link>}
     </section>
-    <VenueDetails place={place} request={request} />
+    </ReadyForDate>
+    <details><summary className={styles.textButton}>More venue information and reviews</summary><VenueDetails place={place} request={request} /></details>
     {sessionId && <ReportVenue placeId={place.id} sessionId={sessionId} />}
     <DateStoryView story={story} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Revisit your recommendation</button>
   </main>;

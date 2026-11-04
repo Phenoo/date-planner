@@ -33,7 +33,7 @@ const originalQuestions = [
     title: "Do you have a budget in mind?",
     description:
       "Choose an amount that feels comfortable. We’ll keep that limit, or you can leave it open.",
-    fields: ["budget", "budgetType", "includeFood", "includeTransport", "contingency"],
+    fields: ["budget", "currency", "budgetType", "transportBudget", "includeFood", "includeTransport", "contingency"],
   },
   {
     id: "people",
@@ -73,7 +73,7 @@ const originalQuestions = [
     id: "time",
     title: "What time works best?",
     description: "Pick a time that works for you. We’ll check it against the venue’s opening hours.",
-    fields: ["startTime"],
+    fields: ["startTime", "timeZone", "timeZoneConfirmed"],
   },
   {
     id: "duration",

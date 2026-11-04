@@ -76,7 +76,7 @@ export async function coordinateGeneration(request: Request, input: GenerateInpu
   if (claim.state === "pending") return Response.json({ pending: true }, { status: 202, headers: { "Cache-Control": "no-store", "Retry-After": "2" } });
   if (claim.state === "complete") return Response.json(await restoreResult(claim.result, input), { headers: { "Cache-Control": "no-store" } });
   try {
-    await recordFunnel(auth.user.uid, "planner_completed", input.flowId ?? key);
+    await recordFunnel(auth.user.uid, "planner_completed", input.flowId ?? key, undefined, input.flowId);
     const result = await run(signal);
     signal.throwIfAborted();
     const cached = cacheResult(result);
@@ -84,10 +84,10 @@ export async function coordinateGeneration(request: Request, input: GenerateInpu
       if ((await tx.get(ref)).data()?.attempt !== attempt) throw new RequestError("This planning attempt expired. Please retry.", 409);
       tx.update(ref, { status: "complete", result: cached, leaseUntil: Timestamp.fromMillis(0) });
     });
-    await recordFunnel(auth.user.uid, result.plans.length || result.nearby?.places.length ? "recommendation_succeeded" : "recommendation_failed", key);
+    await recordFunnel(auth.user.uid, result.plans.length || result.nearby?.places.length ? "recommendation_succeeded" : "recommendation_failed", key, undefined, input.flowId);
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    await recordFunnel(auth.user.uid, "recommendation_failed", key);
+    await recordFunnel(auth.user.uid, "recommendation_failed", key, undefined, input.flowId);
     await auth.db.runTransaction(async (tx) => {
       if ((await tx.get(ref)).data()?.attempt === attempt) tx.update(ref, { status: "failed", leaseUntil: Timestamp.fromMillis(0) });
     }).catch(() => { console.warn("Planning lease cleanup failed; the lease will expire."); });

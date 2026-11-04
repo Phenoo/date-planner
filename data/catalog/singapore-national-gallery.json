@@ -1,0 +1,91 @@
+{
+  "category": "Art & culture",
+  "image": "/images/gallery.png",
+  "priceType": "per-person",
+  "duration": 120,
+  "vibes": [
+    "Creative",
+    "Relaxed",
+    "Romantic"
+  ],
+  "occasions": [
+    "First date",
+    "Casual date",
+    "Romantic date",
+    "Anniversary",
+    "Just because"
+  ],
+  "tags": [
+    "art",
+    "culture",
+    "gallery"
+  ],
+  "indoor": true,
+  "quiet": false,
+  "accessible": null,
+  "dietary": [],
+  "publicVenue": true,
+  "maxGuests": 9,
+  "active": true,
+  "approved": true,
+  "demo": false,
+  "verifiedAt": "2026-11-04",
+  "verificationExpiresAt": "2026-12-04",
+  "priceSource": "venue",
+  "quality": 0.85,
+  "id": "singapore-national-gallery",
+  "name": "Art and an unhurried afternoon",
+  "venue": "National Gallery Singapore",
+  "city": "Singapore",
+  "area": "Civic District",
+  "country": "Singapore",
+  "currency": "SGD",
+  "price": 20,
+  "lat": 1.29027,
+  "lng": 103.85196,
+  "timeZone": "Asia/Singapore",
+  "description": "Explore the Singapore galleries together. General admission covers selected displays; special exhibitions and meals cost extra.",
+  "priceNote": "Standard general admission for visitors of other nationalities; Singapore citizens and permanent residents enter free. Special exhibitions cost extra. The UOB Southeast Asia Gallery is closed until late 2027.",
+  "hours": [
+    {
+      "day": 0,
+      "open": 600,
+      "close": 1140
+    },
+    {
+      "day": 1,
+      "open": 600,
+      "close": 1140
+    },
+    {
+      "day": 2,
+      "open": 600,
+      "close": 1140
+    },
+    {
+      "day": 3,
+      "open": 600,
+      "close": 1140
+    },
+    {
+      "day": 4,
+      "open": 600,
+      "close": 1140
+    },
+    {
+      "day": 5,
+      "open": 600,
+      "close": 1140
+    },
+    {
+      "day": 6,
+      "open": 600,
+      "close": 1140
+    }
+  ],
+  "sourceUrl": "https://www.nationalgallery.sg/sg/en/visit/visitor-information.html",
+  "reservation": "Check the official admission page for the ticket category you qualify for; last admission is 18:30.",
+  "hoursSourceUrl": "https://www.nationalgallery.sg/sg/en/visit/visitor-information.html",
+  "bookingUrl": "https://www.nationalgallery.sg/sg/en/visit/visitor-information.html",
+  "closedDates": []
+}

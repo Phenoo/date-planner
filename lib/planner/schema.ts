@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { NearbyResult } from "@/lib/maps/schema";
 import { defaultTimeZone, validTimeZone } from "./schedule";
+import { validCurrency } from "./currency";
+
+export const currencySchema = z.string().regex(/^[A-Z]{3}$/).refine(validCurrency, "Choose a supported currency.");
 
 export const vibes = [
   "Romantic",
@@ -50,6 +53,7 @@ export function genderLabel(value: z.infer<typeof genderSchema>) {
 
 export const requestSchema = z.object({
   country: z.string().trim().min(2).max(80).default("Nigeria"),
+  currency: currencySchema.default("NGN"),
   city: z.string().trim().min(2).max(80),
   currentCity: z.string().trim().max(80).default(""),
   locationScope: z.enum(["city", "area"]).default("area"),
@@ -61,7 +65,8 @@ export const requestSchema = z.object({
     .enum(["Ride-hailing", "Driving", "Walking"])
     .default("Ride-hailing"),
   occasion: z.string().trim().min(2).max(100),
-  budget: z.number().int().min(1000).max(10000000).nullable(),
+  budget: z.number().min(0).max(10000000).nullable(),
+  transportBudget: z.number().min(0).max(10000000).nullable().default(null),
   budgetType: z.enum(["total", "per-person"]).default("total"),
   guests: z.number().int().min(1).max(12).default(2),
   yourGender: genderSchema,
@@ -80,6 +85,7 @@ export const requestSchema = z.object({
   quiet: z.boolean().default(false),
   surprises: z.boolean().default(true),
   datePreference: z.enum(["weekday", "weekend"]).default("weekend"),
+  timeZoneConfirmed: z.boolean().default(true),
   timeZone: z.string().min(1).max(80).refine(validTimeZone, "Choose a valid timezone.").default(defaultTimeZone),
   date: z.union([z.literal(""), z.iso.date()]).default(""),
   startTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
@@ -116,7 +122,7 @@ export const experienceSchema = z.object({
   city: z.string(),
   area: z.string(),
   country: z.string(),
-  currency: z.literal("NGN"),
+  currency: currencySchema,
   category: z.enum([
     "Art & culture",
     "Food & dining",
@@ -125,7 +131,7 @@ export const experienceSchema = z.object({
     "Unique experiences",
   ]),
   image: z.string(),
-  price: z.number().int().nonnegative(),
+  price: z.number().nonnegative(),
   priceType: z.enum(["per-person", "group"]),
   duration: z.number().int().positive(),
   lat: z.number().min(-90).max(90),
@@ -150,6 +156,14 @@ export const experienceSchema = z.object({
   approved: z.boolean(),
   demo: z.boolean(),
   verifiedAt: z.iso.date().nullable(),
+  verificationExpiresAt: z.iso.date().optional(),
+  priceNote: z.string().trim().min(3).max(700).optional(),
+  timeZone: z.string().refine(validTimeZone).optional(),
+  closedDates: z.array(z.iso.date()).max(100).optional(),
+  priceSource: z.enum(["venue", "provider-estimate"]).optional(),
+  phone: z.string().regex(/^\+?[\d ()-]{6,30}$/).optional(),
+  hoursSourceUrl: z.url({ protocol: /^https$/ }).optional(),
+  placeId: z.string().min(1).max(200).optional(),
   bookingUrl: z.url({ protocol: /^https$/ }).nullable(),
   sourceUrl: z.url({ protocol: /^https$/ }).nullable(),
   reservation: z.string(),
@@ -192,6 +206,7 @@ export type DatePlan = {
   request: PlanRequest;
   demo: boolean;
   tips: string[];
+  unpricedCosts?: ("transport")[];
 };
 export type RecommendationResult = {
   nearby?: NearbyResult;

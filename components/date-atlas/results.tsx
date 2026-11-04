@@ -36,7 +36,8 @@ import { GeneratingScreen } from "./generating-screen";
 import { searchFeedback } from "@/lib/planner/search-feedback";
 import type { PlannerQuestionId } from "@/lib/planner/questions";
 import { CinematicReveal } from "./cinematic-reveal";
-import type { NearbyResult } from "@/lib/maps/schema";
+import { ReadyForDate } from "./ready-for-date";
+import { catalogPlace } from "@/lib/planner/readiness";
 import { Dialog } from "@/components/ui/dialog";
 import { formatTime, money } from "@/lib/utils";
 import type {
@@ -135,9 +136,8 @@ export function Results({
   );
   if (plan && acceptedCatalog === plan.id && busy) return <GeneratingScreen stage={loadingStage} onCancel={onCancelGeneration} />;
   if (plan && acceptedCatalog !== plan.id) {
-    const activity = plan.activities[0];
-    const place: NearbyResult["places"][number] = { id: activity.experience.id, name: activity.experience.venue, category: activity.experience.category, address: `${activity.experience.area}, ${activity.experience.city}`, distanceKm: activity.distance, reason: activity.reason, mapsUrl: "https://www.google.com/maps/", attributions: [], photo: { url: activity.experience.image, authors: [] } };
-    return <CinematicReveal loadingStage={loadingStage} onCancelGeneration={onCancelGeneration} key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => { try { sessionStorage.setItem("date-atlas:accepted-catalog:v1", plan.id); } catch { /* The accepted state remains in memory. */ } setAcceptedCatalog(plan.id); }} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => { setLastRejected(plan.id); void onRegenerate(reason === "distance" ? { ...plan.request, maxDistance: Math.max(1, Math.floor(plan.request.maxDistance / 2)) } : plan.request, { excludeIds: plan.activities.map((item) => item.experience.id), ...(reason === "activity" ? { excludeCategories: [activity.experience.category] } : {}) }); }} />;
+    const place = catalogPlace(plan);
+    return <CinematicReveal loadingStage={loadingStage} onCancelGeneration={onCancelGeneration} key={plan.id} place={place} request={plan.request} catalogPlan={plan} busy={busy} error={requestError} rejected={lastRejected === plan.id} onAccept={() => { try { sessionStorage.setItem("date-atlas:accepted-catalog:v1", plan.id); } catch { /* The accepted state remains in memory. */ } setAcceptedCatalog(plan.id); }} onEdit={onCustomize} onTiming={onChangeTiming} onReject={(reason) => { setLastRejected(plan.id); void onRegenerate(reason === "distance" ? { ...plan.request, maxDistance: Math.max(1, Math.floor(plan.request.maxDistance / 2)) } : plan.request, { excludeIds: plan.activities.map((item) => item.experience.id), ...(reason === "activity" ? { excludeCategories: [plan.activities[0].experience.category] } : {}) }); }} />;
   }
   if (!plan && result.nearby?.places[0]) {
     const place = result.nearby.places[0];
@@ -346,7 +346,7 @@ export function Results({
           <span className="eyebrow">
             THOUGHTFULLY PUT TOGETHER, JUST FOR YOU
           </span>
-          <h1>We&apos;ve found something special for you.</h1>
+          <h1>Your date is ready.</h1>
           <p>
             {result.plans.length} date{" "}
             {result.plans.length === 1 ? "idea" : "ideas"}, thoughtfully planned
@@ -358,6 +358,7 @@ export function Results({
           <ChevronDown size={15} />
         </Button>
       </div>
+      <ReadyForDate place={catalogPlace(plan)} request={plan.request} plan={plan}><div className="share-actions"><Button disabled={changing} onClick={() => onSave(plan)}>Save this date</Button><Button variant="outline" disabled={changing} onClick={() => onShare(plan)}>Invite your date</Button><Button variant="outline" disabled={changing} onClick={() => void onRegenerate(plan.request, { excludeIds: plan.activities.map((activity) => activity.experience.id) })}>Show another option</Button></div></ReadyForDate>
       <div className={`data-notice ${plan.demo ? "demo-notice" : ""}`}>
         <Info size={17} />
         <span>{result.warnings[0]}</span>
@@ -378,7 +379,7 @@ export function Results({
             label: "Location",
             value: `${plan.request.area}, ${plan.request.city}`,
           },
-          { label: "Budget", value: plan.budget === null ? "Not set" : money(plan.budget) },
+          { label: "Budget", value: plan.budget === null ? "Not set" : money(plan.budget, plan.request.currency) },
           { label: "Occasion", value: plan.request.occasion },
           { label: "Vibe", value: plan.request.vibes.join(" + ") },
           { label: "Date", value: dateLabel },
@@ -611,7 +612,7 @@ export function Results({
                       {formatTime(activity.start)} – {formatTime(activity.end)}
                     </span>
                     <strong>
-                      {money(activity.cost)}{" "}
+                      {money(activity.cost, plan.request.currency)}{" "}
                       <small>estimated · {plan.request.guests} people</small>
                     </strong>
                   </div>
@@ -775,8 +776,8 @@ export function Results({
             </div>
             <span className="mini-label">YOUR ESTIMATED TOTAL</span>
             <div className="total-price">
-              {money(plan.total)}
-              <span>{plan.budget === null ? "No spending limit set" : `of ${money(plan.budget)} budget`}</span>
+              {money(plan.total, plan.request.currency)}
+              <span>{plan.budget === null ? "No spending limit set" : `of ${money(plan.budget, plan.request.currency)} budget`}</span>
             </div>
             {plan.budget !== null && <div className="budget-track">
               <div
@@ -787,13 +788,13 @@ export function Results({
             </div>}
             {plan.remaining !== null && <span className="remaining">
               <Check size={13} />
-              {money(plan.remaining)} comfortably left over
+              {money(plan.remaining, plan.request.currency)} comfortably left over
             </span>}
             <div className="budget-lines">
               {plan.activities.map((activity) => (
                 <div key={activity.experience.id}>
                   <span>{activity.experience.category}</span>
-                  <span>{money(activity.cost)}</span>
+                  <span>{money(activity.cost, plan.request.currency)}</span>
                 </div>
               ))}
               <div>
@@ -801,15 +802,15 @@ export function Results({
                   Transport{" "}
                   {plan.request.includeTransport ? "(estimated)" : "(excluded)"}
                 </span>
-                <span>{money(plan.transportCost)}</span>
+                <span>{plan.unpricedCosts?.includes("transport") ? "Quote needed" : money(plan.transportCost, plan.request.currency)}</span>
               </div>
               <div>
                 <span>Contingency cushion</span>
-                <span>{money(plan.contingencyCost)}</span>
+                <span>{money(plan.contingencyCost, plan.request.currency)}</span>
               </div>
               <div className="budget-total">
-                <strong>Estimated total</strong>
-                <strong>{money(plan.total)}</strong>
+                <strong>{plan.unpricedCosts?.length ? "Known costs" : "Estimated total"}</strong>
+                <strong>{money(plan.total, plan.request.currency)}</strong>
               </div>
             </div>
             <Button disabled={changing} onClick={() => onSave(plan)}>
@@ -969,8 +970,8 @@ export function Results({
                     </p>
                     <p className="swap-reason">{activity.reason}</p>
                     <strong>
-                      {money(activity.cost)}{" "}
-                      <small>· New plan total {money(alternative.total)}</small>
+                      {money(activity.cost, plan.request.currency)}{" "}
+                      <small>· New plan total {money(alternative.total, plan.request.currency)}</small>
                     </strong>
                   </div>
                   <ArrowRight size={18} />

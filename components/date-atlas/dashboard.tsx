@@ -1,5 +1,7 @@
 "use client";
 
+import { zonedNow } from "@/lib/planner/schedule";
+import { currencyDigits, currencyOptions } from "@/lib/planner/currency";
 import { useState } from "react";
 import Image from "next/image";
 import { ArrowRight, CalendarDays, Heart, Settings2 } from "lucide-react";
@@ -46,15 +48,13 @@ export function Dashboard({
   historyRevision?: number;
 }) {
   const [tab, setTab] = useState("All plans");
-  const today = new Date().toLocaleDateString("en-CA", {
-    timeZone: "Africa/Lagos",
-  });
-  const upcoming = saved.filter((item) => item.request.date >= today);
+  const now = new Date();
+  const upcoming = saved.filter((item) => item.request.date >= zonedNow(item.request.timeZone, now).date);
   const items =
     tab === "Upcoming"
       ? upcoming
       : tab === "Past dates"
-        ? saved.filter((item) => item.request.date < today)
+        ? saved.filter((item) => item.request.date < zonedNow(item.request.timeZone, now).date)
         : saved;
   return (
     <main className="dashboard-page page-container">
@@ -174,6 +174,7 @@ export function Dashboard({
                         (recipe.request.budgetType === "per-person"
                           ? recipe.request.guests
                           : 1),
+                      recipe.request.currency,
                     )}
                   </p>
                   <div className="saved-actions">
@@ -267,12 +268,14 @@ export function ProfilePreferences({
               />
             </Field>
           </div>
-          <Field label="Comfortable total budget (₦, optional)">
+          <Field label="Budget currency"><select value={preferences.currency ?? "NGN"} onChange={(event) => { update("currency", event.target.value); update("budget", null); update("transportBudget", null); }}>{currencyOptions.map((currency) => <option key={currency}>{currency}</option>)}</select></Field>
+          <Field label={`Comfortable total budget (${preferences.currency ?? "NGN"}, optional)`}>
             <input
               type="number"
-              min={1000}
+              min={0}
+              step={10 ** -currencyDigits(preferences.currency ?? "NGN")}
               max={10000000}
-              value={preferences.budget || ""}
+              value={preferences.budget ?? ""}
               onChange={(event) => {
                 update("budget", event.target.value ? Number(event.target.value) : null);
                 update("budgetType", "total");

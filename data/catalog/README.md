@@ -1,0 +1,11 @@
+# Source-reviewed global starter catalog
+
+These six records provide admission-based options in Singapore, New York, London, Santiago, Melbourne and Cape Town. They are a starting point, not complete worldwide reviewed coverage. Worldwide discovery continues through Google Places. No provider price estimate is treated as a venue-confirmed catalog price.
+
+Prices and weekly hours were checked against each record's official `sourceUrl` on 2026-11-04. `priceNote` records the ticket basis, concessions, closures and excluded costs. These self-guided visits do not include meals, event tickets or transport. Illustrative app images are not photos of the venues. Unknown dietary and accessibility facts stay unknown. Schedules conservatively exclude known closure dates and restricted late hours. Users must still check special closures, ticket availability and admission eligibility with the venue.
+
+Approved real records require a venue-confirmed price, price basis, source URLs for prices and hours, an IANA time zone, an actual review date and expiry no more than 90 days later. This starter expires after 30 days. Expired/incomplete records are withheld; live discovery can still provide clearly labelled suggestions. The private recommendation lab shows coverage and records needing review. Recheck official sources, edit the JSON record or admin editor, and set a new actual review date and expiry. Price history stores currency and minor units; it does not apply exchange rates.
+
+Validate without writing: `node scripts/import-catalog.mjs`. With server credentials supplied securely, import to the intended Firebase project using `node scripts/import-catalog.mjs --write --project PROJECT_ID`. Existing IDs are left untouched unless `--overwrite-reviewed` is explicitly included after reviewing the new record. Import never deletes other records. Keep credentials out of source control and terminal output.
+
+Expansion should add varied, actually priced options (including restaurants with explicit meal bundles) wherever users request dates. An admission-only record must not claim to include food because a venue has a cafe. Check the coverage table rather than interpreting live provider coverage as a reviewed catalog.
