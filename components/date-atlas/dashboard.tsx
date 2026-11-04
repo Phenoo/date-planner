@@ -1,7 +1,7 @@
 "use client";
 
 import { zonedNow } from "@/lib/planner/schedule";
-import { currencyDigits, currencyOptions } from "@/lib/planner/currency";
+import { currencyDigits, currencyOptions, currencyForCountry } from "@/lib/planner/currency";
 import { useState } from "react";
 import Image from "next/image";
 import { ArrowRight, CalendarDays, Heart, Settings2 } from "lucide-react";
@@ -255,6 +255,7 @@ export function ProfilePreferences({
         <section>
           <h2>Your usual starting point.</h2>
           <div className="field-grid">
+            <Field label="Country"><input value={preferences.country ?? request.country} onChange={(event) => { const country = event.target.value; const currency = currencyForCountry(country); setPreferences(previous => ({ ...previous, country, ...(currency ? { currency, ...(currency !== (previous.currency ?? request.currency) ? { budget: null, transportBudget: null } : {}) } : {}) })); setError(""); }} /></Field>
             <Field label="City">
               <input
                 value={preferences.city || ""}
