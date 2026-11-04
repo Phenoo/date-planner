@@ -22,7 +22,7 @@
 .artboard { width: min(640px,100%); height: 294px; position: relative; margin: 18px auto 8px; }
 .halo { position: absolute; inset: 6px 12%; border-radius: 50%; background: radial-gradient(ellipse,#ffb0c125,transparent 72%); animation: breathe 4s ease-in-out infinite; }
 .locationScene,.detailsScene,.planScene { position: absolute; inset: 0; }
-.mapPaper { position: absolute; left: 50%; top: 14px; width: 410px; height: 245px; border-radius: 17px; background: #fffafc; color: #a50f2c; box-shadow: 0 22px 50px #78031d26; transform: translateX(-50%) rotate(-3deg); overflow: hidden; animation: mapIn 750ms cubic-bezier(.16,1,.3,1) both; }
+.mapPaper { position: absolute; left: 50%; top: 14px; width: 410px; height: 245px; border-radius: 0; background: #fffafc; color: #a50f2c; box-shadow: 0 22px 50px #78031d26; transform: translateX(-50%) rotate(-3deg); overflow: hidden; animation: mapIn 750ms cubic-bezier(.16,1,.3,1) both; }
 .paperLabel { position: absolute; top: 18px; left: 0; right: 0; font-size: 8px; letter-spacing: .14em; z-index: 2; }
 .mapGrid { position: absolute; inset: 0; background-image: linear-gradient(#c3274310 1px,transparent 1px),linear-gradient(90deg,#c3274310 1px,transparent 1px); background-size: 36px 36px; }
 .route { position: absolute; inset: 28px 0 0; width: 100%; height: 200px; }
@@ -48,7 +48,7 @@
 .clock i { position: absolute; width: 1px; height: 10px; background: #bd2949; top: 5px; left: 14px; transform-origin: bottom; animation: clockTurn 3s ease-in-out both; }
 .clock i:last-child { height: 7px; top: 8px; animation-name: clockHour; }
 .personalNote { right: 13px; bottom: 16px; background: #ae0e2c; border: 1px solid #ffffff30; color: white; rotate: 5deg; font-size: 9px; animation: noteIn 800ms 700ms both; }
-.planScene { inset: 3px 30px 6px; padding: 17px 18px 9px; background: #fffafc; color: #9e1431; border-radius: 17px; box-shadow: 0 25px 50px #80051c24; animation: planIn 700ms cubic-bezier(.16,1,.3,1) both; }
+.planScene { inset: 3px 30px 6px; padding: 17px 18px 9px; background: #fffafc; color: #9e1431; border-radius: 0; box-shadow: 0 25px 50px #80051c24; animation: planIn 700ms cubic-bezier(.16,1,.3,1) both; }
 .planHeading { display: flex; justify-content: space-between; font-size: 7px; letter-spacing: .1em; padding: 2px 3px 13px; border-bottom: 1px solid #d913351a; }
 .moments { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 13px; }
 .moment { overflow: hidden; border: 1px solid #e9cfd6; border-radius: 9px; background: white; padding-bottom: 13px; animation: momentIn 1000ms cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--moment) * 150ms + 250ms); }
@@ -94,7 +94,7 @@
   .copy h1 { font-size: clamp(33px,9.7vw,50px); max-width: 500px; margin-inline: auto; line-height: 1.07; }
   .copy p { font-size: 12px; min-height: 58px; max-width: 340px; margin-top: 17px; line-height: 1.7; }
   .artboard { height: clamp(265px,72vw,360px); width: calc(100% + var(--intro-gutter) * 2); max-width: none; margin: 22px calc(0px - var(--intro-gutter)) 12px; }
-  .mapPaper { width: 100%; height: calc(100% - 28px); top: 14px; border-radius: 13px; }
+  .mapPaper { width: 100%; height: calc(100% - 28px); top: 14px; }
   .paperLabel { font-size: 8px; top: 20px; }
   .route { height: calc(100% - 35px); }.cityLabel { top: 38%; left: 17%; font-size: 23px; padding: 14px 20px; }.cityLabel span { font-size: 9px; }
   .exploreNote { top: 33px; right: 12px; font-size: 10px; padding: 11px 14px; }
@@ -105,7 +105,7 @@
   .vibeCard { top: 5px; left: 12px; }.timeCard { top: 13px; right: 12px; }.budgetCard { width: 171px; height: 91px; left: calc(50% - 85px); bottom: 4px; }
   .personalNote { font-size: 7px; right: 12px; bottom: 4px; padding: 8px 9px; rotate: 6deg; }
   .swatches { margin-top: 10px; }.swatches i { width: 16px; height: 16px; }.clock { margin-top: 8px; width: 27px; height: 27px; }.clock i { left: 12px; }
-  .planScene { inset: 6px 0 0; padding: 15px 18px 9px; border-radius: 12px; }
+  .planScene { inset: 6px 0 0; padding: 15px 18px 9px; }
   .planHeading { font-size: 5px; padding-bottom: 12px; letter-spacing: .05em; }
   .moments { gap: 6px; margin-top: 15px; }.moment { border-radius: 6px; padding-bottom: 12px; }.moment img { height: 82px; }.moment > span { font-size: 5px; margin-top: 9px; }.moment strong { font-size: clamp(10px,3.1vw,13px); }
   .planFooter { padding-top: 16px; font-size: 8px; gap: 8px; }.planCompanion { width: 57px; height: 57px; top: -3px; right: 0; }

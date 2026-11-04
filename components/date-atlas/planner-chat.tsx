@@ -11,6 +11,8 @@ import { GeneratingScreen } from "./generating-screen";
 import { requirementsGuidance } from "@/lib/planner/search-feedback";
 import { appendVoiceTranscript, voiceNoteSeconds } from "@/lib/planner/voice-input";
 import { useVoiceInput } from "./use-voice-input";
+import { ChatLocationSuggestion } from "./chat-location-suggestion";
+import { confirmChatLocation } from "@/lib/planner/chat-location";
 import styles from "./planner-chat.module.css";
 
 const quickReplies: Record<IntakeField, string[]> = {
@@ -145,6 +147,15 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
           {session.messages.map((item) => <article key={item.id} className={item.role === "user" ? styles.user : styles.assistant}><span className={item.role === "user" ? "sr-only" : styles.speaker}>{item.role === "user" ? "You" : "Oge"}</span><p>{item.text}</p></article>)}
           {sending && <div className={styles.typing} role="status" aria-label="Oge is thinking"><span className={styles.speaker}>Oge</span><div aria-hidden="true"><i /><i /><i /></div></div>}
         </div>
+        {focus === "location" && <ChatLocationSuggestion disabled={sending || voice.active} onManual={() => input.current?.focus()} onSelect={(location) => {
+          if (controller.current || loading || voice.isActive()) return;
+          const reply = confirmChatLocation(request, session, location);
+          const user: ChatSession["messages"][number] = { id: crypto.randomUUID(), role: "user", text: `Plan in ${location.city}, ${location.country}.` };
+          const assistant: ChatSession["messages"][number] = { id: crypto.randomUUID(), role: "assistant", text: reply.message };
+          followMessages.current = true; setShowLatest(false);
+          setRequest(reply.request); setEditingField(null); setError(""); setRetryMessage("");
+          setSession((previous) => ({ answered: reply.answered, nextField: reply.nextField, messages: [...previous.messages, user, assistant].slice(-24) }));
+        }} />}
         {!sending && !error && focus === "date" && <div className={styles.inlineCalendar}><DatePicker value={request.date} disabled={voice.active} onChange={(date) => void send(`Let's go on ${date}.`)} /></div>}
         {!sending && !error && focus === "time" && <form className={styles.exactTime} onSubmit={(event) => {
           event.preventDefault();
