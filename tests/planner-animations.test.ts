@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { humanAtlasAsset, plannerAnimations, type CompanionTheme } from "../lib/animations/registry";
+import { heartAtlasAsset, humanAtlasAsset, plannerAnimations, type CompanionTheme } from "../lib/animations/registry";
 import { plannerQuestions } from "../lib/planner/questions";
 
 const keyframe = z.object({ t: z.number(), s: z.array(z.number()) });
@@ -17,6 +17,18 @@ const animationSchema = z.object({
     ind: z.number(), parent: z.number().optional(), nm: z.string(), ip: z.number(), op: z.number(),
     ks: z.object({ p: property, r: property, s: property, o: property }),
   })),
+});
+
+test("the live companion uses the original heart assets, including its loading loop", () => {
+  const otherPoses = ["walking", "idle", "success", "swap", "lock"] as const;
+  for (const pose of [...Object.values(plannerAnimations), ...otherPoses]) for (const lively of [false, true]) {
+    const asset = heartAtlasAsset(pose, lively);
+    assert.doesNotMatch(asset.src, /\/human\//);
+    assert.equal(readFileSync(join(process.cwd(), "public", asset.src)).subarray(0, 2).toString(), "PK");
+    assert.match(readFileSync(join(process.cwd(), "public", asset.fallback), "utf8"), /<svg[^>]+viewBox=/);
+    const data = animationSchema.parse(JSON.parse(readFileSync(join(process.cwd(), "public", asset.src.replace(/\.lottie$/, ".json")), "utf8")));
+    assert.ok(data.layers.some(({ nm }) => nm === "Atlas location-pin silhouette"));
+  }
 });
 
 test("every planner step has a lively animation, packaged player asset and reduced-motion fallback", () => {

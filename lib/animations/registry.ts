@@ -7,7 +7,7 @@ export const animations = {
   review: atlas("learned"), empty: atlas("thoughtful"), idle: atlas("idle"), still: atlas("still"),
   success: asset("success", true), celebration: atlas("learned"), error: atlas("attentive"),
   swap: asset("swap"), lock: asset("lock"),
-  walking: asset("atlas/human/red/walking"),
+  walking: asset("atlas/lively/welcome"),
 } as const;
 export type AnimationName = keyof typeof animations;
 export type CompanionTheme = "white" | "red" | "dark";
@@ -23,6 +23,12 @@ export const livelyAtlasAnimations: Partial<Record<AnimationName, ReturnType<typ
   calendar: lively("calendar"), clock: lively("clock"),
   concierge: lively("thoughtful"),
 };
+export function heartAtlasAsset(pose: AnimationName, lively = false) {
+  if (pose === "success") return atlas("learned");
+  if (pose === "swap") return atlas("explaining");
+  if (pose === "lock") return atlas("attentive");
+  return (lively ? livelyAtlasAnimations[pose] : undefined) ?? animations[pose];
+}
 export const plannerAnimations: Readonly<Record<string, AnimationName>> = {
   city: "location", area: "location", occasion: "discover", people: "guests",
   yourGender: "guests", dateGender: "preferences",
