@@ -774,7 +774,7 @@ export function Results({
             <div className="budget-card-heading">
               <h3>Good times. Smart spending.</h3>
             </div>
-            <span className="mini-label">YOUR ESTIMATED TOTAL</span>
+            <span className="mini-label">{plan.unpricedCosts?.length ? "KNOWN COSTS · TRANSPORT EXTRA" : "YOUR ESTIMATED TOTAL"}</span>
             <div className="total-price">
               {money(plan.total, plan.request.currency)}
               <span>{plan.budget === null ? "No spending limit set" : `of ${money(plan.budget, plan.request.currency)} budget`}</span>
@@ -782,7 +782,7 @@ export function Results({
             {plan.budget !== null && <div className="budget-track">
               <div
                 style={{
-                  width: `${Math.min(100, (plan.total / plan.budget) * 100)}%`,
+                  width: `${plan.budget === 0 ? 0 : Math.min(100, (plan.total / plan.budget) * 100)}%`,
                 }}
               />
             </div>}

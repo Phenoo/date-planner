@@ -363,9 +363,9 @@ function buildItinerary(
     ...(unpricedTransport ? { unpricedCosts: ["transport" as const] } : {}),
     tips: [
       ...(unpricedTransport ? ["Transport has no confirmed quote in your currency and is excluded from the displayed known costs. The complete date has not been confirmed within your spending limit."] : []),
-      "All costs are estimates, including the selected food and drinks. Confirm prices before you go.",
+      "Catalog admission or package costs use the reviewed sources. Meals are included only when explicitly listed; check current prices before going.",
       "Travel uses a distance-based estimate with a buffer; it does not include live traffic.",
-      request.meetingTogether
+      !request.includeTransport ? "Transport is outside your spending estimate." : request.transport === "Walking" ? "Walking has no transport fare in this estimate." : unpricedTransport ? "Get a current transport quote before confirming the complete date cost." : request.transportBudget !== null ? "Transport uses your total allowance; check a current quote before going." : request.meetingTogether
         ? "Transport includes an estimated return to your starting area."
         : "Separate arrivals are estimated from the same starting area; individual pickup routes need confirmation.",
       request.surprises

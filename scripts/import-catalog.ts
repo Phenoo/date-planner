@@ -18,7 +18,9 @@ console.log(JSON.stringify({ records: records.map(({ id, country, city, currency
 if (process.argv.includes('--write')) {
   const target = process.argv[process.argv.indexOf('--project') + 1];
   if (!target || target !== process.env.FIREBASE_PROJECT_ID) throw new Error('Supply --project matching FIREBASE_PROJECT_ID.');
-  const app = initializeApp({ projectId: target, credential: cert({ projectId: target, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') }) }, 'catalog-import');
+  const token = process.env.FIREBASE_ADMIN_ACCESS_TOKEN;
+  const credential = token ? { getAccessToken: async () => ({ access_token: token, expires_in: 3600 }) } : cert({ projectId: target, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') });
+  const app = initializeApp({ projectId: target, credential }, 'catalog-import');
   try {
     const db = getFirestore(app);
     for (const record of records) {
