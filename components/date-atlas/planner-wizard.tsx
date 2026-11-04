@@ -712,7 +712,7 @@ export function PlannerWizard({
         )}
         {(stage.id !== "city" || locationMode !== "choose") && <div className="typeform-confirm">
           <Button type="submit" disabled={transitioning || locating}>
-            {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? editingPlan ? "Find a new match" : "Find my date" : reviewing ? "Back to my details" : "Continue"}
+            {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? editingPlan ? "Find a new match" : "Reveal my date" : reviewing ? "Back to my details" : "Continue"}
           </Button>
           {selectedCity ? <Button type="button" variant="outline" disabled={pending !== null} onClick={() => editLocation("choose")}>Change</Button> : <span>
             press <strong>Enter</strong>

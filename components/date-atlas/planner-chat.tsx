@@ -45,7 +45,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   const focus = session.nextField ?? intakeNextField(request, session.answered);
   const ready = !focus;
   const [greeting] = useState(() => !session.messages.length && session.answered.length
-    ? `Let’s pick up from here.\n\n${ready ? "Your details are here. Want to change anything, or shall we find your date?" : intakeQuestion(focus)}`
+    ? `Let’s pick up from here.\n\n${intakeQuestion(focus)}`
     : "Hi, I’m Oge.\n\nTell me the date you have in mind. We’ll work out the details together.");
   const [animateGreeting, setAnimateGreeting] = useState(() => !session.messages.length);
   useEffect(() => {
@@ -178,7 +178,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
         </form>}
         {!sending && !error && suggestions.length > 0 && <div className={`${styles.suggestions} ${starting ? styles.starters : ""}`} aria-label="Suggested replies">{suggestions.map((text) => <button key={text} type="button" disabled={voice.active} onClick={() => void send(text)}>{text}</button>)}</div>}
         {(error || serverError) && <div className={styles.error} role="alert"><p>{error || serverError}</p>{retryMessage && <button type="button" disabled={sending || voice.active} onClick={() => void send(retryMessage, true)}>Try that message again</button>}</div>}
-        {ready && !sending && !error && <div className={styles.ready}>{(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance">{requirementsGuidance(request)}</p>}<Button disabled={voice.active} onClick={() => void onGenerate()}>Find my date <ArrowUpRight size={18} aria-hidden="true" /></Button></div>}
+        {ready && !sending && !error && <div className={styles.ready}>{(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance">{requirementsGuidance(request)}</p>}<Button disabled={voice.active} onClick={() => void onGenerate()}>Reveal my date <ArrowUpRight size={18} aria-hidden="true" /></Button></div>}
       </div>
     </div>
     {showLatest && <button className={styles.latest} type="button" onClick={scrollToLatest}><ArrowDown size={16} aria-hidden="true" /> Latest messages</button>}

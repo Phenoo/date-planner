@@ -77,7 +77,7 @@ export function intakeQuestion(field: IntakeField | null) {
     date: "Which actual day works for you? If it's a weekend, choose Saturday or Sunday.",
     time: "What time would you like to start? Pick a time below, or tell me one, like 7:45 PM.",
   };
-  return field ? questions[field] : "I have the details. Tap ‘Find my date’ when you're ready, or tell me what you'd like to change.";
+  return field ? questions[field] : "I’ve got your details. Tap ‘Reveal my date’ to find your place, or tell me what you’d like to change.";
 }
 
 export function intakeTimeReply(input: IntakeInput, now = new Date()) {

@@ -42,13 +42,13 @@ export function RecommendationReady({ city, onContinue }: { city: string; onCont
     </div>
     <div className={styles.copy}>
       <span className={styles.eyebrow}>A LITTLE DRUM ROLL, PLEASE</span>
-      <h1 ref={heading} tabIndex={-1} aria-label="We found something for you.">{["We found", "something", "for you."].map((line, index) => <span key={line} aria-hidden="true" style={{ "--line": index } as CSSProperties}>{line}</span>)}</h1>
-      <p>Somewhere in {city}.<br />The beginning of a very good story.</p>
+      <h1 ref={heading} tabIndex={-1} aria-label="We have a place for you.">{["We have", "a place", "for you."].map((line, index) => <span key={line} aria-hidden="true" style={{ "--line": index } as CSSProperties}>{line}</span>)}</h1>
+      <p>Somewhere in {city}.<br />Tap to reveal.</p>
     </div>
     <div className={styles.controls}>
       <button className={styles.reveal} type="button" onClick={startReveal} disabled={rolling}>{rolling ? "Here it comes…" : "Reveal my date"}<ArrowRight size={20} aria-hidden="true" /></button>
       <button className={styles.sound} type="button" aria-label={soundOn ? "Mute drum roll" : "Enable drum roll"} aria-pressed={soundOn} onClick={() => { if (soundOn) { stopAudio.current?.(); stopAudio.current = null; } setSoundOn(!soundOn); }}>{soundOn ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}{soundOn ? "Sound on" : "Sound off"}</button>
     </div>
-    <span className="sr-only" role="status">{rolling ? "Your date reveal is starting." : "Your recommendation is ready. Reveal your date or skip to the details."}</span>
+    <span className="sr-only" role="status">{rolling ? "Your date reveal is starting." : "We have a place for you. Tap ‘Reveal my date’ or skip to the details."}</span>
   </section>;
 }
