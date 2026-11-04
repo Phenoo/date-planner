@@ -3,6 +3,7 @@ import { requestSchema, type PlanRequest } from "./schema";
 import { plannerQuestions, type PlannerQuestionId } from "./questions";
 import { calendarDay, calendarLabel, clockLabel, zonedNow, scheduleError, timeMinutes } from "./schedule";
 import { explicitSpendingAmounts, explicitSpokenTimes, normalizeClockPunctuation, spokenClockReply } from "./spoken-values";
+import { explicitLagosNeighborhood } from "./intake-location";
 
 export const intakeFields = ["location", "occasion", "people", "vibe", "budget", "date", "time", "duration"] as const;
 export type IntakeField = typeof intakeFields[number];
@@ -103,6 +104,10 @@ export function applyIntakeOutput(input: IntakeInput, output: unknown) {
     if (reply === "a first date") patch.occasion = "First date";
     else if (reply === "our anniversary") patch.occasion = "Anniversary";
     else if (reply === "just because") patch.occasion = "Just because";
+  }
+  if (!patch.city && /^(?:nigeria|ng)$/i.test((patch.country ?? input.request.country).trim())) {
+    const area = explicitLagosNeighborhood(input.message, patch.area, input.nextField === "location");
+    if (area) { patch.city = "Lagos"; patch.country = "Nigeria"; patch.area = area; patch.locationScope = "area"; }
   }
   const answered = new Set(input.answered);
   let clarify: IntakeField | null = null;

@@ -118,3 +118,68 @@ test("the questionnaire skips explicit chat answers, keeps defaults unconfirmed 
   const deadline = wizardQuestionSteps({ ...preferences, startTime: "21:00", endTime: "20:00" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
   assert.ok(deadline.includes("duration"), "A dependent deadline must be reviewed after the start changes");
 });
+
+test("an explicitly spoken Lagos neighborhood confirms location when the model supplies only its area", () => {
+  for (const area of ["Lekki", "Ikoyi", "Ikeja", "Victoria Island"]) {
+    const result = applyIntakeOutput(input(`I'm in ${area}.`), { acknowledgement: `${area} sounds good.`, patch: { area } });
+    assert.ok(result);
+    assert.equal(result.request.city, "Lagos");
+    assert.equal(result.request.country, "Nigeria");
+    assert.equal(result.request.area, area);
+    assert.equal(result.request.locationScope, "area");
+    assert.ok(result.answered.includes("location"));
+    assert.equal(result.nextField, "occasion");
+    assert.doesNotMatch(result.message, /Which city/);
+  }
+});
+
+test("a direct Lekki answer confirms location even when the model omits unchanged defaults", () => {
+  for (const message of ["Lekki", "In Lekki.", "I'm in Lekki", "I’m in Lekki", "I am in Lekki", "We are in Lekki"]) {
+    const result = applyIntakeOutput(input(message), { acknowledgement: "A lovely place to start.", patch: {} });
+    assert.ok(result);
+    assert.equal(result.request.city, "Lagos");
+    assert.equal(result.request.area, "Lekki");
+    assert.deepEqual(result.answered, ["location"]);
+    assert.equal(result.nextField, "occasion");
+  }
+});
+
+test("a multi-answer voice transcript keeps its neighborhood, spending and other supplied answers", () => {
+  const result = applyIntakeOutput(input("Plan a creative anniversary in Lekki Phase One for two, with forty thousand naira total."), { acknowledgement: "A creative anniversary in Lekki is taking shape.", patch: { area: "Lekki Phase 1", occasion: "Anniversary", guests: 2, vibes: ["Creative"], budget: 40000, budgetType: "total" } });
+  assert.ok(result);
+  assert.equal(result.request.city, "Lagos");
+  assert.equal(result.request.area, "Lekki Phase 1");
+  assert.equal(result.request.budget, 40000);
+  assert.deepEqual(result.request.dietary, request.dietary);
+  assert.deepEqual(result.answered, ["location", "occasion", "people", "vibe", "budget"]);
+  assert.equal(result.nextField, "date");
+});
+
+test("neighborhood defaults, negations, past locations and alternatives do not become a chosen destination", () => {
+  for (const message of ["Something nice", "Not Lekki", "I don't want Lekki", "Anywhere except Lekki", "I used to live in Lekki", "I was in Lekki", "Lekki or Ikoyi", "Maybe Lekki"]) {
+    const result = applyIntakeOutput(input(message), { acknowledgement: "Let's find a place that suits you.", patch: { area: "Lekki" } });
+    assert.ok(result);
+    assert.equal(result.answered.includes("location"), false, message);
+    assert.equal(result.nextField, "location", message);
+  }
+});
+
+test("an explicit destination city wins over a neighborhood mentioned as the current location", () => {
+  const result = applyIntakeOutput(input("I'm in Lekki but plan the date in Abuja."), { acknowledgement: "We'll look in Abuja.", patch: { city: "Abuja", area: "Abuja", country: "Nigeria", locationScope: "city" } });
+  assert.ok(result);
+  assert.equal(result.request.city, "Abuja");
+  assert.equal(result.request.area, "Abuja");
+  assert.equal(result.nextField, "occasion");
+});
+
+test("an unknown neighborhood or conflicting country still needs a city instead of trusting defaults", () => {
+  for (const [message, area, country] of [["I'm in West End", "West End", "Nigeria"], ["Lekki in Ghana", "Lekki", "Ghana"]]) {
+    const result = applyIntakeOutput(input(message), { acknowledgement: "Let's pin down the destination.", patch: { area, country } });
+    assert.ok(result);
+    assert.equal(result.answered.includes("location"), false);
+    assert.equal(result.nextField, "location");
+  }
+  const foreign = applyIntakeOutput(input("Victoria Island", { request: { ...request, country: "Canada" } }), { acknowledgement: "Let's pin down the destination.", patch: { area: "Victoria Island" } });
+  assert.equal(foreign?.request.country, "Canada");
+  assert.equal(foreign?.answered.includes("location"), false);
+});
