@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { Experience } from "@/lib/planner/schema";
 
 export const siteName = "a date at las";
-export const siteOrigin = "https://date-atlas.vercel.app";
+export const siteOrigin = "https://adateatlas.com";
 export const siteDescription = "Find thoughtful date ideas and plan a date around your city, budget, time and interests. Chat or speak with Oge, your AI date-planning companion.";
 
 export function publicMetadata(title: string, description: string, path: string, index = true): Metadata {
