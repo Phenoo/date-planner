@@ -120,12 +120,12 @@ export function FirstVisitExperience({
 
     >
       <header className="welcome-header">
-        <span className="atlas-wordmark" aria-label="a date at las">
+        <span className="atlas-wordmark" aria-label="A Date Atlas">
           adal<span>.</span>
         </span>
         <button onClick={() => complete()}>Skip intro</button>
       </header>
-      <section className="welcome-layout" aria-label="Get to know a date at las">
+      <section className="welcome-layout" aria-label="Get to know A Date Atlas">
         <div className="welcome-animation" onPointerDown={(event) => { swipeStart.current = { x: event.clientX, y: event.clientY }; }}
           onPointerUp={(event) => {
             const start = swipeStart.current; swipeStart.current = null;

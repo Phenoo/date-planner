@@ -12,7 +12,7 @@ const writingDuration = 3200;
 const penLiftDuration = 100;
 const handExitDuration = 500;
 const nameOrigin = { x: 35, y: 309 };
-const nameScale = 410 / 550;
+const nameScale = 410 / 530;
 const heartPath = "M240 130 C202 66 125 82 120 141 C115 199 188 238 240 288 C292 238 365 199 360 141 C355 82 278 66 240 130";
 const nameStrokes = [
   "M11 77 35 18 59 77M20 56h30",
@@ -22,9 +22,9 @@ const nameStrokes = [
   "M239 57h36C276 32 235 33 237 59C239 81 262 83 276 73",
   "M347 49C336 33 309 38 309 59C309 82 347 83 347 58V40V77",
   "M371 24V64Q371 81 386 75M359 43h28",
-  "M421 18V64Q421 79 432 76",
-  "M484 49C473 33 446 38 446 59C446 82 484 83 484 58V40V77",
-  "M535 44C526 35 504 37 504 49C504 63 537 55 537 68C537 83 512 82 503 74",
+  "M401 18V64Q401 79 412 76",
+  "M464 49C453 33 426 38 426 59C426 82 464 83 464 58V40V77",
+  "M515 44C506 35 484 37 484 49C484 63 517 55 517 68C517 83 492 82 483 74",
   "M81 96C196 88 350 87 489 94",
 ].flatMap((path, index, paths) => (path.match(/M[^M]+/g) ?? []).map((stroke) => ({ path: stroke, underline: index === paths.length - 1 })));
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
@@ -139,11 +139,11 @@ export function Preloader({ onContinue }: { onContinue?: () => void }) {
   }, []);
 
   return (
-    <main className={styles.preloader} aria-label="Welcome to a date at las">
+    <main className={styles.preloader} aria-label="Welcome to A Date Atlas">
       <BrandMorph />
       <div className={styles.content}>
         <div className={styles.paper}>
-          <svg className={styles.drawing} viewBox="0 30 480 370" role="img" aria-label="A hand draws a heart, then writes A date at las">
+          <svg className={styles.drawing} viewBox="0 30 480 370" role="img" aria-label="A hand draws a heart, then writes A Date Atlas">
             <path className={styles.guide} d={heartPath} />
             <path ref={wash} className={styles.wash} d={heartPath} />
             <path ref={stroke} className={styles.stroke} d={heartPath} pathLength="1" strokeDasharray="1 1" strokeDashoffset="1" />

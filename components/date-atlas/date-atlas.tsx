@@ -3,6 +3,7 @@ import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type
 import { z } from "zod";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { supportEmail, supportInbox } from "@/lib/seo/site";
 import { useRouter } from "next/navigation";
 import {
   Compass,
@@ -990,8 +991,8 @@ export function DateAtlas({
           <Link
             className="atlas-wordmark"
             href="/"
-            aria-label="a date at las home"
-            title="adal — a date at las"
+            aria-label="A Date Atlas home"
+            title="adal — A Date Atlas"
           >
             adal<span>.</span>
           </Link>
@@ -1251,7 +1252,7 @@ export function DateAtlas({
             {view !== "home" && <footer className="atlas-footer content-width">
               <div>
                 <Link className="atlas-wordmark" href="/">
-                  a date at las<span>.</span>
+                  A Date Atlas<span>.</span>
                 </Link>
                 <small>Thoughtful dates, wherever you are</small>
               </div>
@@ -1272,7 +1273,7 @@ export function DateAtlas({
               </div>
               <div>
                 <strong>A little about us</strong>
-                {["About a date at las", "Partner with us", "Help & support"].map(
+                {["About A Date Atlas", "Partner with us", "Help & support"].map(
                   (page) => (
                     <button key={page} onClick={() => setInfoPage(page)}>
                       {page}
@@ -1290,7 +1291,7 @@ export function DateAtlas({
                 <Link href="/admin">Recommendation lab</Link>
               </div>
               <div className="footer-bottom">
-                <span>© {new Date().getFullYear()} a date at las</span>
+                <span>© {new Date().getFullYear()} A Date Atlas</span>
                 <span>Thoughtful dates, wherever life takes you.</span>
               </div>
             </footer>}
@@ -1339,7 +1340,7 @@ export function DateAtlas({
           title={infoPage}
           className="info-dialog"
         >
-          <span className="eyebrow">A DATE AT LAS</span>
+          <span className="eyebrow">A DATE ATLAS</span>
           <h2>{infoPage}</h2>
           {infoPage === "Privacy policy" ? (
             <>
@@ -1370,34 +1371,34 @@ export function DateAtlas({
               </p>
               <p>
                 Check current details directly with a real provider before
-                traveling or paying. a date at las does not collect booking payments.
+                traveling or paying. A Date Atlas does not collect booking payments.
               </p>
               <Link href="/terms">Read the full terms, including Google Maps terms</Link>
             </>
           ) : infoPage === "Partner with us" ? (
-            <p>
-              We&apos;re preparing our Lagos collection. Only approved, sourced
-              venue records can be recommended in live mode. Vendor onboarding
-              and direct payments are not open in this demonstration.
-            </p>
+            <>
+              <p>Run a venue or experience? Share your location, current prices, opening hours and booking details so we can review it for our catalog.</p>
+              <a href={`mailto:${supportInbox}?subject=Venue%20partnership`}>Talk to us about your venue</a>
+            </>
           ) : infoPage === "Help & support" ? (
             <>
               <p>
-                Start with Plan My Date, answer a few quick questions, then
-                discover one thoughtfully selected date. Use Swap or your date assistant to
-                refine the itinerary.
+                Tell Oge what you have in mind, by typing or using the microphone,
+                or answer one question at a time. You can correct your answers
+                and ask for another suggestion as you go.
               </p>
               <p>
                 No suitable plan? Try a different start time, area, or vibe.
                 Your spending limit stays unchanged; unconfirmed venue costs
                 still need checking. Sign in to reopen and edit a saved date in My dates.
               </p>
+              <p>Need a hand? Email <a href={`mailto:${supportEmail}`}>{supportEmail}</a> or <a href={`mailto:${supportInbox}`}>{supportInbox}</a>.</p>
             </>
           ) : (
             <p>
-              a date at las connects your interests, time, and budget into a
-              thoughtful day together. We&apos;re starting in Lagos and preparing a
-              carefully sourced catalog of local experiences.
+              A Date Atlas connects your interests, time, and budget into a
+              thoughtful date. Tell Oge your city or neighborhood to explore
+              nearby suggestions. Coverage and confirmed venue information vary by location.
             </p>
           )}
         </Dialog>

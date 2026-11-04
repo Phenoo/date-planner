@@ -1,6 +1,6 @@
 # date-planner
 
-**a date at las (adal)** is a mobile-first Next.js date planner using TypeScript, Firebase Authentication, Cloud Firestore, DeepSeek, and Google Maps. Planning works without registration through either chat or the Typeform-style questions. Users choose an actual day, time and duration, then receive one primary recommendation with a red cinematic reveal. Saving requires a registered account. Creating an invitation is a separate, explicit action; recipients can view and deliberately accept or decline without an account. Creators can revoke the link. Private history distinguishes planned and explicitly completed dates.
+**A Date Atlas (adal)** is a mobile-first Next.js date planner using TypeScript, Firebase Authentication, Cloud Firestore, DeepSeek, and Google Maps. Planning works without registration through either chat or the Typeform-style questions. Users choose an actual day, time and duration, then receive one primary recommendation with a red cinematic reveal. Saving requires a registered account. Creating an invitation is a separate, explicit action; recipients can view and deliberately accept or decline without an account. Creators can revoke the link. Private history distinguishes planned and explicitly completed dates.
 
 The [current release audit](docs/release-audit-2026-10-30.md) records verified behavior, checks, remaining release blockers and safe preview instructions. This is an incremental P0 improvement pass, not a release-readiness sign-off.
 
@@ -20,7 +20,7 @@ For an isolated local preview, start Auth/Firestore emulators under `demo-date-a
 
 ## Google Analytics
 
-Set `NEXT_PUBLIC_GA_MEASUREMENT_ID` to the production GA4 web stream ID in Vercel's Production environment, then redeploy. Development and Preview deployments do not load the tag. The current stream is for `https://date-atlas.vercel.app`, with reporting in Nigeria time and NGN. Keep Enhanced Measurement disabled in the stream: the app sends explicit, sanitized page views and its existing client planning events, without private tokens, query parameters, account IDs or planning text. Google signals and advertising personalization are disabled in the tag configuration.
+Set `NEXT_PUBLIC_GA_MEASUREMENT_ID` to the production GA4 web stream ID in Vercel's Production environment, then redeploy. Development and Preview deployments do not load the tag. The production site is `https://adateatlas.com`. Keep the GA4 web stream URL aligned with this domain; reporting currently uses Nigeria time and NGN. Keep Enhanced Measurement disabled in the stream: the app sends explicit, sanitized page views and its existing client planning events, without private tokens, query parameters, account IDs or planning text. Google signals and advertising personalization are disabled in the tag configuration.
 
 The tag loads automatically on supported production pages without a banner or preference controls. Previous analytics choices do not gate collection. Local app reliability events in Firebase remain separate from Google Analytics.
 

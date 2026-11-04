@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { supportEmail } from "@/lib/seo/site";
 import { AtlasCompanion } from "@/components/animations/atlas-companion";
 import styles from "./lover-intro.module.css";
 import { useSlideAdvance } from "@/components/animations/use-slide-advance";
@@ -75,7 +76,7 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
                         : <div className={styles.togetherArt}>you<span>+</span>me</div>}
                 </div>
                 <div className={styles.storyCopy}><h2>{card.title}</h2><p>{card.body}</p></div>
-                <div className={styles.postcardBottom}><span>THOUGHTFULLY PLANNED</span><span>a date at las.</span></div>
+                <div className={styles.postcardBottom}><span>THOUGHTFULLY PLANNED</span><span>A Date Atlas.</span></div>
               </div>
             </div>
           </div>
@@ -84,8 +85,8 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
       </div>
 
       <footer className={styles.footer}>
-        <div className={styles.chapter}><span /><small>a date at las</small></div>
-        <div className={styles.footerLinks}><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
+        <div className={styles.chapter}><span /><small>A Date Atlas</small></div>
+        <div className={styles.footerLinks}><a href={`mailto:${supportEmail}`}>Support</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
       </footer>
     </main>
   );

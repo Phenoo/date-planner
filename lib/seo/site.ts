@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import type { Experience } from "@/lib/planner/schema";
 
-export const siteName = "a date at las";
+export const siteName = "A Date Atlas";
 export const siteOrigin = "https://adateatlas.com";
+export const supportEmail = "support@adateatlas.com";
+export const supportInbox = "adateatlas@gmail.com";
 export const siteDescription = "Find thoughtful date ideas and plan a date around your city, budget, time and interests. Chat or speak with Oge, your AI date-planning companion.";
 
 export function publicMetadata(title: string, description: string, path: string, index = true): Metadata {
@@ -14,7 +16,7 @@ export function publicMetadata(title: string, description: string, path: string,
     description,
     alternates: { canonical: url },
     robots: { index: canIndex, follow: true },
-    openGraph: { type: "website", siteName, title: fullTitle, description, url, locale: "en_US", images: [{ url: `${siteOrigin}/opengraph-image`, width: 1200, height: 630, alt: "adal. — A little thought. A lovely date." }] },
+    openGraph: { type: "website", siteName, title: fullTitle, description, url, locale: "en_US", images: [{ url: `${siteOrigin}/opengraph-image`, width: 1200, height: 630, alt: `${siteName} — A little thought. A lovely date.` }] },
     twitter: { card: "summary_large_image", title: fullTitle, description, images: [`${siteOrigin}/opengraph-image`] },
   };
 }
@@ -34,7 +36,7 @@ export function serializeJsonLd(data: Record<string, unknown>) {
 export const websiteGraph = {
   "@context": "https://schema.org",
   "@graph": [
-    { "@type": "Organization", "@id": `${siteOrigin}/#organization`, name: siteName, alternateName: "adal", url: siteOrigin, logo: `${siteOrigin}/icon.svg` },
-    { "@type": "WebSite", "@id": `${siteOrigin}/#website`, name: siteName, alternateName: "adal", url: siteOrigin, description: siteDescription, inLanguage: "en", publisher: { "@id": `${siteOrigin}/#organization` } },
+    { "@type": "Organization", "@id": `${siteOrigin}/#organization`, name: siteName, alternateName: "adal", url: siteOrigin, logo: `${siteOrigin}/icon.svg`, email: supportEmail, contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: supportEmail, availableLanguage: "English" } },
+    { "@type": "WebSite", "@id": `${siteOrigin}/#website`, name: siteName, alternateName: ["adal", "adateatlas.com"], url: siteOrigin, description: siteDescription, inLanguage: "en", publisher: { "@id": `${siteOrigin}/#organization` } },
   ],
 };

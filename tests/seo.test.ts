@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { demoCatalog } from "../lib/planner/demo-catalog";
-import { indexableExperiences, privateMetadata, publicMetadata, serializeJsonLd, siteOrigin, websiteGraph } from "../lib/seo/site";
+import { indexableExperiences, privateMetadata, publicMetadata, serializeJsonLd, siteOrigin, supportEmail, websiteGraph } from "../lib/seo/site";
 
 test("public metadata uses one production origin for canonical and social URLs", () => {
   const metadata = publicMetadata("Creative date ideas", "Choose something thoughtful.", "/date-ideas");
-  assert.deepEqual(metadata.title, { absolute: "Creative date ideas | a date at las" });
-  assert.equal(metadata.alternates?.canonical, `${siteOrigin}/date-ideas`);
+  assert.deepEqual(metadata.title, { absolute: "Creative date ideas | A Date Atlas" });
+  assert.equal(metadata.alternates?.canonical, "https://adateatlas.com/date-ideas");
   assert.equal(metadata.openGraph?.url, `${siteOrigin}/date-ideas`);
   assert.ok(metadata.twitter && "card" in metadata.twitter);
   assert.equal(metadata.twitter.card, "summary_large_image");
@@ -42,4 +42,11 @@ test("structured data cannot close its script tag and preserves the original tex
   assert.deepEqual(JSON.parse(serialized), data);
   assert.deepEqual(JSON.parse(serializeJsonLd(websiteGraph)), websiteGraph);
   assert.ok(!serializeJsonLd(websiteGraph).includes("AggregateRating"));
+  const organization = websiteGraph["@graph"].find((item) => item["@type"] === "Organization");
+  const website = websiteGraph["@graph"].find((item) => item["@type"] === "WebSite");
+  assert.equal(organization?.name, "A Date Atlas");
+  assert.equal(organization?.email, supportEmail);
+  assert.equal(organization?.contactPoint?.email, "support@adateatlas.com");
+  assert.equal(website?.url, "https://adateatlas.com");
+  assert.deepEqual(website?.alternateName, ["adal", "adateatlas.com"]);
 });
