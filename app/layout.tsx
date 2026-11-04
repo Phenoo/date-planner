@@ -3,14 +3,17 @@ import { DM_Sans } from "next/font/google";
 import { Suspense } from "react";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { analyticsMeasurementId } from "@/lib/analytics/policy";
+import { siteDescription, siteName, siteOrigin } from "@/lib/seo/site";
 import "./globals.css";
 
 const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"] });
 export const metadata: Metadata = {
-  applicationName: "a date at las",
-  title: "a date at las — Your perfect date, thoughtfully planned",
-  description:
-    "Less planning. More unforgettable moments. Discover your next date in Lagos and create a personal itinerary around your vibe, time, and budget.",
+  metadataBase: new URL(siteOrigin),
+  applicationName: siteName,
+  title: { default: `Date Ideas & AI Date Planner | ${siteName}`, template: `%s | ${siteName}` },
+  description: siteDescription,
+  category: "lifestyle",
+  robots: { index: process.env.VERCEL_ENV !== "preview" && process.env.VERCEL_ENV !== "development", follow: true },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

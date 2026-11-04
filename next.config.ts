@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   partialPrefetching: true,
+  async headers() {
+    return ["/api/:path*", "/invite/:path*", "/plan", "/saved", "/profile", "/favorites", "/admin"].map((source) => ({
+      source,
+      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, nosnippet" }],
+    }));
+  },
 };
 
 export default nextConfig;

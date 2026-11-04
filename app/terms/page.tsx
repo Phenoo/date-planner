@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { publicMetadata } from "@/lib/seo/site";
+
+export const metadata = publicMetadata("Terms of use", "Read the terms for using a date at las, including date suggestions, estimated costs, venue information and bookings.", "/terms");
 
 export default function TermsPage() {
   return <main className="page-container legal-page"><Link className="atlas-wordmark" href="/" aria-label="a date at las home">adal<span>.</span></Link><h1>Terms of use</h1>

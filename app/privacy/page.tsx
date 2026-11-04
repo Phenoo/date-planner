@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { publicMetadata } from "@/lib/seo/site";
+
+export const metadata = publicMetadata("Privacy policy", "How a date at las handles planning answers, optional voice input, location suggestions, analytics and saved dates.", "/privacy");
 
 export default function PrivacyPage() {
   return <main className="page-container legal-page"><Link className="atlas-wordmark" href="/" aria-label="a date at las home">adal<span>.</span></Link><h1>Privacy policy</h1>

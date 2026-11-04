@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,9 +52,14 @@ export function ExperienceCard({
 }) {
   return (
     <article className="experience-card">
-      <button
+      <Link
         className="experience-open"
-        onClick={() => onSelect(experience)}
+        href={`/experiences/${encodeURIComponent(experience.id)}`}
+        onClick={(event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          onSelect(experience);
+        }}
         aria-label={`View ${experience.name}`}
       >
         <div className="experience-image">
@@ -95,7 +101,7 @@ export function ExperienceCard({
             </div>
           </div>
         </div>
-      </button>
+      </Link>
       <div className="experience-card-actions">
         {onFavorite && (
           <button
@@ -123,16 +129,20 @@ export function Explore({
   onSelect,
   favorites = [],
   onFavorite,
+  initialExperiences,
 }: {
   favorites?: string[];
   onFavorite?: (experience: Experience) => void;
   onBack: () => void;
   onPlan: (experience?: Experience) => void;
   initialCategory?: string;
+  initialExperiences?: Experience[];
   onSelect: (experience: Experience) => void;
 }) {
-  const [experiences, setExperiences] = useState<Experience[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedExperiences, setExperiences] = useState<Experience[]>([]);
+  const experiences = initialExperiences ?? loadedExperiences;
+  const hasInitialExperiences = initialExperiences !== undefined;
+  const [loading, setLoading] = useState(initialExperiences === undefined);
   const [error, setError] = useState("");
   const [category, setCategory] = useState(initialCategory);
   const [city, setCity] = useState("Lagos");
@@ -147,6 +157,7 @@ export function Explore({
   const [date, setDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   useEffect(() => {
+    if (hasInitialExperiences) return;
     const controller = new AbortController();
     fetch("/api/catalog", { signal: controller.signal })
       .then(async (response) => {
@@ -167,7 +178,7 @@ export function Explore({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [hasInitialExperiences]);
   const filtered = experiences.filter(
     (item) =>
       (category === "All experiences" || item.category === category) &&

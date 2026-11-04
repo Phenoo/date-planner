@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { z } from "zod";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -129,15 +129,21 @@ function PlannerInitializing() {
 export function DateAtlas({
   initialView = "home",
   experienceId,
+  initialCatalog,
+  homeContent,
 }: {
   initialView?: Exclude<View, "results">;
   experienceId?: string;
+  initialCatalog?: Experience[];
+  homeContent?: ReactNode;
 }) {
   const router = useRouter();
   const [view, setView] = useState<View>(initialView);
-  const [catalog, setCatalog] = useState<Experience[]>([]);
+  const [loadedCatalog, setCatalog] = useState<Experience[]>([]);
+  const catalog = initialCatalog ?? loadedCatalog;
+  const hasInitialCatalog = initialCatalog !== undefined;
   const [preferencesReady, setPreferencesReady] = useState(false);
-  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogLoading, setCatalogLoading] = useState(initialCatalog === undefined);
   const [favorites, setFavorites] = useState<string[]>([]);
 
   const [infoPage, setInfoPage] = useState("");
@@ -194,7 +200,7 @@ export function DateAtlas({
     let active = true;
     mounted.current = true;
     const catalogController = new AbortController();
-    if (initialView !== "home")
+    if (initialView !== "home" && !hasInitialCatalog)
       fetch("/api/catalog", { signal: catalogController.signal })
         .then(async (response) => {
           const data = await response.json();
@@ -465,7 +471,7 @@ export function DateAtlas({
       unsubscribe?.();
       window.removeEventListener("storage", syncStorage);
     };
-  }, [initialView]);
+  }, [initialView, hasInitialCatalog]);
   useEffect(() => {
     if (view !== "planner" || !draftReady) return;
     if (plannerMode) trackFunnel("planner_started");
@@ -1034,9 +1040,10 @@ export function DateAtlas({
             </>
           )}
         </header>
-        {view === "home" && <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />}
+        {view === "home" && <><Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />{homeContent}</>}
         {view === "explore" && (
           <Explore
+            initialExperiences={initialCatalog}
             onBack={() => router.push("/")}
             onPlan={(experience) =>
               experience ? addExperience(experience) : planDate()
