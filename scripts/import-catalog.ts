@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { cert, initializeApp, deleteApp } from 'firebase-admin/app';
@@ -19,7 +20,8 @@ if (process.argv.includes('--write')) {
   const target = process.argv[process.argv.indexOf('--project') + 1];
   if (!target || target !== process.env.FIREBASE_PROJECT_ID) throw new Error('Supply --project matching FIREBASE_PROJECT_ID.');
   const token = process.env.FIREBASE_ADMIN_ACCESS_TOKEN;
-  const credential = token ? { getAccessToken: async () => ({ access_token: token, expires_in: 3600 }) } : cert({ projectId: target, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') });
+  if (token) { await importWithToken(target, token); process.exit(0); }
+  const credential = cert({ projectId: target, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') });
   const app = initializeApp({ projectId: target, credential }, 'catalog-import');
   try {
     const db = getFirestore(app);
@@ -34,4 +36,31 @@ if (process.argv.includes('--write')) {
       console.log(`${record.id}: ${result}`);
     }
   } finally { await deleteApp(app); }
+}
+
+function firestoreValue(value: unknown): Record<string, unknown> {
+  if (value === null) return { nullValue: null };
+  if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "boolean") return { booleanValue: value };
+  if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(firestoreValue) } };
+  if (value && typeof value === "object") return { mapValue: { fields: firestoreFields(value) } };
+  throw new Error("Unsupported catalog field.");
+}
+function firestoreFields(value: object) { return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).map(([key, item]) => [key, firestoreValue(item)])); }
+async function importWithToken(project: string, token: string) {
+  const root = `projects/${project}/databases/(default)/documents`;
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  for (const record of records) {
+    const name = `${root}/experiences/${record.id}`;
+    const previous = await fetch(`https://firestore.googleapis.com/v1/${name}`, { headers, signal: AbortSignal.timeout(20000) });
+    if (previous.status !== 404 && !previous.ok) throw new Error(`Catalog read failed (${previous.status}).`);
+    if (previous.ok && !process.argv.includes("--overwrite-reviewed")) { console.log(`${record.id}: already exists; unchanged`); continue; }
+    if (previous.ok) throw new Error("Use the authenticated admin editor to update an existing record with token-based import.");
+    const audit = { priceMinorUnits: toMinorUnits(record.price, record.currency), priceType: record.priceType, currency: record.currency, sourceUrl: record.sourceUrl, verifiedAt: record.verifiedAt, changedBy: "source-reviewed-catalog-import" };
+    const payload = { writes: [{ update: { name, fields: firestoreFields({ record: encodeExperience(record), active: record.active, approved: record.approved, demo: false, updatedBy: "source-reviewed-catalog-import" }) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }] }, { update: { name: `${name}/priceHistory/${randomUUID()}`, fields: firestoreFields(audit) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: "changedAt", setToServerValue: "REQUEST_TIME" }] }] };
+    const saved = await fetch(`https://firestore.googleapis.com/v1/${root}:commit`, { method: "POST", headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(20000) });
+    if (!saved.ok) throw new Error(`Catalog write failed (${saved.status}). No existing records were changed.`);
+    console.log(`${record.id}: imported`);
+  }
 }

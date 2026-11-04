@@ -1249,7 +1249,7 @@ export function DateAtlas({
                 <Link className="atlas-wordmark" href="/">
                   a date at las<span>.</span>
                 </Link>
-                <small>Starting in Lagos</small>
+                <small>Thoughtful dates, wherever you are</small>
               </div>
               <div>
                 <strong>Make a memory</strong>
