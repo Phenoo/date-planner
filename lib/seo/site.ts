@@ -7,14 +7,15 @@ export const siteDescription = "Find thoughtful date ideas and plan a date aroun
 
 export function publicMetadata(title: string, description: string, path: string, index = true): Metadata {
   const url = new URL(path, siteOrigin).href;
+  const fullTitle = `${title} | ${siteName}`;
   const canIndex = index && process.env.VERCEL_ENV !== "preview" && process.env.VERCEL_ENV !== "development";
   return {
-    title,
+    title: { absolute: fullTitle },
     description,
     alternates: { canonical: url },
     robots: { index: canIndex, follow: true },
-    openGraph: { type: "website", siteName, title: `${title} | ${siteName}`, description, url, locale: "en_US", images: [{ url: `${siteOrigin}/opengraph-image`, width: 1200, height: 630, alt: "adal. — A little thought. A lovely date." }] },
-    twitter: { card: "summary_large_image", title: `${title} | ${siteName}`, description, images: [`${siteOrigin}/opengraph-image`] },
+    openGraph: { type: "website", siteName, title: fullTitle, description, url, locale: "en_US", images: [{ url: `${siteOrigin}/opengraph-image`, width: 1200, height: 630, alt: "adal. — A little thought. A lovely date." }] },
+    twitter: { card: "summary_large_image", title: fullTitle, description, images: [`${siteOrigin}/opengraph-image`] },
   };
 }
 

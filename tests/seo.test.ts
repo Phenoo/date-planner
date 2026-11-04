@@ -5,7 +5,7 @@ import { indexableExperiences, privateMetadata, publicMetadata, serializeJsonLd,
 
 test("public metadata uses one production origin for canonical and social URLs", () => {
   const metadata = publicMetadata("Creative date ideas", "Choose something thoughtful.", "/date-ideas");
-  assert.equal(metadata.title, "Creative date ideas");
+  assert.deepEqual(metadata.title, { absolute: "Creative date ideas | a date at las" });
   assert.equal(metadata.alternates?.canonical, `${siteOrigin}/date-ideas`);
   assert.equal(metadata.openGraph?.url, `${siteOrigin}/date-ideas`);
   assert.ok(metadata.twitter && "card" in metadata.twitter);
