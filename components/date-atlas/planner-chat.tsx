@@ -158,7 +158,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
           {session.messages.map((item) => <article key={item.id} className={item.role === "user" ? styles.user : styles.assistant}><span className={item.role === "user" ? "sr-only" : styles.speaker}>{item.role === "user" ? "You" : "Oge"}</span><p>{item.text}</p></article>)}
           {sending && <div className={styles.typing} role="status" aria-label="Oge is thinking"><span className={styles.speaker}>Oge</span><div aria-hidden="true"><i /><i /><i /></div></div>}
         </div>
-        {focus === "location" && <ChatLocationSuggestion disabled={sending || voice.active} onManual={() => input.current?.focus()} onSelect={(location) => {
+        {starting && focus === "location" && <ChatLocationSuggestion disabled={sending || voice.active} onManual={() => input.current?.focus()} onSelect={(location) => {
           if (controller.current || loading || voice.isActive()) return;
           const reply = confirmChatLocation(request, session, location);
           const user: ChatSession["messages"][number] = { id: crypto.randomUUID(), role: "user", text: `Plan in ${location.city}, ${location.country}.` };
