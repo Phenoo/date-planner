@@ -105,7 +105,9 @@
 }
 @media(prefers-reduced-motion:reduce) { .screen * { animation: none !important; transition: none !important; } .photo { clip-path: none; } }
 
-.scrollCue { position: absolute; bottom: calc(100% + 10px); left: calc(50% - 22px); width: 44px; height: 44px; border: 1px solid #ffffff60; border-radius: 50%; background: var(--reveal-red); color: white; font-size: 24px; }
+.scrollCue { position: absolute; bottom: calc(100% + 10px); left: calc(50% - 22px); display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #ffffff60; border-radius: 50%; background: var(--reveal-red); color: white; font-size: 24px; }
+.scrollCue > svg { animation: scrollNudge 1.4s ease-in-out infinite; }
+@keyframes scrollNudge { 0%,100% { transform: translateY(-3px); } 50% { transform: translateY(3px); } }
 .loading { padding-top: 110px; padding-bottom: 20px; }
 
 .loading .eyebrow { margin-bottom: 0; }
