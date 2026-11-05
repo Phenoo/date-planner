@@ -80,6 +80,25 @@ function AnswerChoices<T extends string | number>({
     </div>
   );
 }
+
+function PreferenceTiles<T extends string | boolean>({ label, name, options, selected, onChoose }: {
+  label: string;
+  name: string;
+  options: readonly { label: string; value: T }[];
+  selected: T;
+  onChoose: (value: T) => void;
+}) {
+  return <fieldset className={styles.preferenceGroup}>
+    <legend>{label}</legend>
+    <div className="typeform-choices">
+      {options.map(option => <label key={String(option.value)} className={`typeform-choice ${styles.preferenceTile} ${selected === option.value ? "is-selected" : ""}`}>
+        <input type="radio" name={name} value={String(option.value)} checked={selected === option.value} onChange={() => onChoose(option.value)} />
+        <span>{option.label}</span>
+      </label>)}
+    </div>
+  </fieldset>;
+}
+
 type DestinationChoice = "city" | "area" | "elsewhere";
 
 function ReviewScrollCue() {
@@ -677,21 +696,27 @@ export function PlannerWizard({
           )}
           {stage.id === "requirements" && (
             <div className="form-stack">
-              <Field label="Where would you prefer to spend your date?">
-                <select value={request.environment} onChange={(event) => update("environment", event.target.value === "indoor" ? "indoor" : event.target.value === "outdoor" ? "outdoor" : "any")}>
-                  <option value="any">Either works for us</option><option value="indoor">Indoors</option><option value="outdoor">Outdoors</option>
-                </select>
-              </Field>
-              <Field label="Would you prefer somewhere quiet enough to talk?">
-                <select value={request.quiet ? "quiet" : "any"} onChange={(event) => update("quiet", event.target.value === "quiet")}>
-                  <option value="any">No noise preference</option><option value="quiet">Yes, prioritise a quieter place</option>
-                </select>
-              </Field>
-              <Field label="Is a step-free entrance essential for either of you?">
-                <select value={request.accessibility ? "required" : "not-required"} onChange={(event) => update("accessibility", event.target.value === "required")}>
-                  <option value="not-required">No step-free requirement</option><option value="required">Yes, a step-free entrance is essential</option>
-                </select>
-              </Field>
+              <PreferenceTiles<PlanRequest["environment"]>
+                label="Where would you prefer to spend your date?"
+                name="environment"
+                options={[{ value: "indoor", label: "Indoors" }, { value: "outdoor", label: "Outdoors" }, { value: "any", label: "Either works for us" }]}
+                selected={request.environment}
+                onChoose={value => update("environment", value)}
+              />
+              <PreferenceTiles
+                label="Would you prefer somewhere quiet enough to talk?"
+                name="quiet"
+                options={[{ value: false, label: "No noise preference" }, { value: true, label: "Prioritise a quieter place" }]}
+                selected={request.quiet}
+                onChoose={value => update("quiet", value)}
+              />
+              <PreferenceTiles
+                label="Is a step-free entrance essential for either of you?"
+                name="accessibility"
+                options={[{ value: false, label: "No step-free requirement" }, { value: true, label: "Step-free is essential" }]}
+                selected={request.accessibility}
+                onChoose={value => update("accessibility", value)}
+              />
               <Field label="Which places or activities should we avoid?">
                 <input value={request.dislikes} maxLength={500} onChange={(event) => update("dislikes", event.target.value)} placeholder="e.g. restaurants, cinemas or museums" />
               </Field>

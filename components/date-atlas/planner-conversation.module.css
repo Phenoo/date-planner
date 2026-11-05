@@ -1,5 +1,12 @@
 .wizard :global(.question-intro) { display: block; }
 .wizard :global(fieldset.typeform-answer) { min-width: 0; }
+.preferenceGroup { min-width: 0; margin: 0; padding: 0; border: 0; }
+.preferenceGroup > legend { padding: 0; margin-bottom: 12px; font-size: 12px; line-height: 1.6; font-weight: 500; }
+.preferenceTile { min-width: 0; min-height: 72px; cursor: pointer; }
+.preferenceTile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.preferenceTile > input { width: 18px; height: 18px; flex-shrink: 0; margin: 0; accent-color: var(--planner-selected-text, var(--red)); }
+.preferenceTile:has(input:focus-visible) { outline: 2px solid var(--planner-accent, var(--red)); outline-offset: 4px; }
+.preferenceTile:has(input:disabled) { opacity: .45; cursor: not-allowed; }
 .wizard :global(.question-enter) { animation: none; }
 .questionWord { display: inline-block; overflow: clip; vertical-align: bottom; padding-bottom: .12em; margin-bottom: -.12em; }
 .questionWord > span { display: block; }
