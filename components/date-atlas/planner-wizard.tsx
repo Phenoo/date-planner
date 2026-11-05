@@ -2,6 +2,7 @@
 
 import { useDestinationTimeZone } from "./use-destination-time-zone";
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
+import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { GeneratingScreen } from "./generating-screen";
@@ -80,6 +81,39 @@ function AnswerChoices<T extends string | number>({
   );
 }
 type DestinationChoice = "city" | "area" | "elsewhere";
+
+function ReviewScrollCue() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    let dismissed = false;
+    let previousScrollY = window.scrollY;
+    const update = () => {
+      if (dismissed) return;
+      const page = document.scrollingElement;
+      setVisible(!!page && page.scrollHeight - window.innerHeight - window.scrollY > 32);
+    };
+    const dismiss = () => { dismissed = true; setVisible(false); };
+    const onScroll = () => {
+      const scrollY = window.scrollY;
+      if (scrollY > previousScrollY) dismiss();
+      previousScrollY = scrollY;
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(document.body);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", update);
+    const frame = requestAnimationFrame(update);
+    const timer = window.setTimeout(dismiss, 5000);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      observer.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  return visible ? <div className={styles.scrollCue} aria-hidden="true"><ArrowDown size={24} /></div> : null;
+}
 
 export function PlannerWizard({
   request,
@@ -719,6 +753,7 @@ export function PlannerWizard({
           </span>}
         </div>}
       </form>
+      {editingPlan && stage.id === "review" && <ReviewScrollCue />}
     </main>
   );
 }

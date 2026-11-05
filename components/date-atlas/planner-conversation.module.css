@@ -8,6 +8,9 @@
 .enter > :global(.typeform-description) { animation: questionDetailIn 420ms 150ms ease both; }
 .enter > :global(.typeform-answer) { animation: questionDetailIn 460ms 260ms cubic-bezier(.16,1,.3,1) both; }
 .enter > :global(.typeform-confirm) { animation: questionDetailIn 420ms 360ms ease both; }
+.scrollCue { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom,0px)); left: calc(50% - 24px); z-index: 40; display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--planner-border); border-radius: 50%; background: var(--planner-primary-bg); color: var(--planner-primary-text); box-shadow: 0 8px 24px #0002; pointer-events: none; }
+.scrollCue > svg { animation: scrollNudge 1.2s ease-in-out infinite; }
+@keyframes scrollNudge { 0%,100% { transform: translateY(-3px); } 50% { transform: translateY(4px); } }
 @keyframes questionWordIn { from { opacity: 0; transform: translateY(110%) rotate(3deg); } to { opacity: 1; transform: none; } }
 @keyframes questionDetailIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .screen { position: relative; isolation: isolate; display: grid; grid-template-rows: 1fr auto; justify-items: center; align-items: center; gap: 36px; min-height: calc(100svh - 96px); padding: 100px 32px 28px; overflow: clip; background: var(--planner-bg); color: var(--planner-text); animation: screenIn 180ms ease both; }
@@ -31,4 +34,4 @@
   .screen { min-height: calc(100svh - 84px); padding: 72px 26px 24px; }
   .phrase { font-size: 35px; }
 }
-@media(prefers-reduced-motion:reduce) { .screen,.screen *,.enter,.enter * { animation: none !important; } .art path { stroke-dashoffset: 0; } .letter { visibility: visible; } .letter::after { display: none; } }
+@media(prefers-reduced-motion:reduce) { .screen,.screen *,.enter,.enter *,.scrollCue > svg { animation: none !important; } .art path { stroke-dashoffset: 0; } .letter { visibility: visible; } .letter::after { display: none; } }
