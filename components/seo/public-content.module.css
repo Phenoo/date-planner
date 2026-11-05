@@ -31,5 +31,6 @@
 .faq details { padding: 20px 0; border-bottom: 1px solid #f0dce1; }
 .faq summary { cursor: pointer; font-size: 17px; font-weight: 500; line-height: 1.6; }
 .faq details p { padding-top: 16px; margin-bottom: 0; }
-.footer { border-top: 1px solid #f0dce1; background: #fff8fa; font-size: 13px; }
+.footer { border-top: 1px solid #f0dce1; background: #fff8fa; font-size: 16px; }
+.footer nav { font-size: inherit; }
 @media (max-width:700px) { .hero > p { font-size: 16px; } .article { padding-top: 26px; } .breadcrumbs { margin-bottom: 32px; } .idea { grid-template-columns: 32px 1fr; gap: 10px; padding-block: 32px; } .idea p,.planning p,.faq p,.planning ol { font-size: 15px; } .header { padding-block: 14px; } }

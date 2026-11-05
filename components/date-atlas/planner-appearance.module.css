@@ -59,7 +59,7 @@
 .journey :global(.atlas-wordmark) > span, .journey :global(.desktop-nav) :is(a,button):hover { color: var(--planner-accent); }
 .journey :global(.atlas-footer) { border-color: var(--planner-border); }
 .journey :global(.atlas-footer) :is(button,a:not(.atlas-wordmark)), .journey :global(.mobile-nav) a { color: var(--planner-muted); }
-.journey :global(.mobile-nav) a:nth-child(2) { color: var(--planner-primary-text); background: var(--planner-primary-bg); }
+.journey :global(.mobile-nav) a[href="/plan"] { color: var(--planner-primary-text); background: var(--planner-primary-bg); }
 .journey :global(.mobile-nav) a[aria-current="page"] { color: var(--planner-accent); background: var(--planner-surface); }
 .journey :global(.data-notice) { color: var(--planner-text); background: var(--planner-surface); border-color: var(--planner-border); }
 .initializing { width: min(680px,100%); margin: auto; padding: 64px 24px; color: var(--planner-text); }

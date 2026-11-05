@@ -971,7 +971,7 @@ svg {
   flex-direction: column;
   align-items: flex-start;
   gap: 11px;
-  font-size: 11px;
+  font-size: 16px;
 }
 .atlas-footer .atlas-wordmark {
   font-size: 26px;
@@ -986,17 +986,23 @@ svg {
   margin-top: 4px;
 }
 .atlas-footer strong {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
   margin-bottom: 3px;
 }
 .atlas-footer button {
   padding: 0;
-  font-size: 11px;
+  font-size: 16px;
+  min-height: 44px;
+  line-height: 1.5;
   text-align: left;
   color: #725d63;
 }
 .atlas-footer a:not(.atlas-wordmark) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  line-height: 1.5;
   color: #725d63;
 }
 .atlas-footer .footer-bottom {
@@ -3482,7 +3488,7 @@ input[type="range"] {
     border-radius: 11px;
     padding: 4px 12px;
   }
-  .mobile-nav a:nth-child(2) {
+  .mobile-nav a[href="/plan"] {
     background: var(--coral);
     color: var(--charcoal);
     min-width: 66px;
@@ -3841,10 +3847,10 @@ input[type="range"] {
     gap: 8px;
   }
   .atlas-footer > div {
-    font-size: 10px;
+    font-size: 16px;
   }
   .atlas-footer button {
-    font-size: 10px;
+    font-size: 16px;
   }
   .atlas-footer small {
     font-size: 8px;
@@ -6631,7 +6637,7 @@ i {
   background: var(--red-soft);
 }
 @media (max-width: 700px) {
-  .mobile-nav a:nth-child(2) {
+  .mobile-nav a[href="/plan"] {
     color: white;
   }
 }

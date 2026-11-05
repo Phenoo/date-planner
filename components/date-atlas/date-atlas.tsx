@@ -6,7 +6,6 @@ import Link from "next/link";
 import { supportEmail, supportInbox } from "@/lib/seo/site";
 import { useRouter } from "next/navigation";
 import {
-  Compass,
   Heart,
   CalendarDays,
   UserRound,
@@ -548,9 +547,6 @@ export function DateAtlas({
     pendingSave.current = null; rejectionMemory.current = { flow: "", picks: mergeRejectedPicks() };
     setRequest(defaultRequest()); setPlannerStep(0); setEditingPlan(false); setPlannerMode(null); setChatSession(emptyChatSession()); setPreferredIds([]); setResult(null); setError(""); setExitOpen(false);
   }
-  function explore() {
-    router.push("/explore");
-  }
   function favorite(experience: Experience) {
     const next = favorites.includes(experience.id)
       ? favorites.filter((id) => id !== experience.id)
@@ -1035,7 +1031,6 @@ export function DateAtlas({
           ) : (
             <>
               <nav className="desktop-nav" aria-label="Main navigation">
-                <Link href="/explore">Explore</Link>
                 <Link href="/#how-it-works">How it works</Link>
                 <Link href="/#date-ideas">Date ideas</Link>
                 <button onClick={() => planDate()}>Plan a date</button>
@@ -1077,8 +1072,8 @@ export function DateAtlas({
                 <h1>Your kind of lovely.</h1>
                 <p>Experiences you&apos;ve saved on this device.</p>
               </div>
-              <Button variant="outline" onClick={() => explore()}>
-                Explore experiences
+              <Button variant="outline" onClick={() => planDate()}>
+                Plan a date
               </Button>
             </div>
             {catalogLoading ? (
@@ -1107,7 +1102,7 @@ export function DateAtlas({
                   Save an experience that catches your eye. It will be waiting
                   here.
                 </p>
-                <Button onClick={() => explore()}>Find your inspiration</Button>
+                <Button onClick={() => planDate()}>Plan a date</Button>
               </div>
             )}
           </main>
@@ -1275,7 +1270,6 @@ export function DateAtlas({
                 >
                   Plan a date
                 </Link>
-                <Link href="/explore">Explore experiences</Link>
                 <Link href="/saved">My dates</Link>
                 <Link href="/favorites">Favorites</Link>
               </div>
@@ -1296,7 +1290,6 @@ export function DateAtlas({
                     {page}
                   </button>
                 ))}
-                <Link href="/admin">Recommendation lab</Link>
               </div>
               <div className="footer-bottom">
                 <span>© {new Date().getFullYear()} A Date Atlas</span>
@@ -1305,13 +1298,6 @@ export function DateAtlas({
             </footer>}
             {signedIn && (
               <nav className="mobile-nav" aria-label="Mobile navigation">
-                <Link
-                  href="/explore"
-                  aria-current={view === "explore" ? "page" : undefined}
-                >
-                  <Compass size={19} />
-                  Explore
-                </Link>
                 <Link
                   href="/plan"
                   onNavigate={(event) => {

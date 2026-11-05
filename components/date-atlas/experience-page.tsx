@@ -51,7 +51,7 @@ export function ExperiencePage({
           your date.
         </p>
         <Button asChild>
-          <Link href="/explore">Explore experiences</Link>
+          <Link href="/plan">Plan a date</Link>
         </Button>
       </main>
     );
@@ -65,9 +65,9 @@ export function ExperiencePage({
     .slice(0, 3);
   return (
     <main className="experience-page page-container">
-      <Link href="/explore" className="text-link back-link">
+      <Link href="/" className="text-link back-link">
         <ArrowLeft size={14} />
-        All experiences
+        Home
       </Link>
       <div className="experience-page-hero">
         <Image

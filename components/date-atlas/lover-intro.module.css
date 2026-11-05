@@ -74,13 +74,13 @@
 .routeArt > i { height: 1px; background: #bc103144; flex: 1; }
 .togetherArt { display: flex; align-items: center; gap: 13px; font-size: 49px; letter-spacing: -.07em; font-weight: 550; transform: rotate(-5deg); }
 .togetherArt > span { font-size: 26px; font-weight: 400; }
-.footerLinks { display: flex; align-items: center; gap: 20px; font-size: 10px; }
-.footerLinks > a { display: flex; align-items: center; min-height: 36px; }
+.footerLinks { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; font-size: 16px; }
+.footerLinks > a { display: flex; align-items: center; min-height: 44px; }
 .footerLinks > a:hover { text-decoration: underline; text-underline-offset: 4px; }
 @keyframes storyFlip { 0% { transform: rotateY(-180deg); } 4.1667%,25% { transform: rotateY(0deg); } 29.1667%,100% { transform: rotateY(180deg); } }
 @media (hover:hover) { .art:hover .flipPanel { animation-play-state: paused; } }
 
-.footer { width: min(1240px,calc(100% - 96px)); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 19px 0 23px; border-top: 1px solid #ffffff24; }
+.footer { width: min(1240px,calc(100% - 96px)); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; padding: 19px 0 23px; border-top: 1px solid #ffffff24; }
 .chapter { display: flex; align-items: center; gap: 5px; }
 .chapter > span { width: 31px; height: 2px; background: #ffffff4a; transition: width 350ms, background 350ms; }
 .chapter > small { font-size: 8px; letter-spacing: .12em; margin-left: 10px; }
@@ -138,7 +138,7 @@
   .routeArt > span { width: 33px; height: 33px; font-size: 10px; }
   .togetherArt { font-size: 34px; gap: 9px; }
   .togetherArt > span { font-size: 19px; }
-  .footerLinks { font-size: 8px; gap: 14px; }
+  .footerLinks { gap: 4px 14px; }
 
   .postcardTop { font-size: 5px; padding-bottom: 10px; }
   .postcardBottom { padding-top: 8px; font-size: 5px; }
