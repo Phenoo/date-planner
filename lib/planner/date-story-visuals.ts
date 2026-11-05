@@ -1,17 +1,19 @@
-type StoryVisual = { src: string; alt: string; illustration?: boolean };
+type StoryVisual = { src: string; alt: string };
+
+const artworkPath = "/illustrations/date-story/original-v1/";
 
 const scenes = {
-  coffee: { photo: "cafe.jpg", illustration: "relaxed", scene: "A welcoming café", moment: "An illustrated couple chatting over coffee" },
-  dining: { photo: "restaurant.jpg", illustration: "food-and-dining", scene: "A warm restaurant setting", moment: "An illustrated couple sharing a meal" },
-  nightlife: { photo: "terrace.png", illustration: "luxurious", scene: "A table for two at sunset", moment: "An illustrated couple getting ready for an evening out" },
-  creative: { photo: "gallery.png", illustration: "unexpected", scene: "A couple exploring an art gallery", moment: "An illustrated couple exploring together" },
-  pottery: { photo: "pottery.jpg", illustration: "creative", scene: "Hands shaping a bowl on a pottery wheel", moment: "An illustrated couple making pottery together" },
-  outdoors: { photo: "picnic.png", illustration: "outdoors", scene: "A picnic set beneath leafy trees", moment: "An illustrated couple relaxing outdoors" },
-  cinema: { photo: "rooftop.jpg", illustration: "entertainment", scene: "A colourful city after dark", moment: "An illustrated couple sharing a laugh at the cinema" },
-  music: { photo: "rooftop.jpg", illustration: "unexpected", scene: "A colourful city after dark", moment: "An illustrated couple finding their next little adventure" },
-  games: { photo: "games.jpg", illustration: "playful", scene: "A colourful arcade", moment: "An illustrated couple enjoying a board game" },
-  active: { photo: "together.jpg", illustration: "active", scene: "Two hands making a heart in the sunlight", moment: "An illustrated couple taking a break from badminton" },
-  together: { photo: "together.jpg", illustration: "unexpected", scene: "Two hands making a heart in the sunlight", moment: "An illustrated couple finding their next little adventure" },
+  coffee: { asset: "coffee", alt: "An illustration of a couple chatting over coffee" },
+  dining: { asset: "dining", alt: "An illustration of a couple enjoying dinner together" },
+  nightlife: { asset: "nightlife", alt: "An illustration of a couple talking on an evening terrace" },
+  creative: { asset: "creative", alt: "An illustration of a couple discussing a painting in a gallery" },
+  pottery: { asset: "pottery", alt: "An illustration of a couple working with clay together" },
+  outdoors: { asset: "outdoors", alt: "An illustration of a couple enjoying a picnic in a leafy park" },
+  cinema: { asset: "cinema", alt: "An illustration of a couple sharing a moment at the cinema" },
+  music: { asset: "music", alt: "An illustration of a couple enjoying a live music performance" },
+  games: { asset: "games", alt: "An illustration of a couple laughing over a board game" },
+  active: { asset: "active", alt: "An illustration of a couple playing badminton outdoors" },
+  together: { asset: "together", alt: "An illustration of a couple walking and chatting together" },
 };
 
 function sceneFor(category: string) {
@@ -33,10 +35,8 @@ function sceneFor(category: string) {
 export function dateStoryVisuals(category = ""): readonly [StoryVisual, StoryVisual, StoryVisual] {
   const scene = sceneFor(category);
   return [
-    { src: `/images/${scene.photo}`, alt: `Date inspiration: ${scene.scene.toLowerCase()}` },
-    { src: `/illustrations/vibes/editorial-v2/${scene.illustration}.webp`, alt: scene.moment, illustration: true },
-    scene.photo === "together.jpg"
-      ? { src: "/illustrations/vibes/editorial-v2/romantic.webp", alt: "An illustrated couple sharing an umbrella", illustration: true }
-      : { src: "/images/together.jpg", alt: "Date inspiration: a heart made with two hands in the sunlight" },
+    { src: `${artworkPath}hello.webp`, alt: "An illustration of two people greeting each other with a smile" },
+    { src: `${artworkPath}${scene.asset}.webp`, alt: scene.alt },
+    { src: `${artworkPath}keepsake.webp`, alt: "An illustration of a couple looking at a photo they took together" },
   ];
 }
