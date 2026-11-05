@@ -7,6 +7,18 @@
 .preferenceTile > input { width: 18px; height: 18px; flex-shrink: 0; margin: 0; accent-color: var(--planner-selected-text, var(--red)); }
 .preferenceTile:has(input:focus-visible) { outline: 2px solid var(--planner-accent, var(--red)); outline-offset: 4px; }
 .preferenceTile:has(input:disabled) { opacity: .45; cursor: not-allowed; }
+.timePicker { display: grid; gap: 24px; }
+.timePresets { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.timePreset { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-height: 100px; padding: 18px; border: 1px solid var(--planner-border); border-radius: 14px; background: var(--planner-surface); color: var(--planner-text); text-align: left; }
+.timePreset > span { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.4; }
+.timePreset > span > svg { flex-shrink: 0; }
+.timePreset > strong { font-size: 21px; line-height: 1.2; font-weight: 550; letter-spacing: -.035em; }
+.timePreset:hover:not(:disabled) { background: var(--planner-hover); border-color: var(--planner-accent); }
+.timePreset[aria-pressed="true"] { background: var(--planner-selected-bg); color: var(--planner-selected-text); border-color: var(--planner-accent); }
+.timePreset:focus-visible { outline: 2px solid var(--planner-accent); outline-offset: 4px; }
+.timePreset:disabled { cursor: not-allowed; }
+.timeHint { font-size: 12px; line-height: 1.6; }
+@media(max-width:700px) { .timePresets { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; } .timePreset { min-height: 94px; padding: 15px; } }
 .wizard :global(.question-enter) { animation: none; }
 .questionWord { display: inline-block; overflow: clip; vertical-align: bottom; padding-bottom: .12em; margin-bottom: -.12em; }
 .questionWord > span { display: block; }

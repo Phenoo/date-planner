@@ -2,7 +2,7 @@
 
 import { useDestinationTimeZone } from "./use-destination-time-zone";
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, Coffee, Moon, Sun, Sunset, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { GeneratingScreen } from "./generating-screen";
@@ -12,7 +12,7 @@ import { LocationPermissionHelp } from "./location-permission-help";
 import { VibeChoices } from "./vibe-choices";
 import { GenderChoices } from "./gender-choices";
 import { DatePicker } from "./date-picker";
-import { calendarDay, calendarLabel, zonedNow, scheduleError } from "@/lib/planner/schedule";
+import { calendarDay, calendarLabel, clockLabel, timeMinutes, zonedNow, scheduleError } from "@/lib/planner/schedule";
 import { usePlannerConversation } from "./use-planner-conversation";
 import { PlannerReaction } from "./planner-reaction";
 import { conversationAnswerKey, localReaction } from "@/lib/planner/conversation";
@@ -43,6 +43,15 @@ import { budgetSuggestions, currencyDigits, currencyOptions, destinationCurrency
 
 export { Field } from "@/components/ui/field";
 export { plannerQuestionCount } from "@/lib/planner/questions";
+
+const suggestedStartTimes = [
+  { label: "Brunch", value: "10:00", icon: Coffee },
+  { label: "Lunch", value: "13:00", icon: Utensils },
+  { label: "Afternoon", value: "15:30", icon: Sun },
+  { label: "Early evening", value: "17:30", icon: Sunset },
+  { label: "Dinner", value: "19:00", icon: Utensils },
+  { label: "Night out", value: "20:30", icon: Moon },
+] as const;
 
 function AnswerChoices<T extends string | number>({
   options,
@@ -228,6 +237,8 @@ export function PlannerWizard({
     } finally { if (!controller.signal.aborted) setLocating(false); }
   }
   const stage = plannerQuestions[step];
+  const currentTime = stage.id === "time" && request.timeZoneConfirmed ? zonedNow(request.timeZone) : null;
+  const choosingToday = currentTime !== null && request.date === currentTime.date;
   useDestinationTimeZone(request, setRequest, ["date", "time", "review"].includes(stage.id));
   useEffect(() => { const field = intakeFieldForQuestion(stage.id); if (field) trackFunnel("planner_step_viewed", funnelScope(`step:${field}`), undefined, field); }, [stage.id]);
   const title = editingPlan && stage.id === "review" ? "What would you like to change?" : stage.title;
@@ -734,7 +745,19 @@ export function PlannerWizard({
           {stage.id === "date" && (
             <DatePicker key={request.timeZone} timeZone={request.timeZone} value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
           )}
-          {stage.id === "time" && <Field label="Choose your start time"><input type="time" required value={request.startTime} onChange={(event) => update("startTime", event.target.value)} /></Field>}
+          {stage.id === "time" && <div className={styles.timePicker}>
+            <div className={styles.timePresets} role="group" aria-label="Suggested start times">
+              {suggestedStartTimes.map(({ label, value, icon: Icon }) => {
+                const passed = choosingToday && currentTime !== null && value <= currentTime.time;
+                return <button type="button" key={value} className={styles.timePreset} aria-pressed={request.startTime === value} disabled={passed} title={passed ? "This time has already passed today" : undefined} onClick={() => update("startTime", value)}>
+                  <span><Icon size={18} aria-hidden="true" />{label}</span>
+                  <strong>{clockLabel(timeMinutes(value))}</strong>
+                </button>;
+              })}
+            </div>
+            {choosingToday && currentTime !== null && suggestedStartTimes.every(({ value }) => value <= currentTime.time) && <p className={styles.timeHint}>Choose a later time below, or go back to pick another day.</p>}
+            <Field label="Or choose your own time"><input type="time" required value={request.startTime} onChange={(event) => update("startTime", event.target.value)} /></Field>
+          </div>}
 
         </fieldset>
         {(error || serverError) && (
