@@ -123,7 +123,7 @@ test("AI output cannot include a second recommendation or comparison list", () =
 });
 
 test("discovery removes closed, distant and excluded food venues and deduplicates the full pool", () => {
-  const place = { id: "gallery", displayName: { text: "Fixture gallery" }, formattedAddress: "Fixture", businessStatus: "OPERATIONAL", types: ["art_gallery"], location: { latitude: 6.45, longitude: 3.46 } };
+  const place = { id: "gallery", displayName: { text: "Fixture gallery" }, formattedAddress: "Fixture", businessStatus: "OPERATIONAL", rating: 4.5, types: ["art_gallery"], location: { latitude: 6.45, longitude: 3.46 } };
   const data = placesResponseSchema.parse({ places: [place, place, { ...place, id: "closed", businessStatus: "CLOSED_PERMANENTLY" }, { ...place, id: "far", location: { latitude: 8, longitude: 3 } }, { ...place, id: "food", types: ["restaurant"] }] });
   for (const flags of [{ includeFood: false }, { avoidRestaurants: true }]) {
     const search = nearbySearchSchema.parse({ ...request, ...flags });

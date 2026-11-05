@@ -14,10 +14,12 @@ import { encodeRecipe } from "@/lib/planner/money";
 import { toRecipe } from "@/lib/planner/saved";
 import { savedDocumentId } from "@/lib/firebase/paths";
 import { loadPlaceDetails } from "@/lib/maps/place-details";
+import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
 import { planningOrigin } from "@/lib/maps/google";
 import { mapNearbyPlaces } from "@/lib/maps/nearby";
 import { fallbackDateStory } from "@/lib/planner/date-story";
 import { storedDateSchema, publicStoredDateSchema, tokenKey, type StoredDate } from "./date-invitations";
+import { planHasQualifyingGoogleRatings } from "./plan-ratings";
 
 async function validatePlace(record: StoredDate, request: PlanRequest) {
   const invalid = scheduleError(request);
@@ -27,9 +29,11 @@ async function validatePlace(record: StoredDate, request: PlanRequest) {
     const experience = catalog.find((item) => item.id === record.placeId && !item.demo);
     const plan = experience ? recalculateExactPlan(request, [experience], undefined, catalog, await planningOrigin(request)) : null;
     if (!plan) throw new RequestError("This place no longer fits the updated location, schedule, spending limit or requirements. Adjust those details or find another recommendation.", 409);
+    if (!await planHasQualifyingGoogleRatings(plan)) throw new RequestError("This place no longer has a confirmed Google rating above 3.75. Find another recommendation before updating or sharing this date.", 409);
     return { story: fallbackDateStory(plan.activities[0].experience.category), recipe: toRecipe(plan), preferences: plan.request };
   }
   const details = await loadPlaceDetails(record.placeId, false);
+  if (!hasQualifyingGoogleRating(details.record.rating)) throw new RequestError("This place no longer has a confirmed Google rating above 3.75. Find another recommendation before updating or sharing this date.", 409);
   const origin = await planningOrigin(request);
   if (!origin) throw new RequestError("The updated location couldn't be checked. Please retry before saving these changes.", 503);
   const matches = mapNearbyPlaces({ places: [details.record] }, origin, request, 1);

@@ -9,7 +9,7 @@ import { requestSchema } from "../lib/planner/schema";
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Casual date", budget: 60000, vibes: ["Playful"], date: "2026-11-07", startTime: "16:00", duration: 180 });
 const origin = { lat: 6.45, lng: 3.46 };
-const place = { id: "fixture", displayName: { text: "Fixture" }, businessStatus: "OPERATIONAL", types: ["restaurant"], location: { latitude: origin.lat, longitude: origin.lng } };
+const place = { id: "fixture", displayName: { text: "Fixture" }, businessStatus: "OPERATIONAL", rating: 4.5, types: ["restaurant"], location: { latitude: origin.lat, longitude: origin.lng } };
 const now = new Date("2026-11-03T10:00:00Z");
 const search = (records: unknown[], preferences = request) => mapNearbyPlaces(placesResponseSchema.parse({ places: records }), origin, nearbySearchSchema.parse(preferences));
 
@@ -55,11 +55,11 @@ test("unsupported dietary options stay required and are named exactly in advance
 });
 
 test("travel and price feedback comes from the same hard checks as venue eligibility", () => {
-  const facts = providerFactsSchema.parse({ priceRange: { startPrice: { currencyCode: "NGN", units: "40000" } } });
+  const facts = providerFactsSchema.parse({ rating: 4.5, priceRange: { startPrice: { currencyCode: "NGN", units: "40000" } } });
   assert.deepEqual(venueRequestIssues(facts, request, 0), ["budget"]);
   assert.equal(fitsVenueRequest(facts, request, 0), false);
   assert.deepEqual(venueRequestIssues(facts, { ...request, budgetType: "per-person" }, 0), []);
-  assert.deepEqual(venueRequestIssues(providerFactsSchema.parse({}), { ...request, duration: 60, transport: "Walking" }, 10), ["travel-time"]);
+  assert.deepEqual(venueRequestIssues(providerFactsSchema.parse({ rating: 4.5 }), { ...request, duration: 60, transport: "Walking" }, 10), ["travel-time"]);
   assert.equal(searchFeedback("budget", request).question, "budget");
   assert.equal(searchFeedback("travel-time", request).question, "area");
 });

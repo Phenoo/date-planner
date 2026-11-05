@@ -16,6 +16,7 @@ import { getCatalog } from "@/lib/planner/catalog";
 import { recalculateExactPlan } from "@/lib/planner/engine";
 import { refreshDiscoveryPick } from "./date-discovery";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
+import { planHasQualifyingGoogleRatings } from "./plan-ratings";
 
 import { recordFunnel } from "./funnel";
 
@@ -37,12 +38,13 @@ async function restoreResult(value: z.infer<typeof cachedSchema>, input: Generat
   const { nearby: cached, ...rest } = value;
   const controls = await venueControls();
   const catalog = rest.plans.length ? await getCatalog() : [];
-  const plans = rest.plans.map((plan) => {
+  const plans = await Promise.all(rest.plans.map(async (plan) => {
     const experiences = plan.activities.map((activity) => catalog.find((item) => item.id === activity.experience.id));
     const current = experiences.every((experience) => experience !== undefined) ? recalculateExactPlan(input.request, experiences, undefined, catalog) : null;
     if (!current) throw new RequestError("This date no longer fits current venue information. Request another recommendation.", 409);
+    if (!await planHasQualifyingGoogleRatings(current)) throw new RequestError("This date no longer has a confirmed Google average rating above 3.75 stars. Request another recommendation.", 409);
     return { ...current, title: plan.title, introduction: plan.introduction };
-  });
+  }));
   if (plans.some((plan) => plan.activities.some((activity) => controls.has(activity.experience.id)))) throw new RequestError("This place is under review. Request another recommendation.", 409);
   if (!cached) return { ...rest, plans, request: plans[0]?.request ?? input.request };
   const places = await Promise.all(cached.picks.map(async (pick) => {

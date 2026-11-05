@@ -5,6 +5,7 @@ import { requestSchema, generateSchema } from "@/lib/planner/schema";
 import { recalculateExactPlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
+import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
 const swapSchema = z.object({
   request: requestSchema,
   excludeIds: generateSchema.shape.excludeIds,
@@ -55,7 +56,8 @@ export async function swap(request: Request) {
       })
       .sort((a, b) => b.score - a.score)
       .slice(0, 1);
-    return Response.json({ alternatives });
+    const ratingChecks = await Promise.all(alternatives.map(planHasQualifyingGoogleRatings));
+    return Response.json({ alternatives: alternatives.filter((_, index) => ratingChecks[index]) });
   } catch (error) {
     return apiError(error);
   }

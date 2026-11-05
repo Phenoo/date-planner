@@ -8,6 +8,7 @@ import { generateSinglePlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
+import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
 
 const schema = generateSchema.extend({
   message: z.string().trim().min(2).max(1000),
@@ -50,6 +51,11 @@ export async function chat(request: Request, progress?: (stage: string) => void)
         await planningOrigin(modification.request),
       ),
     );
+    const ratingChecks = await Promise.all(result.plans.map(planHasQualifyingGoogleRatings));
+    if (ratingChecks.some((eligible) => !eligible)) {
+      result.plans = result.plans.filter((_, index) => ratingChecks[index]);
+      result.warnings.push("Catalog places without a confirmed Google average rating above 3.75 stars were excluded.");
+    }
     await persistPlans(request, result.plans);
     return Response.json({
       ...result,

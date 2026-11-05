@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requestSchema } from "./schema";
 import { recommendationResultSchema } from "./response-schema";
+import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
 
 export const activeDiscoveryKey = "date-atlas:active-discovery:v1";
 export const invitationReturnKey = "date-atlas:invitation-return:v1";
@@ -18,6 +19,7 @@ export function restoreDiscoverySession(raw: string | null, flow: string, now = 
   try {
     const parsed = discoverySessionSchema.safeParse(JSON.parse(raw ?? "null"));
     if (!parsed.success || parsed.data.flow !== flow || parsed.data.expiresAt < now || !parsed.data.result.nearby?.places.length) return null;
+    if (parsed.data.result.nearby.places.some(place => !hasQualifyingGoogleRating(place.details?.rating))) return null;
     return parsed.data;
   } catch { return null; }
 }

@@ -3,6 +3,7 @@ import type { PlanRequest } from "./schema";
 import type { PlannerQuestionId } from "./questions";
 import { calendarLabel, clockLabel, timeMinutes } from "./schedule";
 import { money } from "@/lib/utils";
+import { minimumGoogleRating } from "@/lib/maps/recommendation-quality";
 
 const dietaryList = (dietary: PlanRequest["dietary"]) => dietary.join(", ");
 
@@ -16,6 +17,7 @@ export function requirementsGuidance(request: Pick<PlanRequest, "dietary" | "acc
 export type SearchFeedback = { title: string; message: string; question: PlannerQuestionId; action: string };
 export function searchFeedback(issue: SearchIssue, request: PlanRequest): SearchFeedback {
   switch (issue) {
+    case "google-rating": return { title: "No places met our Google review standard", message: `We only recommend places with a confirmed Google average rating above ${minimumGoogleRating} stars. Try another destination or widen your search area.`, question: "area", action: "Change destination or distance" };
     case "unverified-dietary": return { title: `${dietaryList(request.dietary.filter((diet) => diet !== "vegetarian")).replace(/^./, (letter) => letter.toUpperCase())} options couldn’t be verified`, message: "Live listings don’t confirm these requirements. Keep essential needs selected; remove only accidental selections. You can also try another destination.", question: "requirements", action: "Review dietary needs" };
     case "vegetarian": return { title: "Vegetarian options weren’t confirmed", message: "Places were excluded because their listings didn’t confirm vegetarian food. Review an accidental selection or try another destination while keeping this requirement.", question: "requirements", action: "Review dietary needs" };
     case "accessible-entrance": return { title: "Step-free access wasn’t confirmed", message: "Nearby listings didn’t confirm an accessible entrance. Keep this selected if you need it, or remove an accidental selection. You can also try another destination.", question: "requirements", action: "Review access needs" };

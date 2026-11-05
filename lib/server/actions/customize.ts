@@ -5,6 +5,7 @@ import { requestSchema } from "@/lib/planner/schema";
 import { recalculateExactPlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
+import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
 const editSchema = z.object({
   request: requestSchema,
   experienceIds: z
@@ -55,6 +56,8 @@ export async function customize(request: Request) {
         },
         { status: 422 },
       );
+    if (!await planHasQualifyingGoogleRatings(plan))
+      return Response.json({ error: "This plan no longer has a confirmed Google average rating above 3.75 stars. Please find another recommendation." }, { status: 409 });
     return Response.json({ plan });
   } catch (error) {
     return apiError(error);

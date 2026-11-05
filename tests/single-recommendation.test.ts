@@ -8,7 +8,7 @@ import { demoCatalog } from "../lib/planner/demo-catalog";
 import { restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeRejectedPicks } from "../lib/planner/discovery-session";
 
 const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "Casual date", budget: 60000, vibes: ["Playful"], date: "2026-10-31", startTime: "16:00", duration: 180 });
-const hours = providerFactsSchema.parse({ regularOpeningHours: { periods: [{ open: { day: 6, hour: 10 }, close: { day: 6, hour: 20 } }] } });
+const hours = providerFactsSchema.parse({ rating: 4.5, regularOpeningHours: { periods: [{ open: { day: 6, hour: 10 }, close: { day: 6, hour: 20 } }] } });
 test("Lagos dates use the explicit venue timezone and reject past times without changing the request", () => {
   const now = new Date("2026-10-30T23:30:00Z");
   assert.deepEqual(zonedNow("Africa/Lagos", now), { date: "2026-10-31", time: "00:30" });
@@ -75,12 +75,19 @@ test("the single-experience catalog engine returns one valid pick, respects its 
   assert.equal(generateSinglePlan(generateSchema.parse({ request: { ...request, budget: 1000 } }), demoCatalog).plans.length, 0);
 });
 test("accepted discovery recovery validates the flow, expiration and venue records", () => {
-  const result = { nearby: { city: "Lagos", area: "Lekki", country: "Nigeria", places: [{ id: "test", name: "Fixture", address: "Fixture", category: "Park", reason: "Test", distanceKm: 1, mapsUrl: "https://www.google.com/maps/", attributions: [] }] }, plans: [], warnings: [], diagnostics: [], source: "firebase", ai: false };
+  const result = { nearby: { city: "Lagos", area: "Lekki", country: "Nigeria", places: [{ id: "test", name: "Fixture", address: "Fixture", category: "Park", reason: "Test", distanceKm: 1, mapsUrl: "https://www.google.com/maps/", attributions: [], details: { checkedAt: "2026-11-05T00:00:00Z", opening: "unknown", hours: [], travelMinutes: 5, reviews: [], rating: 4.5 } }] }, plans: [], warnings: [], diagnostics: [], source: "firebase", ai: false };
   const stored = JSON.stringify({ flow: "test-flow", request, result, expiresAt: 2000, accepted: true });
   assert.equal(restoreDiscoverySession(stored, "test-flow", 1000)?.accepted, true);
   assert.equal(restoreDiscoverySession(stored, "another-flow", 1000), null);
   assert.equal(restoreDiscoverySession(stored, "test-flow", 3000), null);
   assert.equal(restoreDiscoverySession("bad-json", "test-flow"), null);
+});
+test("legacy discovery recovery never reveals missing or unqualified aggregate Google ratings", () => {
+  for (const rating of [undefined, 3.7, 3.75]) {
+    const result = { nearby: { city: "Lagos", area: "Lekki", country: "Nigeria", places: [{ id: "test", name: "Fixture", address: "Fixture", category: "Park", reason: "Test", distanceKm: 1, mapsUrl: "https://www.google.com/maps/", attributions: [], details: { checkedAt: "2026-11-05T00:00:00Z", opening: "unknown", hours: [], travelMinutes: 5, reviews: [], rating } }] }, plans: [], warnings: [], diagnostics: [], source: "firebase", ai: false };
+    const stored = JSON.stringify({ flow: "test-flow", request, result, expiresAt: 2000, accepted: true });
+    assert.equal(restoreDiscoverySession(stored, "test-flow", 1000), null);
+  }
 });
 test("rejections survive edits and refreshes while separate planning sessions stay independent", () => {
   const stored = JSON.stringify(mergeRejectedPicks({ excludePlaceIds: ["first-place"], excludeIds: ["catalog-pick"] }));

@@ -4,7 +4,10 @@ import { FieldValue } from "firebase-admin/firestore";
 import { savedDocumentId } from "@/lib/firebase/paths";
 import { authenticatedClient } from "@/lib/firebase/server";
 import { savedRecipeSchema } from "@/lib/planner/saved";
-import { apiError, readJson } from "@/lib/planner/http";
+import { apiError, readJson, RequestError } from "@/lib/planner/http";
+import { getCatalog } from "@/lib/planner/catalog";
+import { recalculateExactPlan } from "@/lib/planner/engine";
+import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
 
 import { dateSelectionId } from "@/lib/server/date-invitations";
 import { recordFunnel } from "@/lib/server/funnel";
@@ -48,6 +51,10 @@ export async function POST(request: Request) {
         { error: "Please save a valid plan." },
         { status: 400 },
       );
+    const catalog = await getCatalog();
+    const experiences = recipe.data.experienceIds.map((id) => catalog.find((item) => item.id === id));
+    const plan = experiences.every((item) => item !== undefined) ? recalculateExactPlan(recipe.data.request, experiences, undefined, catalog) : null;
+    if (!plan || !await planHasQualifyingGoogleRatings(plan)) throw new RequestError("Only places with a confirmed Google rating above 3.75 can be saved. Reopen your plan or choose another recommendation.", 409);
     const user = auth.db.collection("users").doc(auth.user.uid);
     const batch = auth.db.batch();
     batch.set(

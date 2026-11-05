@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Coordinates, NearbyResult, NearbySearch } from "./schema";
 import { venueRequestIssues, providerFactsSchema, providerPrice, travelEstimate, venueOpeningStatus } from "./venue-facts";
 import { timeMinutes } from "@/lib/planner/schedule";
+import { hasQualifyingGoogleRating } from "./recommendation-quality";
 
 const negativePreferencePattern = /\b(?:no|avoid|without|not into|not interested in|don't (?:like|want|enjoy)|do not (?:like|want|enjoy))\s+[^,.!?;]*/gi;
 
@@ -81,7 +82,7 @@ export function mapNearbyPlaces(data: z.infer<typeof placesResponseSchema>, orig
     .filter((place) => request.includeFood && !request.avoidRestaurants || !place.types.some((type) => ["restaurant", "cafe", "meal_takeaway", "meal_delivery"].includes(type)))
     .map((place, providerIndex) => {
       const distanceKm = straightLineKm(origin, { lat: place.location.latitude, lng: place.location.longitude });
-      const issues = request.date ? venueRequestIssues(place, request, distanceKm) : [];
+      const issues = request.date ? venueRequestIssues(place, request, distanceKm) : hasQualifyingGoogleRating(place.rating) ? [] : ["google-rating" as const];
       if (distanceKm > Math.min(request.maxDistance, 50)) searchIssues.add("distance");
       else issues.forEach((issue) => searchIssues.add(issue));
       const fit = place.types.reduce((best, type) => Math.max(best, preferred.includes(type) ? preferred.length - preferred.indexOf(type) : 0), 0);

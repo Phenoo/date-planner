@@ -6,6 +6,7 @@ import { savedRecipeSchema } from "@/lib/planner/saved";
 import { recalculateExactPlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
+import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
 export async function restore(request: Request) {
   try {
     const parsed = savedRecipeSchema.safeParse(await readJson(request));
@@ -40,6 +41,8 @@ export async function restore(request: Request) {
         },
         { status: 409 },
       );
+    if (!await planHasQualifyingGoogleRatings(plan))
+      throw new RequestError("This plan no longer has a confirmed Google average rating above 3.75 stars. Please find a fresh recommendation.", 409);
     return Response.json({
       plans: [{ ...plan, title: parsed.data.title, type: parsed.data.type }],
       warnings: [

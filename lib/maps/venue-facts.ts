@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { SearchIssue } from "./schema";
 import { venueVisitMinutes } from "@/lib/planner/timing";
 import { addCalendarDays, calendarDay, timeMinutes } from "@/lib/planner/schedule";
+import { hasQualifyingGoogleRating } from "./recommendation-quality";
 
 const datePoint = z.object({ year: z.number(), month: z.number(), day: z.number() });
 const point = z.object({ day: z.number().int().min(0).max(6), hour: z.number().int().min(0).max(23).default(0), minute: z.number().int().min(0).max(59).default(0), date: datePoint.optional() });
@@ -77,6 +78,7 @@ export function travelEstimate(distanceKm: number, method = "Ride-hailing") {
 }
 export function venueRequestIssues(facts: ProviderFacts, request: { date: string; startTime: string; duration: number; budget: number | null; budgetType: string; guests: number; includeTransport: boolean; transport: string; accessibility: boolean; dietary: string[]; currency?: string; durationMode?: "estimated" | "specified" }, distanceKm: number) {
   const issues: SearchIssue[] = [];
+  if (!hasQualifyingGoogleRating(facts.rating)) issues.push("google-rating");
   const travel = travelEstimate(distanceKm, request.transport);
   if (request.durationMode !== "estimated" && travel * 2 + 30 > request.duration) issues.push("travel-time");
   if (request.accessibility && facts.accessibilityOptions?.wheelchairAccessibleEntrance !== true) issues.push("accessible-entrance");

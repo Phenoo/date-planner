@@ -10,6 +10,11 @@ import { timeMinutes } from "@/lib/planner/schedule";
 import { z } from "zod";
 import { RequestError } from "@/lib/planner/http";
 import type { NearbyResult } from "@/lib/maps/schema";
+import { hasQualifyingGoogleRating, minimumGoogleRating } from "@/lib/maps/recommendation-quality";
+
+class GoogleRatingError extends RequestError {
+  constructor() { super(`This place does not have a confirmed Google rating above ${minimumGoogleRating}. Try another place or destination.`, 409); }
+}
 
 export async function discoverDatePlaces(request: PlanRequest, center: Coordinates | undefined, options: DiscoveryOptions = {}, progress?: (stage: string) => void): Promise<NearbyResult> {
   progress?.("Understanding your kind of date");
@@ -24,8 +29,7 @@ export async function discoverDatePlaces(request: PlanRequest, center: Coordinat
     try {
       Object.assign(chosen, await refreshDiscoveryPick(chosen, request));
     } catch (error) {
-      if (error instanceof RequestError && error.status === 409) return { ...ranked, places: [], searchIssues: ["venue-changed"], warnings: [error.message] };
-      ranked.warnings = [...(ranked.warnings ?? []), "Detailed venue information is temporarily unavailable. Confirm opening hours, prices and booking availability with the venue."];
+      return { ...ranked, places: [], searchIssues: [error instanceof GoogleRatingError ? "google-rating" : "venue-changed"], warnings: [error instanceof RequestError ? error.message : "We couldn't confirm the latest venue details. Please try again."] };
     }
   }
   if (result.places.length && !ranked.places.length) ranked.searchIssues = ["preferences"];
@@ -35,6 +39,7 @@ export async function discoverDatePlaces(request: PlanRequest, center: Coordinat
 
 export async function refreshDiscoveryPick(pick: Pick<NearbyResult["places"][number], "id" | "distanceKm" | "reason" | "story">, request: PlanRequest, withPhoto = false): Promise<NearbyResult["places"][number]> {
   const { record, operational, place } = await loadPlaceDetails(pick.id, withPhoto);
+  if (!hasQualifyingGoogleRating(record.rating)) throw new GoogleRatingError();
   if (!operational || !fitsVenueRequest(record, request, pick.distanceKm)) throw new RequestError("This place no longer fits your selected schedule or requirements. Try another time or update your preferences.", 409);
   const travelMinutes = travelEstimate(pick.distanceKm, request.transport);
   const opening = venueOpeningStatus(record, request.date, timeMinutes(request.startTime) + travelMinutes, venueVisitMinutes(request, travelMinutes));

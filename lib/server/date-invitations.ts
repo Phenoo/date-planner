@@ -7,6 +7,7 @@ import { authenticatedClient, getDatabase } from "@/lib/firebase/server";
 import { datePreferencesSchema, invitationPlaceSchema, invitationResponseSchema, invitationTokenSchema, invitationMessageSchema, selectionIdSchema, suggestedTimeSchema, type ChosenDate, type PublicInvitation } from "@/lib/planner/invitations";
 import { dateStorySchema, fallbackDateStory } from "@/lib/planner/date-story";
 import { loadPlaceDetails } from "@/lib/maps/place-details";
+import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
 import { RequestError } from "@/lib/planner/http";
 import type { NearbyResult } from "@/lib/maps/schema";
 import { requestSchema } from "@/lib/planner/schema";
@@ -21,6 +22,7 @@ import { scheduleError } from "@/lib/planner/schedule";
 import { venueControls } from "./venue-controls";
 import { deletionKey } from "./account-privacy";
 import { contextExpired } from "./context-retention";
+import { planHasQualifyingGoogleRatings } from "./plan-ratings";
 
 const sessionSchema = datePreferencesSchema.extend({ candidates: z.array(z.object({ id: z.string().min(1).max(200), distanceKm: z.number().nonnegative().default(0), story: dateStorySchema })).min(1).max(3) });
 export const storedDateSchema = datePreferencesSchema.extend({
@@ -62,9 +64,10 @@ export async function createChosenDate(request: Request, sessionId: string, plac
   const id = dateSelectionId(sessionId, placeId);
   const history = user.collection("dateHistory").doc(id);
   const existing = storedDateSchema.safeParse((await history.get()).data());
+  const details = await loadPlaceDetails(placeId, false);
+  if (!hasQualifyingGoogleRating(details.record.rating)) throw new RequestError("Only places with a confirmed Google rating above 3.75 can be saved or shared. Choose another recommendation.", 409);
   if (existing.success && (!publish || existing.data.invitationPublished && !existing.data.invitationRevoked)) return { token: existing.data.token, id, response: existing.data.response, message: existing.data.message ?? "" };
   if (existing.success && existing.data.dateStatus === "completed") throw new RequestError("This date is already marked as done. Plan another date to create a new invitation.", 409);
-  const details = await loadPlaceDetails(placeId, false);
   const privateRequest = requestSchema.safeParse(sessionRecord?.privateRequest);
   if (privateRequest.success) {
     const issue = scheduleError(privateRequest.data);
@@ -98,6 +101,7 @@ export async function createCatalogInvitation(request: Request, recipe: SavedRec
   const plan = experiences.every((item) => item !== undefined) ? recalculateExactPlan(recipe.request, experiences, undefined, catalog) : null;
   if (!plan) throw new RequestError("This date no longer fits the catalog, schedule or budget. Adjust your plan before sharing.", 409);
   if (plan.demo) throw new RequestError("Demonstration plans use fictional venues and cannot create real invitations.", 422);
+  if (!await planHasQualifyingGoogleRatings(plan)) throw new RequestError("Only places with a confirmed Google rating above 3.75 can be shared. Choose another recommendation.", 409);
   const id = dateSelectionId("catalog", plan.id);
   const user = auth.db.collection("users").doc(auth.user.uid);
   const history = user.collection("dateHistory").doc(id);

@@ -22,7 +22,7 @@ test("reverse geocoding chooses neighborhood and city by type, without returning
 
 const request = nearbySearchSchema.parse({ area: "Lekki", city: "Lagos", country: "Nigeria", maxDistance: 5, vibes: ["Creative"] });
 const origin = { lat: 6.44, lng: 3.47 };
-const place = (id: string, type = "art_gallery", lat = 6.441, status = "OPERATIONAL") => ({ id, displayName: { text: `Test fixture ${id}` }, formattedAddress: "Test address", types: [type], businessStatus: status, location: { latitude: lat, longitude: 3.47 } });
+const place = (id: string, type = "art_gallery", lat = 6.441, status = "OPERATIONAL") => ({ id, displayName: { text: `Test fixture ${id}` }, formattedAddress: "Test address", types: [type], businessStatus: status, rating: 4.5, location: { latitude: lat, longitude: 3.47 } });
 
 test("city discovery uses the chosen destination rather than the detected neighborhood", () => {
   const citySearch = nearbySearchSchema.parse({ ...request, area: "Osapa London", city: "Abuja", locationScope: "city" });

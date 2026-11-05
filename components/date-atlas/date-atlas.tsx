@@ -265,25 +265,21 @@ export function DateAtlas({
           const flow =
             new URLSearchParams(window.location.search).get("flow") ?? "direct";
           const rawDiscovery = sessionStorage.getItem(activeDiscoveryKey);
-          const reference = z.object({ flow: z.string(), sessionId: z.uuid(), placeId: z.string(), expiresAt: z.number(), accepted: z.boolean().default(false) }).safeParse(JSON.parse(rawDiscovery ?? "null"));
-          if (reference.success && reference.data.flow === flow && draftIsCurrent(reference.data)) {
+          const currentReference = z.object({ flow: z.string(), sessionId: z.uuid(), placeId: z.string(), expiresAt: z.number(), accepted: z.boolean().default(false) }).safeParse(JSON.parse(rawDiscovery ?? "null"));
+          const legacy = currentReference.success ? null : restoreDiscoverySession(rawDiscovery, flow);
+          const nearby = legacy?.result.nearby;
+          const reference = currentReference.success ? currentReference.data : legacy && nearby?.sessionId && nearby.places[0] ? { flow: legacy.flow, sessionId: nearby.sessionId, placeId: nearby.places[0].id, expiresAt: legacy.expiresAt, accepted: legacy.accepted } : null;
+          if (reference && reference.flow === flow && draftIsCurrent(reference)) {
             restoredDiscovery.current = true;
             await planningToken();
             const owner = getBrowserAuth()?.currentUser?.uid;
-            const response = await plannerFetch("/api/plans/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reference.data), signal: AbortSignal.any([catalogController.signal, AbortSignal.timeout(30000)]) });
+            const response = await plannerFetch("/api/plans/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reference), signal: AbortSignal.any([catalogController.signal, AbortSignal.timeout(30000)]) });
             const data = z.object({ request: requestSchema, result: recommendationResultSchema }).parse(await readPlanningResponse(response, () => {}));
             if (!active) return;
             if (getBrowserAuth()?.currentUser?.uid !== owner) { setDraftReady(true); return; }
             setRequest(data.request); setResult(data.result); setView("results"); setDraftReady(true);
-            if (reference.data.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${reference.data.sessionId}`, reference.data.placeId);
-            return;
-          }
-          const discovery = restoreDiscoverySession(rawDiscovery, flow);
-          if (discovery) {
-            restoredDiscovery.current = true;
-            setRequest(discovery.request); setResult(discovery.result); setView("results"); setDraftReady(true);
-            sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(discovery));
-            if (discovery.accepted && discovery.result.nearby?.places[0]) sessionStorage.setItem(`date-atlas:accepted-pick:${discovery.result.nearby.sessionId ?? discovery.result.nearby.places[0].id}`, discovery.result.nearby.places[0].id);
+            sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(reference));
+            if (reference.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${reference.sessionId}`, reference.placeId);
             return;
           }
           if (
