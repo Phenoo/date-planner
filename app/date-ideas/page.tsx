@@ -16,7 +16,7 @@ const ideas = [
 
 const questions = [
   { question: "How do I choose a date idea?", answer: "Start with how you want to feel together: relaxed, playful, romantic or curious. Then choose a place both people can reach, a realistic amount of time and a comfortable total budget. One activity and one optional follow-up is usually enough." },
-  { question: "Can A Date Atlas help with my city?", answer: "Tell Oge your city or neighbourhood and your travel limit. Suggestions depend on the venue information available for that location. If the details cannot be confirmed, try another area or adjust your preferences. Availability varies by place." },
+  { question: "Can A Date At las help with my city?", answer: "Tell Oge your city or neighbourhood and your travel limit. Suggestions depend on the venue information available for that location. If the details cannot be confirmed, try another area or adjust your preferences. Availability varies by place." },
   { question: "Can I speak instead of typing?", answer: "Yes, where your browser supports speech recognition. Tap the microphone, allow access and say what you have in mind. Review or edit the transcript, then press Send. You can always type or use the step-by-step questions." },
   { question: "Does a suggested date include a reservation?", answer: "No. Suggestions and estimated costs help you plan, but they do not make a booking. Confirm prices, opening hours, dietary or access requirements and availability with the venue before visiting." },
 ];
@@ -24,7 +24,7 @@ const questions = [
 export default function DateIdeasPage() {
   return <div className={styles.page}>
     <JsonLd data={{ "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: siteOrigin }, { "@type": "ListItem", position: 2, name: "Date ideas", item: `${siteOrigin}/date-ideas` }] }} />
-    <header className={styles.header}><Link href="/" aria-label="A Date Atlas home">adal<span>.</span></Link><nav aria-label="Main navigation"><Link href="/plan">Plan a date ↗</Link></nav></header>
+    <header className={styles.header}><Link href="/" aria-label="A Date At las home">adal<span>.</span></Link><nav aria-label="Main navigation"><Link href="/plan">Plan a date ↗</Link></nav></header>
     <main className={styles.article}>
       <nav className={styles.breadcrumbs} aria-label="Breadcrumb"><Link href="/">Home</Link><span aria-hidden="true">/</span><span aria-current="page">Date ideas</span></nav>
       <div className={styles.hero}><span className={styles.eyebrow}>A LITTLE INSPIRATION, JUST FOR YOU</span><h1>Date ideas for your kind of together.</h1><p>The best date idea starts with the two people going on it. Here are six ways to spend time together, with the little practical details that help the day feel easy.</p><div className={styles.contents} aria-label="Date idea topics">{ideas.map((idea) => <Link key={idea.id} href={`#${idea.id}`}>{idea.label}</Link>)}</div></div>
@@ -32,6 +32,6 @@ export default function DateIdeasPage() {
       <section className={styles.planning} aria-labelledby="plan-together"><h2 id="plan-together">Turn an idea into a date.</h2><ol><li><strong>Choose your starting point.</strong> Share your city or neighbourhood and how far you are happy to travel.</li><li><strong>Make it personal.</strong> Tell Oge the occasion, your interests, the date and time, and a comfortable budget. Type, speak where supported, or answer one question at a time.</li><li><strong>Check the details.</strong> Review the suggestions and confirm costs, opening hours and any booking or access needs with the venue.</li></ol><div className={styles.links}><Link className={styles.primary} href="/plan">Let’s plan your date</Link></div></section>
       <section className={styles.faq} aria-labelledby="date-questions"><h2 id="date-questions">A few things you might be wondering.</h2>{questions.map((item) => <details key={item.question}><summary>{item.question}</summary><p>{item.answer}</p></details>)}</section>
     </main>
-    <footer className={styles.footer}><Link href="/">A Date Atlas</Link><nav aria-label="Footer"><a href={`mailto:${supportEmail}`}>Support</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav></footer>
+    <footer className={styles.footer}><Link href="/">A Date At las</Link><nav aria-label="Footer"><a href={`mailto:${supportEmail}`}>Support</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav></footer>
   </div>;
 }

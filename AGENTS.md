@@ -1,3 +1,5 @@
+Public brand: **A Date At las**, with this spelling and capitalization. Keep `adateatlas.com` and existing technical identifiers unchanged.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { Experience } from "@/lib/planner/schema";
 
-export const siteName = "A Date Atlas";
+export const siteName = "A Date At las";
 export const siteOrigin = "https://adateatlas.com";
 export const supportEmail = "support@adateatlas.com";
 export const supportInbox = "adateatlas@gmail.com";

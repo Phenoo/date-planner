@@ -7,10 +7,10 @@ test("Resend account emails use the public brand and only a safe return path", (
   for (const intent of ["signIn", "resetPassword"] as const) {
     const input = accountEmailSchema.parse({ email: "  qa@example.com  ", intent, returnPath: "/saved" });
     const message = accountEmailMessage(input, `https://project.firebaseapp.com/__/auth/action?mode=${intent}&oobCode=one-time-code&apiKey=wrong-maps-key&continueUrl=https://attacker.example`);
-    assert.equal(message.from, "A Date Atlas <noreply@adateatlas.com>");
+    assert.equal(message.from, "A Date At las <noreply@adateatlas.com>");
     assert.equal(message.reply_to, "support@adateatlas.com");
     assert.deepEqual(message.to, ["qa@example.com"]);
-    assert.match(message.subject, /A Date Atlas/);
+    assert.match(message.subject, /A Date At las/);
     assert.ok(!message.text.includes("wrong-maps-key"));
     assert.ok(!message.text.includes("attacker.example"));
     const link = new URL(message.text.split("\n").find((line) => line.startsWith("https://")) ?? "");

@@ -36,7 +36,7 @@ export function RecommendationReady({ city, onContinue }: { city: string; onCont
       <div className={styles.ticket}>
         <span>ONE PICK. ALL YOU.</span>
         <svg viewBox="0 0 100 100" fill="none"><path d="M50 8L58 29L78 17L72 40L95 42L76 56L89 76L66 72L61 96L48 76L29 90L32 66L8 61L29 48L15 29L39 32Z" /><path d="M35 52L46 63L67 40" /></svg>
-        <strong>adal.</strong><small>A DATE ATLAS</small>
+        <strong>adal.</strong><small>A DATE AT LAS</small>
       </div>
       <span className={styles.spark} /><span className={styles.spark} /><span className={styles.spark} />
     </div>

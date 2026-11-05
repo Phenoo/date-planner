@@ -10,7 +10,7 @@ export function ChosenPlaceCard({ place, placeId, animated = false, catalog = fa
   const [photoFailed, setPhotoFailed] = useState(false);
   const maps = place?.mapsUrl ?? `https://www.google.com/maps/search/?${new URLSearchParams({ api: "1", query: "Date venue", query_place_id: placeId })}`;
   return <article className={`${styles.chosenCard} ${animated ? styles.chosenCardAnimated : ""}`}>
-    <div className={styles.cardTop}><span>A DATE ATLAS</span><span>MADE FOR TWO</span></div>
+    <div className={styles.cardTop}><span>A DATE AT LAS</span><span>MADE FOR TWO</span></div>
     <div className={styles.photo}>{place?.photo && !photoFailed ? <><Image src={place.photo.url} alt={catalog ? "Illustrative date atmosphere" : `A view of ${place.name}`} fill unoptimized loading={animated ? "eager" : "lazy"} sizes="(max-width: 600px) 85vw, 390px" onError={() => setPhotoFailed(true)} /><div className={styles.photoCredit}>{place.photo.authors.map((author, index) => author.url ? <a key={`${author.name}:${index}`} href={author.url} target="_blank" rel="noreferrer">Photo: {author.name}</a> : <span key={`${author.name}:${index}`}>Photo: {author.name}</span>)}</div></> : <div className={styles.cardLetter} aria-hidden="true">{place?.name.charAt(0) ?? "♡"}</div>}</div>
     <span className={styles.category}>{place?.category ?? "YOUR CHOSEN PLACE"}</span><h2>{place?.name ?? "A date worth looking forward to."}</h2>{place && <p>{place.address}</p>}
     {catalog && place?.photo && <small>Illustrative date photography</small>}

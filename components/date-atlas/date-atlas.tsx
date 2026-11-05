@@ -995,8 +995,8 @@ export function DateAtlas({
           <Link
             className="atlas-wordmark"
             href="/"
-            aria-label="A Date Atlas home"
-            title="adal — A Date Atlas"
+            aria-label="A Date At las home"
+            title="adal — A Date At las"
           >
             adal<span>.</span>
           </Link>
@@ -1255,7 +1255,7 @@ export function DateAtlas({
             {view !== "home" && <footer className="atlas-footer content-width">
               <div>
                 <Link className="atlas-wordmark" href="/">
-                  A Date Atlas<span>.</span>
+                  A Date At las<span>.</span>
                 </Link>
                 <small>Thoughtful dates, wherever you are</small>
               </div>
@@ -1275,7 +1275,7 @@ export function DateAtlas({
               </div>
               <div>
                 <strong>A little about us</strong>
-                {["About A Date Atlas", "Partner with us", "Help & support"].map(
+                {["About A Date At las", "Partner with us", "Help & support"].map(
                   (page) => (
                     <button key={page} onClick={() => setInfoPage(page)}>
                       {page}
@@ -1292,7 +1292,7 @@ export function DateAtlas({
                 ))}
               </div>
               <div className="footer-bottom">
-                <span>© {new Date().getFullYear()} A Date Atlas</span>
+                <span>© {new Date().getFullYear()} A Date At las</span>
                 <span>Thoughtful dates, wherever life takes you.</span>
               </div>
             </footer>}
@@ -1334,7 +1334,7 @@ export function DateAtlas({
           title={infoPage}
           className="info-dialog"
         >
-          <span className="eyebrow">A DATE ATLAS</span>
+          <span className="eyebrow">A DATE AT LAS</span>
           <h2>{infoPage}</h2>
           {infoPage === "Privacy policy" ? (
             <>
@@ -1365,7 +1365,7 @@ export function DateAtlas({
               </p>
               <p>
                 Check current details directly with a real provider before
-                traveling or paying. A Date Atlas does not collect booking payments.
+                traveling or paying. A Date At las does not collect booking payments.
               </p>
               <Link href="/terms">Read the full terms, including Google Maps terms</Link>
             </>
@@ -1390,7 +1390,7 @@ export function DateAtlas({
             </>
           ) : (
             <p>
-              A Date Atlas connects your interests, time, and budget into a
+              A Date At las connects your interests, time, and budget into a
               thoughtful date. Tell Oge your city or neighborhood to explore
               nearby suggestions. Coverage and confirmed venue information vary by location.
             </p>

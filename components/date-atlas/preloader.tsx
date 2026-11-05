@@ -139,11 +139,11 @@ export function Preloader({ onContinue }: { onContinue?: () => void }) {
   }, []);
 
   return (
-    <main className={styles.preloader} aria-label="Welcome to A Date Atlas">
+    <main className={styles.preloader} aria-label="Welcome to A Date At las">
       <BrandMorph />
       <div className={styles.content}>
         <div className={styles.paper}>
-          <svg className={styles.drawing} viewBox="0 30 480 370" role="img" aria-label="A hand draws a heart, then writes A Date Atlas">
+          <svg className={styles.drawing} viewBox="0 30 480 370" role="img" aria-label="A hand draws a heart, then writes A Date At las">
             <path className={styles.guide} d={heartPath} />
             <path ref={wash} className={styles.wash} d={heartPath} />
             <path ref={stroke} className={styles.stroke} d={heartPath} pathLength="1" strokeDasharray="1 1" strokeDashoffset="1" />

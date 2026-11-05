@@ -49,7 +49,7 @@ export function SwipeToContinue({ onContinue }: { onContinue: () => void }) {
   return <div className={styles.track} data-dragging={dragging}>
     <span className={styles.label} aria-hidden="true" style={{ opacity: Math.max(0, 1 - progress * 1.5) }}>Swipe to continue</span>
     <div ref={rail} className={styles.rail}>
-      <button type="button" className={styles.handle} aria-label="Continue to A Date Atlas" aria-describedby={hintId}
+      <button type="button" className={styles.handle} aria-label="Continue to A Date At las" aria-describedby={hintId}
         style={{ left: `${progress * 100}%`, transform: `translateX(-${progress * 100}%)` }}
         onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={finishDrag}
         onPointerCancel={(event) => finishDrag(event, true)} onLostPointerCapture={(event) => finishDrag(event, true)}

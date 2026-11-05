@@ -11,10 +11,10 @@ export function AuthScreen({ open, onOpenChange, signedIn, children }: {
   signedIn: boolean;
   children: ReactNode;
 }) {
-  return <Dialog open={open} onOpenChange={onOpenChange} title={signedIn ? "Your account · A Date Atlas" : "Welcome to A Date Atlas"} description="Sign in or create an account to keep your date plans together." className={styles.screen}>
+  return <Dialog open={open} onOpenChange={onOpenChange} title={signedIn ? "Your account · A Date At las" : "Welcome to A Date At las"} description="Sign in or create an account to keep your date plans together." className={styles.screen}>
     <div className={styles.layout}>
       <aside className={styles.story} aria-hidden="true">
-        <span className={`atlas-wordmark ${styles.storyBrand}`}>A Date Atlas<span>.</span></span>
+        <span className={`atlas-wordmark ${styles.storyBrand}`}>A Date At las<span>.</span></span>
         <div className={styles.storyContent}>
           <div className={styles.illustration}><LottieAnimation animation="guests" label="A warm welcome for you two" width="100%" height="100%" loop /></div>
           <span className={styles.kicker}>YOUR NEXT CHAPTER</span>
@@ -24,7 +24,7 @@ export function AuthScreen({ open, onOpenChange, signedIn, children }: {
         <span className={styles.storySignature}>THOUGHTFULLY PLANNED. PERSONALLY YOURS.</span>
       </aside>
       <section className={styles.panel}>
-        <span className={`atlas-wordmark ${styles.mobileBrand}`}>A Date Atlas<span>.</span></span>
+        <span className={`atlas-wordmark ${styles.mobileBrand}`}>A Date At las<span>.</span></span>
         <div className={styles.inner}>{children}</div>
       </section>
     </div>

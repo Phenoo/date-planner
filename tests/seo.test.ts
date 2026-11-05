@@ -5,7 +5,7 @@ import { indexableExperiences, privateMetadata, publicMetadata, serializeJsonLd,
 
 test("public metadata uses one production origin for canonical and social URLs", () => {
   const metadata = publicMetadata("Creative date ideas", "Choose something thoughtful.", "/date-ideas");
-  assert.deepEqual(metadata.title, { absolute: "Creative date ideas | A Date Atlas" });
+  assert.deepEqual(metadata.title, { absolute: "Creative date ideas | A Date At las" });
   assert.equal(metadata.alternates?.canonical, "https://adateatlas.com/date-ideas");
   assert.equal(metadata.openGraph?.url, `${siteOrigin}/date-ideas`);
   assert.ok(metadata.twitter && "card" in metadata.twitter);
@@ -44,7 +44,7 @@ test("structured data cannot close its script tag and preserves the original tex
   assert.ok(!serializeJsonLd(websiteGraph).includes("AggregateRating"));
   const organization = websiteGraph["@graph"].find((item) => item["@type"] === "Organization");
   const website = websiteGraph["@graph"].find((item) => item["@type"] === "WebSite");
-  assert.equal(organization?.name, "A Date Atlas");
+  assert.equal(organization?.name, "A Date At las");
   assert.equal(organization?.email, supportEmail);
   assert.equal(organization?.contactPoint?.email, "support@adateatlas.com");
   assert.equal(website?.url, "https://adateatlas.com");

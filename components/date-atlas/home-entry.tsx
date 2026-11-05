@@ -24,8 +24,8 @@ function hasCompletedIntro() {
 function serverIntroSnapshot() { return null; }
 
 export function HomeEntryFallback() {
-  return <main className={styles.preloader} aria-label="Loading A Date Atlas" aria-busy="true">
-    <span className={`atlas-wordmark ${styles.brand}`}>A Date Atlas<span>.</span></span>
+  return <main className={styles.preloader} aria-label="Loading A Date At las" aria-busy="true">
+    <span className={`atlas-wordmark ${styles.brand}`}>A Date At las<span>.</span></span>
   </main>;
 }
 

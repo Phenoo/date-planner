@@ -9,7 +9,7 @@ import { siteOrigin } from "@/lib/seo/site";
 
 export async function POST(request: Request) {
   try {
-    if (![siteOrigin, "https://date-atlas.vercel.app"].includes(request.headers.get("origin") ?? "")) throw new RequestError("Please request this email from A Date Atlas.", 403);
+    if (![siteOrigin, "https://date-atlas.vercel.app"].includes(request.headers.get("origin") ?? "")) throw new RequestError("Please request this email from A Date At las.", 403);
     const parsed = accountEmailSchema.safeParse(await readJson(request));
     if (!parsed.success) throw new RequestError("Please check your email address.", 400);
     const key = process.env.RESEND_API_KEY;

@@ -124,11 +124,11 @@ export function RecommendationLab() {
     <main className="admin-page page-container">
       <Link className="text-link back-link" href="/">
         <ArrowLeft size={15} />
-        Back to A Date Atlas
+        Back to A Date At las
       </Link>
       <div className="brand">
         <Compass size={30} />
-        <span>A Date Atlas.</span>
+        <span>A Date At las.</span>
       </div>
       <div className="results-heading">
         <div>
