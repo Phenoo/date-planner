@@ -16,6 +16,8 @@ import { ReportVenue } from "./report-venue";
 import { RevokeInvitation } from "./revoke-invitation";
 import { InvitationNote } from "./invitation-note";
 import { ReadyForDate } from "./ready-for-date";
+import { ChosenDatePrompt } from "./chosen-date-prompt";
+import { DateReminderDialog } from "./date-reminder-dialog";
 import { funnelScope } from "@/lib/planner/funnel-client";
 import { calendarLabel, clockLabel, timeMinutes } from "@/lib/planner/schedule";
 import styles from "./date-journey.module.css";
@@ -31,6 +33,8 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
   const [notice, setNotice] = useState("");
   const [response, setResponse] = useState<"pending" | "accepted" | "declined">("pending");
   const [checking, setChecking] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminderSendAt, setReminderSendAt] = useState("");
   const responseController = useRef<AbortController | null>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const mounted = useRef(false);
@@ -103,7 +107,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Please try again."); }
     finally { if (!controller.signal.aborted) setChecking(false); }
   }
-  return <main className={styles.reveal}>
+  return <main className={`${styles.reveal} ${styles.keepSpace}`}>
     <div className={styles.revealIntro}><span className={styles.eyebrow}>YOUR DATE, THOUGHTFULLY PLANNED</span><h1 ref={title} tabIndex={-1}>It feels like a date.</h1><p>{request.date ? `${calendarLabel(request.date)} · ${clockLabel(timeMinutes(request.startTime))}` : dateTimingLabel(request.datePreference, request.startTime)}</p></div>
     <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} request={request} animated showMapLink={false} /></div>
     <VenuePhotos key={place.id} place={place} />
@@ -122,5 +126,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     <details><summary className={styles.textButton}>More venue information and reviews</summary><VenueDetails place={place} request={request} /></details>
     {sessionId && <ReportVenue placeId={place.id} sessionId={sessionId} />}
     <DateStoryView story={story} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Revisit your recommendation</button>
+    <ChosenDatePrompt key={`${sessionId}:${place.id}:${signedIn}`} saved={signedIn && savedDate} saving={signedIn && saving} reminderSet={!!reminderSendAt} onSave={() => void prepareInvitation("save")} onRemind={() => setReminderOpen(true)} />
+    <DateReminderDialog key={`reminder:${sessionId}:${place.id}:${signedIn}`} open={reminderOpen} onOpenChange={setReminderOpen} sessionId={sessionId} placeId={place.id} signedIn={signedIn} onSaved={setSavedDate} onScheduled={setReminderSendAt} />
   </main>;
 }

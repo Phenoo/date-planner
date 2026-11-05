@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
 import { Timestamp } from "firebase-admin/firestore";
-import { accountEmailSchema, accountEmailMessage } from "@/lib/firebase/email-actions";
+import { accountEmailSchema, accountEmailMessage, accountEmailReturnUrl } from "@/lib/firebase/email-actions";
 import { getFirebaseAdmin, getDatabase } from "@/lib/firebase/server";
 import { apiError, readJson, RequestError } from "@/lib/planner/http";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       transaction.set(ref, { count: count + 1, resetAt: current ? record.resetAt : Timestamp.fromMillis(now + 3600000), expiresAt: Timestamp.fromMillis(now + 86400000) });
     });
     const auth = getAuth(getFirebaseAdmin());
-    const settings = { url: new URL(parsed.data.returnPath, siteOrigin).href, handleCodeInApp: parsed.data.intent === "signIn" };
+    const settings = { url: accountEmailReturnUrl(parsed.data), handleCodeInApp: parsed.data.intent === "signIn" };
     let link: string;
     try {
       link = parsed.data.intent === "signIn"

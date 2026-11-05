@@ -1,5 +1,6 @@
 "use client";
 import { FirebaseError, getApps, initializeApp } from "firebase/app";
+import { z } from "zod";
 import {
   getAuth,
   connectAuthEmulator,
@@ -165,7 +166,8 @@ export async function sendAccountPasswordReset(email: string) {
 async function requestAccountEmail(email: string, intent: "signIn" | "resetPassword") {
   const path = window.location.pathname === "/login" ? "/saved" : window.location.pathname;
   const returnPath = ["/", "/plan", "/saved", "/favorites", "/profile"].includes(path) ? path : "/";
-  const response = await fetch("/api/auth/email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim(), intent, returnPath }), signal: AbortSignal.timeout(20000) });
+  const flow = intent === "signIn" && returnPath === "/plan" ? z.uuid().safeParse(new URLSearchParams(window.location.search).get("flow")) : null;
+  const response = await fetch("/api/auth/email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim(), intent, returnPath, ...(flow?.success ? { flow: flow.data } : {}) }), signal: AbortSignal.timeout(20000) });
   if (!response.ok) throw new FirebaseError(response.status === 429 ? "auth/too-many-requests" : response.status === 400 ? "auth/invalid-email" : "auth/internal-error", "We couldn't send that email. Please try again shortly.");
 }
 

@@ -25,6 +25,8 @@ import { createdInvitationSchema, pendingInvitationKey } from "@/lib/planner/inv
 import { RevokeInvitation } from "./revoke-invitation";
 import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
 import { requestGeneration } from "@/lib/planner/generation-client";
+import { pendingDateReminderKey } from "@/lib/planner/date-reminder-intent";
+import { activePlanKey, clearPlanningContinuations, continuationPath, readPlanningContinuation, retainPlanningContinuation } from "@/lib/planner/planning-continuation";
 import { Homepage } from "./homepage";
 import { PlaceDiscovery } from "./place-discovery";
 import { currencyForCountry } from "@/lib/planner/currency";
@@ -91,7 +93,6 @@ import { PlanningRequestError } from "@/lib/firebase/planner-client";
 import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 
 const draftKey = `date-atlas:planning-draft:v${plannerDraftVersion}`;
-const activePlanKey = "date-atlas:active-plan:v1";
 const favoritesKey = "date-atlas:favorites:v1";
 const preferencesKey = "date-atlas:preferences:v1";
 const appearanceKey = "date-atlas:planner-appearance:v1";
@@ -144,6 +145,7 @@ export function DateAtlas({
 }) {
   const router = useRouter();
   const [view, setView] = useState<View>(initialView);
+  const [resumePath, setResumePath] = useState<string | null>(null);
   const [loadedCatalog, setCatalog] = useState<Experience[]>([]);
   const catalog = initialCatalog ?? loadedCatalog;
   const hasInitialCatalog = initialCatalog !== undefined;
@@ -200,18 +202,29 @@ export function DateAtlas({
   const previousAccount = useRef<{ uid: string; anonymous: boolean } | null>(null);
   const resumingAuth = useRef<Promise<void> | null>(null);
   const finishAuthentication = useEffectEvent(() => authenticationDone());
-  const restoreShared = useEffectEvent((recipe: SavedRecipe) => {
-    void restore(recipe);
+  const restoreShared = useEffectEvent((recipe: SavedRecipe) => restore(recipe));
+  const clearUnrestoredResult = useEffectEvent(() => {
+    if (result?.plans.length || result?.nearby?.places.length) { setResult(null); setView("planner"); }
   });
   useLayoutEffect(() => () => {
     // Activity preserves state on hide; old auth callbacks must not reopen the cached account UI.
     mounted.current = false;
     setAuthReady(false);
-  }, []);
+    setResumePath(null);
+    if (initialView === "planner") setDraftReady(false);
+  }, [initialView]);
   useEffect(() => {
     let active = true;
     mounted.current = true;
     const catalogController = new AbortController();
+    const flow = new URLSearchParams(window.location.search).get("flow") ?? "direct";
+    function retainCurrentFlow() {
+      if (initialView !== "planner") return;
+      const owner = getBrowserAuth()?.currentUser;
+      try { retainPlanningContinuation(sessionStorage, { id: owner?.uid ?? null, anonymous: !owner || owner.isAnonymous }, flow); }
+      catch { /* Browser navigation still works when storage is unavailable. */ }
+    }
+    window.addEventListener("pagehide", retainCurrentFlow);
     if (initialView !== "home" && !hasInitialCatalog)
       fetch("/api/catalog", { signal: catalogController.signal })
         .then(async (response) => {
@@ -266,73 +279,68 @@ export function DateAtlas({
     }
     window.addEventListener("scroll", onScroll, { passive: true });
     if (initialView === "planner") {
-      Promise.resolve().then(async () => {
-        if (!active) return;
+      restoredDiscovery.current = false;
+      void Promise.resolve().then(async () => {
         try {
           await getBrowserAuth()?.authStateReady();
+          try { await waitForAccountTransition(); } catch { /* A failed guest transfer remains retryable in account access. */ }
           if (!active) return;
-          const stored: unknown = JSON.parse(
-            sessionStorage.getItem(activePlanKey) || "null",
-          );
-          const flow =
-            new URLSearchParams(window.location.search).get("flow") ?? "direct";
+          const owner = getBrowserAuth()?.currentUser;
+          const continuation = readPlanningContinuation(sessionStorage, { id: owner?.uid ?? null, anonymous: !owner || owner.isAnonymous }, flow);
+          if (continuation?.source === "google") {
+            sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(continuation.reference));
+            if (continuation.reference.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${continuation.reference.sessionId}`, continuation.reference.placeId);
+            else sessionStorage.removeItem(`date-atlas:accepted-pick:${continuation.reference.sessionId}`);
+          } else if (continuation?.source === "catalog") {
+            sessionStorage.setItem(activePlanKey, JSON.stringify({ flow, ownerId: continuation.ownerId, expiresAt: continuation.expiresAt, recipe: continuation.recipe }));
+            if (continuation.accepted) sessionStorage.setItem("date-atlas:accepted-catalog:v1", continuation.recipe.id);
+            else sessionStorage.removeItem("date-atlas:accepted-catalog:v1");
+          }
+          let stored: unknown = null;
+          let discovery: unknown = null;
+          try { stored = JSON.parse(sessionStorage.getItem(activePlanKey) || "null"); } catch { /* An unrelated invalid catalog reference must not block a live date. */ }
           const rawDiscovery = sessionStorage.getItem(activeDiscoveryKey);
-          const currentReference = z.object({ flow: z.string(), sessionId: z.uuid(), placeId: z.string(), expiresAt: z.number(), accepted: z.boolean().default(false) }).safeParse(JSON.parse(rawDiscovery ?? "null"));
+          try { discovery = JSON.parse(rawDiscovery ?? "null"); } catch { /* A catalog date can still be reopened. */ }
+          const currentReference = z.object({ flow: z.string(), sessionId: z.uuid(), placeId: z.string(), expiresAt: z.number(), accepted: z.boolean().default(false), ownerId: z.string().nullable().optional() }).safeParse(discovery);
           const legacy = currentReference.success ? null : restoreDiscoverySession(rawDiscovery, flow);
           const nearby = legacy?.result.nearby;
           const reference = currentReference.success ? currentReference.data : legacy && nearby?.sessionId && nearby.places[0] ? { flow: legacy.flow, sessionId: nearby.sessionId, placeId: nearby.places[0].id, expiresAt: legacy.expiresAt, accepted: legacy.accepted } : null;
-          if (reference && reference.flow === flow && draftIsCurrent(reference)) {
+          const referenceOwnerMatches = reference && ("ownerId" in reference && typeof reference.ownerId === "string" ? reference.ownerId === owner?.uid : !owner || owner.isAnonymous);
+          if (reference && referenceOwnerMatches && reference.flow === flow && draftIsCurrent(reference)) {
             restoredDiscovery.current = true;
-            await planningToken();
-            const owner = getBrowserAuth()?.currentUser?.uid;
-            const response = await plannerFetch("/api/plans/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reference), signal: AbortSignal.any([catalogController.signal, AbortSignal.timeout(30000)]) });
-            const data = z.object({ request: requestSchema, result: recommendationResultSchema }).parse(await readPlanningResponse(response, () => {}));
-            if (!active) return;
-            if (getBrowserAuth()?.currentUser?.uid !== owner) { setDraftReady(true); return; }
-            setRequest(data.request); setResult(data.result); setView("results"); setDraftReady(true);
-            sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(reference));
-            if (reference.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${reference.sessionId}`, reference.placeId);
-            return;
+            try {
+              await planningToken();
+              const contextOwner = getBrowserAuth()?.currentUser?.uid;
+              const response = await plannerFetch("/api/plans/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reference), signal: AbortSignal.any([catalogController.signal, AbortSignal.timeout(30000)]) });
+              const data = z.object({ request: requestSchema, result: recommendationResultSchema }).parse(await readPlanningResponse(response, () => {}));
+              if (!active || getBrowserAuth()?.currentUser?.uid !== contextOwner) return;
+              setRequest(data.request); setResult(data.result); setView("results");
+              sessionStorage.setItem(activeDiscoveryKey, JSON.stringify({ ...reference, ownerId: contextOwner ?? null }));
+              if (reference.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${reference.sessionId}`, reference.placeId);
+              return;
+            } catch {
+              if (!active) return;
+              setToast("Your earlier date could not be reopened. Your core answers are kept; try again when your connection is back.");
+            }
           }
           if (
-            flow &&
-            stored &&
-            typeof stored === "object" &&
-            "flow" in stored &&
-            stored.flow === flow &&
-            (!("ownerId" in stored) ? !getBrowserAuth()?.currentUser || getBrowserAuth()?.currentUser?.isAnonymous : stored.ownerId === getBrowserAuth()?.currentUser?.uid) &&
-            draftIsCurrent(stored) &&
-            "recipe" in stored
+            stored && typeof stored === "object" && "flow" in stored && stored.flow === flow &&
+            ("ownerId" in stored && typeof stored.ownerId === "string" ? stored.ownerId === owner?.uid : !owner || owner.isAnonymous) &&
+            draftIsCurrent(stored) && "recipe" in stored
           ) {
             const recipe = parseSaved(JSON.stringify([stored.recipe]))[0];
-            if (recipe) restoreShared(recipe);
+            if (recipe) {
+              restoredDiscovery.current = true;
+              if (await restoreShared(recipe)) return;
+            }
           }
-        } catch {
-          if (active && restoredDiscovery.current) { setToast("Your earlier date could not be reopened. Your saved dates remain in your account."); setDraftReady(true); }
-          /* A new plan remains available when a session recipe is invalid. */
-        }
-      });
-      Promise.resolve()
-        .then(
-          () =>
+          clearUnrestoredResult();
+          const raw = continuation?.source === "draft" ? JSON.stringify(continuation.draft) :
             sessionStorage.getItem(draftKey) ||
-            sessionStorage.getItem("date-atlas:planning-draft:v12") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v11") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v10") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v9") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v8") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v7") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v6") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v5") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v4") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v3") ||
-            sessionStorage.getItem("date-atlas:planning-draft:v2"),
-        )
-        .then(async (raw) => {
-          await getBrowserAuth()?.authStateReady();
-          if (!active || !raw || restoredDiscovery.current) return;
+            Array.from({ length: plannerDraftVersion - 2 }, (_, index) => sessionStorage.getItem(`date-atlas:planning-draft:v${plannerDraftVersion - index - 1}`)).find(Boolean);
+          if (!active || !raw) return;
           const draft: unknown = JSON.parse(raw);
-          if (!draftMatchesFlow(draft, new URLSearchParams(window.location.search).get("flow") ?? "direct")) return;
+          if (!draftMatchesFlow(draft, flow)) return;
           if (draft && typeof draft === "object" && "ownerId" in draft && draft.ownerId && draft.ownerId !== getBrowserAuth()?.currentUser?.uid) return;
           if (!draftIsCurrent(draft)) { clearPlannerDrafts(sessionStorage, plannerDraftVersion); setToast("Your earlier draft expired. Let's start fresh."); return; }
           if (draft && typeof draft === "object" && "request" in draft) {
@@ -362,11 +370,12 @@ export function DateAtlas({
                 );
             }
           }
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (active && !restoredDiscovery.current) setDraftReady(true);
-        });
+        } catch {
+          if (active && restoredDiscovery.current) setToast("Your earlier date could not be reopened. Your saved dates remain in your account.");
+        } finally {
+          if (active) setDraftReady(true);
+        }
+      });
     }
     const auth = getBrowserAuth();
     let sessionRevision = 0;
@@ -379,16 +388,17 @@ export function DateAtlas({
           if (previous && !previous.anonymous && previous.uid !== user?.uid) {
             setAuthReady(false);
             abortRef.current?.abort(); generationId.current++; setBusy(false);
-            setResult(null); setRequest(defaultRequest()); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
+            setResult(null); setResumePath(null); setRequest(defaultRequest()); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
             pendingSave.current = null; setSaved([]); setSignedIn(false); setAccountId(""); setDraftReady(true);
             shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
             setShareOpen(false); setShareSelection(null);
             try {
               clearPlannerDrafts(sessionStorage, plannerDraftVersion);
+              clearPlanningContinuations(sessionStorage);
               sessionStorage.removeItem(activeDiscoveryKey); sessionStorage.removeItem(activePlanKey);
               sessionStorage.removeItem("date-atlas:accepted-catalog:v1");
               sessionStorage.removeItem(pendingSaveKey); localStorage.removeItem(pendingSaveKey);
-              localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey);
+              localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey); localStorage.removeItem(pendingDateReminderKey);
             } catch { /* Server ownership checks remain authoritative. */ }
             setView(initialView === "planner" ? "planner" : initialView);
           }
@@ -475,8 +485,10 @@ export function DateAtlas({
     }
     window.addEventListener("storage", syncStorage);
     return () => {
+      retainCurrentFlow();
       active = false;
       mounted.current = false;
+      window.removeEventListener("pagehide", retainCurrentFlow);
       catalogController.abort();
       window.removeEventListener("scroll", onScroll);
       abortRef.current?.abort();
@@ -486,7 +498,20 @@ export function DateAtlas({
     };
   }, [initialView, hasInitialCatalog]);
   useEffect(() => {
-    if (view !== "planner" || !draftReady) return;
+    if (view !== "home" || !authReady) return;
+    let active = true;
+    void Promise.resolve().then(async () => {
+      try {
+        await waitForAccountTransition();
+        const owner = getBrowserAuth()?.currentUser;
+        const continuation = readPlanningContinuation(sessionStorage, { id: owner?.uid ?? null, anonymous: !owner || owner.isAnonymous });
+        if (active) setResumePath(continuation ? continuationPath(continuation) : null);
+      } catch { if (active) setResumePath(null); }
+    });
+    return () => { active = false; };
+  }, [view, authReady, accountId]);
+  useEffect(() => {
+    if (view !== "planner" || !draftReady || !authReady) return;
     if (plannerMode) trackFunnel("planner_started");
     try {
       sessionStorage.setItem(
@@ -508,7 +533,7 @@ export function DateAtlas({
     } catch {
       /* The current session still works when storage is unavailable. */
     }
-  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan, plannerMode, chatSession, accountId]);
+  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan, plannerMode, chatSession, accountId, authReady]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => { setToast(""); setFeedbackState(null); }, 6000);
@@ -557,8 +582,9 @@ export function DateAtlas({
   function resetPlanner() {
     try {
       clearPlannerDrafts(sessionStorage, plannerDraftVersion);
+      clearPlanningContinuations(sessionStorage);
       for (const key of [activePlanKey, activeDiscoveryKey, pendingSaveKey, "date-atlas:accepted-catalog:v1", rejectedPicksKey(new URLSearchParams(window.location.search).get("flow") ?? "direct")]) sessionStorage.removeItem(key);
-      localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey);
+      localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey); localStorage.removeItem(pendingDateReminderKey);
     } catch { setExitError("Your browser couldn't clear the draft. Please try again before starting over."); return; }
     pendingSave.current = null; rejectionMemory.current = { flow: "", picks: mergeRejectedPicks() };
     setRequest(defaultRequest()); setPlannerStep(0); setEditingPlan(false); setPlannerMode(null); setChatSession(emptyChatSession()); setPreferredIds([]); setResult(null); setError(""); setExitOpen(false);
@@ -684,7 +710,7 @@ export function DateAtlas({
       try {
         sessionStorage.setItem(rejectedPicksKey(flow), JSON.stringify(exclusions));
         if (extra.excludeIds?.length || extra.excludePlaceIds?.length) {
-          sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, plannerMode, chatSession }));
+          sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, editingPlan: true, plannerMode, chatSession }));
           sessionStorage.removeItem(activeDiscoveryKey);
           sessionStorage.removeItem(activePlanKey);
         }
@@ -705,10 +731,10 @@ export function DateAtlas({
       setEditingPlan(false);
       generationAttempt.current = null;
       try {
-        if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(data.nearby.sessionId ? { flow, sessionId: data.nearby.sessionId, placeId: data.nearby.places[0].id, expiresAt: Date.now() + 3600000, accepted: false } : { flow, request: draftRequest(data.request ?? preferences), result: { ...data, request: undefined }, expiresAt: Date.now() + 3600000, accepted: false }));
+        if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(data.nearby.sessionId ? { flow, ownerId: getBrowserAuth()?.currentUser?.uid ?? null, sessionId: data.nearby.sessionId, placeId: data.nearby.places[0].id, expiresAt: Date.now() + 3600000, accepted: false } : { flow, request: draftRequest(data.request ?? preferences), result: { ...data, request: undefined }, expiresAt: Date.now() + 3600000, accepted: false }));
         else sessionStorage.removeItem(activeDiscoveryKey);
-        if (data.plans.length || data.nearby?.places.length) sessionStorage.removeItem(draftKey);
-        else sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, editingPlan: true, plannerMode: "steps", chatSession }));
+        if (data.plans[0]) rememberPlan(data.plans[0]);
+        sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: data.request ?? data.plans[0]?.request ?? preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, editingPlan: true, plannerMode: plannerMode ?? "steps", chatSession }));
         sessionStorage.removeItem("date-atlas:planning-draft:v12");
         sessionStorage.removeItem("date-atlas:planning-draft:v11");
         sessionStorage.removeItem("date-atlas:planning-draft:v10");
@@ -853,6 +879,7 @@ export function DateAtlas({
         if (!stillCurrent()) return;
         if (invitationReturn || context.data.accepted) sessionStorage.setItem(`date-atlas:accepted-pick:${context.data.sessionId}`, context.data.placeId);
         setRequest(data.request); setResult(data.result); setView("results"); setDraftReady(true);
+        sessionStorage.setItem(activeDiscoveryKey, JSON.stringify({ ...context.data, ownerId: owner.uid, accepted: !!invitationReturn || context.data.accepted }));
         localStorage.removeItem(invitationReturnKey);
       }
       const catalogReturn = readCatalogAuthReturn(invitationReturn, new URLSearchParams(window.location.search).get("flow") ?? "direct");
@@ -860,10 +887,8 @@ export function DateAtlas({
         if (catalogReturn.accepted) sessionStorage.setItem("date-atlas:accepted-catalog:v1", catalogReturn.recipe.id);
         else sessionStorage.removeItem("date-atlas:accepted-catalog:v1");
         const current = result?.plans[0]?.id === catalogReturn.recipe.id;
-        if (!current) {
-          setRequest(catalogReturn.recipe.request);
-          sessionStorage.setItem(activePlanKey, JSON.stringify({ ...catalogReturn, ownerId: owner.uid }));
-        }
+        sessionStorage.setItem(activePlanKey, JSON.stringify({ ...catalogReturn, ownerId: owner.uid }));
+        if (!current) setRequest(catalogReturn.recipe.request);
         if ((current || await restore(catalogReturn.recipe)) && stillCurrent()) localStorage.removeItem(invitationReturnKey);
       }
       if (stillCurrent()) await resumePendingSave();
@@ -1002,6 +1027,7 @@ export function DateAtlas({
   const planning = view === "planner";
   const themedJourney = planning || view === "results";
   if (!authReady) return <main className={authenticatedStyles.initializing} role="status" aria-busy="true">Opening A Date At las…</main>;
+  if (initialView === "planner" && !draftReady) return <PlannerInitializing />;
   const authenticatedLayout = signedIn && !planning && view !== "results";
   return (
       <div
@@ -1071,10 +1097,11 @@ export function DateAtlas({
             </>
           )}
         </header>
+        {view === "home" && signedIn && resumePath && <div className="content-width"><Button variant="outline" size="small" onClick={() => router.push(resumePath)}>Continue planning<ArrowRight size={16} aria-hidden="true" /></Button></div>}
         {view === "home" && (signedIn ? preferencesReady && <PlaceDiscovery key={`${accountId}:${request.city}:${request.country}`} city={request.city} country={request.country} onPlan={() => planDate()} onPlanNearby={(place, destination) => {
           const currency = currencyForCountry(destination.country) ?? request.currency;
           planDate({ city: destination.city, currentCity: destination.city, country: destination.country, area: place.name.slice(0, 80), locationScope: "area", maxDistance: 15, startingArea: "", timeZoneConfirmed: false, currency, ...(currency !== request.currency ? { budget: null, transportBudget: null } : {}) });
-        }} /> : authReady ? <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} /> : <main className={authenticatedStyles.initializing} role="status">Opening A Date At las…</main>)}
+        }} /> : authReady ? <Homepage onResume={resumePath ? () => router.push(resumePath) : undefined} onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} /> : <main className={authenticatedStyles.initializing} role="status">Opening A Date At las…</main>)}
         {view === "explore" && (
           <Explore
             initialExperiences={initialCatalog}

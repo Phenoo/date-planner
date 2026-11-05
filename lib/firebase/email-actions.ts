@@ -6,13 +6,20 @@ export const accountEmailSchema = z.object({
   email: z.string().trim().email().max(254),
   intent: z.enum(["signIn", "resetPassword"]),
   returnPath: z.enum(["/", "/plan", "/saved", "/favorites", "/profile"]).default("/"),
-}).strict();
+  flow: z.uuid().optional(),
+}).strict().refine(input => input.flow === undefined || input.intent === "signIn" && input.returnPath === "/plan", { path: ["flow"], message: "A planning flow is only available for planner sign-in." });
+
+export function accountEmailReturnUrl(input: z.infer<typeof accountEmailSchema>) {
+  const destination = new URL(input.returnPath, siteOrigin);
+  if (input.intent === "signIn" && input.returnPath === "/plan" && input.flow) destination.searchParams.set("flow", input.flow);
+  return destination.href;
+}
 
 export function accountEmailMessage(input: z.infer<typeof accountEmailSchema>, firebaseLink: string) {
   const generated = new URL(firebaseLink);
   const code = generated.searchParams.get("oobCode");
   if (!code || generated.searchParams.get("mode") !== input.intent) throw new Error("Invalid account action");
-  const destination = new URL(input.returnPath, siteOrigin);
+  const destination = new URL(accountEmailReturnUrl(input));
   if (input.intent === "signIn") destination.searchParams.set("auth", "email");
   const link = new URL("/auth/action", siteOrigin);
   link.search = new URLSearchParams({ mode: input.intent, oobCode: code, continueUrl: destination.href, lang: "en" }).toString();
