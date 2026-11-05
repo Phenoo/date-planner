@@ -103,18 +103,19 @@ test("switching interfaces resumes at the missing detail, and bounded chat histo
   assert.equal(chatSessionSchema.safeParse({ messages: [], answered: ["invented"], nextField: null }).success, false);
 });
 
-test("the questionnaire skips explicit chat answers, keeps defaults unconfirmed and exposes review editing", async () => {
+test("the quick questionnaire skips confirmed answers and keeps day and time together", async () => {
   const { wizardQuestionSteps } = await import("../lib/planner/intake");
   const preferences = { ...request, date: "2030-11-02", startTime: "14:00", yourGender: "woman" as const, guests: 4 };
   const ids = (answered: Parameters<typeof wizardQuestionSteps>[1]) => wizardQuestionSteps(preferences, answered, "2030-11-01").map((step) => plannerQuestions[step].id);
-  assert.ok(ids([]).includes("people"), "Gender and default values are not a participant count answer");
+  assert.deepEqual(ids([]), ["city", "vibes", "budget", "date", "review"], "Only four questions and review are required; defaults do not confirm those answers");
   const remaining = ids(["people", "vibe", "budget", "date", "time"]);
-  for (const id of ["people", "vibes", "budget", "date", "time"]) assert.equal(remaining.includes(id as typeof remaining[number]), false);
-  assert.ok(remaining.includes("review"), "Review always offers editing, including skipped questions");
-  assert.ok(remaining.includes("city"));
-  assert.ok(remaining.includes("area"), "A named chat city does not answer the separate search-reach question");
+  assert.deepEqual(remaining, ["city", "review"]);
+  assert.deepEqual(ids(["location", "vibe", "budget", "date"]), ["date", "review"], "A confirmed day still needs a chosen start time");
+  assert.deepEqual(ids(intakeFields), ["review"], "Explicit date and time answers can both skip the combined question");
   const invalidated = wizardQuestionSteps({ ...preferences, date: "2030-10-31" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
   assert.ok(invalidated.includes("date"));
+  const missingTime = wizardQuestionSteps({ ...preferences, startTime: "" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
+  assert.ok(missingTime.includes("date"), "A missing start time reopens the combined question");
   const deadline = wizardQuestionSteps({ ...preferences, startTime: "21:00", endTime: "20:00" }, intakeFields, "2030-11-01").map((step) => plannerQuestions[step].id);
   assert.equal(deadline.includes("time"), false, "An old ending-time preference no longer adds another question");
 });

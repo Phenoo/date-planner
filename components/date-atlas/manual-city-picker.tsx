@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "re
 import { Field } from "@/components/ui/field";
 import { countryCitiesSchema, manualCitySuggestions, type CountryCities } from "@/lib/maps/cities";
 import type { Coordinates } from "@/lib/maps/schema";
-import { browserLocationError } from "@/lib/maps/client-location";
+import { BrowserLocationFailure, getBrowserCoordinates } from "@/lib/maps/client-location";
 import { LocationPermissionHelp } from "./location-permission-help";
 import styles from "./nearby-cities.module.css";
 
@@ -20,7 +20,7 @@ export function ManualCityPicker({ country, city, countryHint, onCountryChange, 
   const [finding, setFinding] = useState(false);
   const [geoMessage, setGeoMessage] = useState("");
   const [locationSettingsNeeded, setLocationSettingsNeeded] = useState(false);
-  const geoSession = useRef({ active: false, version: 0, pending: false });
+  const geoSession = useRef<{ active: boolean; version: number; pending: boolean; controller: AbortController | null }>({ active: false, version: 0, pending: false, controller: null });
   const cityInput = useRef<HTMLInputElement>(null);
   const countryDetails = useRef<HTMLDetailsElement>(null);
   const firstSuggestion = useRef<HTMLButtonElement>(null);
@@ -41,23 +41,25 @@ export function ManualCityPicker({ country, city, countryHint, onCountryChange, 
     return () => { clearTimeout(timeout); controller.abort(); };
   }, [country, key]);
 
-  const locate = useCallback((quiet = false) => {
+  const locate = useCallback(async (quiet = false) => {
     if (!window.isSecureContext || !navigator.geolocation) { if (!quiet) setGeoMessage("Location isn't available here. You can still choose a country and type your city."); return; }
     const session = geoSession.current;
     if (session.pending) return;
     const version = ++session.version;
+    const controller = new AbortController(); session.controller = controller;
     session.pending = true;
     setFinding(true); setGeoMessage(""); setLocationSettingsNeeded(false);
-    navigator.geolocation.getCurrentPosition((position) => {
-      if (!session.active || version !== session.version) return;
+    try {
+      const coordinates = await getBrowserCoordinates(controller.signal);
+      if (!session.active || version !== session.version || controller.signal.aborted) return;
       // Keep device coordinates in this component only; country city data is public.
-      setOrigin({ lat: position.coords.latitude, lng: position.coords.longitude });
-      session.pending = false; setFinding(false);
-    }, (failure) => {
-      if (!session.active || version !== session.version) return;
-      session.pending = false; setFinding(false);
-      if (!quiet) { setGeoMessage(browserLocationError(failure.code)); setLocationSettingsNeeded(failure.code === 1 || failure.code === 2); }
-    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+      setOrigin(coordinates);
+    } catch (failure) {
+      if (!session.active || version !== session.version || controller.signal.aborted) return;
+      if (!quiet) { setGeoMessage(failure instanceof Error ? failure.message : "Choose your city manually."); setLocationSettingsNeeded(failure instanceof BrowserLocationFailure && (failure.code === 1 || failure.code === 2)); }
+    } finally {
+      if (session.active && version === session.version && !controller.signal.aborted) { session.controller = null; session.pending = false; setFinding(false); }
+    }
   }, []);
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export function ManualCityPicker({ country, city, countryHint, onCountryChange, 
     if (navigator.permissions) void navigator.permissions.query({ name: "geolocation" }).then((permission) => {
       if (session.active && version === session.version && permission.state === "granted") locate(true);
     }).catch(() => {});
-    return () => { session.active = false; session.version++; session.pending = false; };
+    return () => { session.active = false; session.version++; session.controller?.abort(); session.controller = null; session.pending = false; };
   }, [locate]);
 
   const suggestions = data?.country ? manualCitySuggestions(data.cities, data.country.code, city, origin) : [];

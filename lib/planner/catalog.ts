@@ -13,6 +13,7 @@ export async function getCatalog() {
     .where("demo", "==", false)
     .limit(1000)
     .get();
+  if (!data.docs.length) return [];
   const records = data.docs.map((doc) => decodeExperience(doc.data().record));
   const blocked = await venueControls();
   const invalid = records.filter(record => !record.success).length;

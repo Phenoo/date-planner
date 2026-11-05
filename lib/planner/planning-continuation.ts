@@ -2,7 +2,7 @@ import { z } from "zod";
 import { activeDiscoveryKey } from "./discovery-session";
 import { draftJSON, draftLifetimeMs, draftRequest } from "./draft-retention";
 import { chatSessionSchema } from "./intake";
-import { plannerDraftVersion } from "./questions";
+import { plannerDraftVersion, plannerStartStep } from "./questions";
 import { requestSchema } from "./schema";
 import { savedRecipeSchema, type SavedRecipe } from "./saved";
 
@@ -60,7 +60,8 @@ function draft(value: unknown, owner: PlanningContinuationOwner, now: number): P
   const parsed = draftSchema.safeParse(value);
   if (!parsed.success || !current(parsed.data, owner, now)) return null;
   const data = parsed.data;
-  if (!(data.step && data.step > 0) && !data.chatSession?.answered.length && !data.editingPlan) return null;
+  const stepProgress = !!data.step && data.step > 0 && (data.step !== plannerStartStep || !!data.request.currentCity);
+  if (!stepProgress && !data.chatSession?.answered.length && !data.editingPlan) return null;
   const minimized: unknown = JSON.parse(draftJSON(data));
   if (!minimized || typeof minimized !== "object" || Array.isArray(minimized)) return null;
   const safeDraft = { ...minimized, flow: data.flow, ownerId: data.ownerId ?? null, expiresAt: data.expiresAt, needsPreferenceReview: data.needsPreferenceReview === true || "needsPreferenceReview" in minimized && minimized.needsPreferenceReview === true };

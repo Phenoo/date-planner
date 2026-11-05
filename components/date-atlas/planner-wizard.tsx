@@ -13,9 +13,6 @@ import { VibeChoices } from "./vibe-choices";
 import { GenderChoices } from "./gender-choices";
 import { DatePicker } from "./date-picker";
 import { calendarDay, calendarLabel, zonedNow, scheduleError } from "@/lib/planner/schedule";
-import { usePlannerConversation } from "./use-planner-conversation";
-import { PlannerReaction } from "./planner-reaction";
-import { conversationAnswerKey, localReaction } from "@/lib/planner/conversation";
 import styles from "./planner-conversation.module.css";
 import {
   areas,
@@ -36,7 +33,7 @@ import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 import type { PlannerQuestionId } from "@/lib/planner/questions";
 import type { CompanionTheme } from "@/lib/animations/registry";
 import type { DetectedLocation } from "@/lib/maps/schema";
-import { browserLocationError, resolveCountry, resolveLocation } from "@/lib/maps/client-location";
+import { BrowserLocationFailure, getBrowserCoordinates, resolveCountry, resolveLocation } from "@/lib/maps/client-location";
 import { requirementsGuidance } from "@/lib/planner/search-feedback";
 import { plannerValidationIssues } from "@/lib/planner/validation";
 import { budgetSuggestions, currencyDigits, currencyOptions, destinationCurrency } from "@/lib/planner/currency";
@@ -172,15 +169,14 @@ export function PlannerWizard({
   const position = questionSteps.indexOf(step);
   const [error, setError] = useState("");
   const [pending, setPending] = useState<number | null>(null);
-  const [feedback, setFeedback] = useState<{ line: string; target: number } | null>(null);
-  const transitioning = pending !== null || feedback !== null;
+  const transitioning = pending !== null;
   const heading = useRef<HTMLHeadingElement>(null);
   const [reviewing, setReviewing] = useState(editingPlan && step !== plannerQuestionCount - 1);
   const [locating, setLocating] = useState(false);
   const [resolvingArea, setResolvingArea] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
   const [locationSettingsNeeded, setLocationSettingsNeeded] = useState(false);
-  const [locationMode, setLocationMode] = useState<"choose" | "manual" | "selected">(() => request.currentCity.trim() ? "selected" : "choose");
+  const [locationMode, setLocationMode] = useState<"choose" | "manual" | "selected">(() => request.currentCity.trim() ? "selected" : "manual");
   const manualLocation = locationMode === "manual";
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
   const [estimatedCountry, setEstimatedCountry] = useState("");
@@ -201,35 +197,37 @@ export function PlannerWizard({
     }).catch(() => { /* Country selection remains available if the network has no estimate. */ });
     return () => controller.abort();
   }, [setRequest]);
-  function detectLocation() {
+  async function detectLocation() {
     setLocationSettingsNeeded(false);
     if (!window.isSecureContext) { setLocationMessage("Location access needs a secure connection. Open this site with HTTPS, or choose your area manually."); return; }
     if (!navigator.geolocation) { setLocationMessage("Location detection isn't supported. Choose your area manually."); return; }
     locationController.current?.abort();
     const controller = new AbortController(); locationController.current = controller;
     setLocating(true); setResolvingArea(false); setLocationMessage("Allow location access when your browser asks."); setError("");
-    navigator.geolocation.getCurrentPosition(async (position) => {
+    try {
+      const coordinates = await getBrowserCoordinates(controller.signal);
       if (controller.signal.aborted) return;
-      setResolvingArea(true); setLocationMessage("Location received. Finding your neighborhood…");
-      try {
-        const detected = await resolveLocation({ lat: position.coords.latitude, lng: position.coords.longitude }, controller.signal);
-        if (controller.signal.aborted) return;
-        setRequest((previous) => ({ ...destinationCurrency(previous, detected.location.country), ...detected.location, timeZoneConfirmed: false, currentCity: detected.location.city, area: detected.location.city, startingArea: detected.location.area, locationScope: "city", maxDistance: 30 }));
-        countryResolved.current = true; setEstimatedCountry("");
-        setDestinationChoice("city");
-        setDetectedLocation(detected); setLocationMode("selected");
-        onLocationDetected(detected.location);
-        setLocationMessage("");
-      } catch (failure) { if (!controller.signal.aborted) setLocationMessage(failure instanceof Error ? failure.message : "We couldn't detect your area. Please try again or choose it manually."); }
-      finally { if (!controller.signal.aborted) setLocating(false); }
-    }, (failure) => { if (!controller.signal.aborted) { setLocating(false); setLocationMessage(browserLocationError(failure.code)); setLocationSettingsNeeded(failure.code === 1 || failure.code === 2); } }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
+      setResolvingArea(true); setLocationMessage("Finding your city…");
+      const detected = await resolveLocation(coordinates, controller.signal);
+      if (controller.signal.aborted) return;
+      setRequest((previous) => ({ ...destinationCurrency(previous, detected.location.country), ...detected.location, timeZoneConfirmed: false, currentCity: detected.location.city, area: detected.location.city, startingArea: detected.location.area, locationScope: "city", maxDistance: 30 }));
+      countryResolved.current = true; setEstimatedCountry("");
+      setDestinationChoice("city");
+      setDetectedLocation(detected); setLocationMode("selected");
+      onLocationDetected(detected.location);
+      setLocationMessage("");
+    } catch (failure) {
+      if (!controller.signal.aborted) {
+        setLocationMessage(failure instanceof Error ? failure.message : "We couldn't detect your area. Please try again or choose it manually.");
+        setLocationSettingsNeeded(failure instanceof BrowserLocationFailure && (failure.code === 1 || failure.code === 2));
+      }
+    } finally { if (!controller.signal.aborted) setLocating(false); }
   }
   const stage = plannerQuestions[step];
   useDestinationTimeZone(request, setRequest, ["date", "time", "review"].includes(stage.id));
   useEffect(() => { const field = intakeFieldForQuestion(stage.id); if (field) trackFunnel("planner_step_viewed", funnelScope(`step:${field}`), undefined, field); }, [stage.id]);
   const title = editingPlan && stage.id === "review" ? "What would you like to change?" : stage.title;
-  const description = editingPlan && stage.id === "review" ? "Your other answers are kept. Change what you need, then find a fresh match." : stage.description;
-  const dialogue = usePlannerConversation(stage.id, request);
+  const description = editingPlan && stage.id === "review" ? "Your other answers are kept. Change what you need, then find a fresh match." : stage.id === "date" ? "Choose your day and start time. We’ll check the venue’s opening hours." : stage.id === "review" ? "Here’s your plan so far. Add any personal touches, or find your place now." : stage.description;
   const selectedCity = stage.id === "city" && locationMode === "selected";
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
@@ -255,18 +253,11 @@ export function PlannerWizard({
     )
       return;
     locationController.current?.abort();
-    setFeedback(null);
     setLocating(false);
     setError("");
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
       setStep(target);
     else setPending(target);
-  }
-  function advance(target: number, updated: PlanRequest) {
-    if (transitioning || loading) return;
-    const answer = stage.id === "vibes" ? updated.vibes.at(-1) : conversationAnswerKey(stage.id, updated);
-    const line = dialogue?.ai ? dialogue.responses.find(({ key }) => key === answer)?.line : undefined;
-    setFeedback({ target, line: line ?? localReaction(stage.id, updated) });
   }
   function next(updated = request) {
     if (transitioning || loading) return;
@@ -275,8 +266,8 @@ export function PlannerWizard({
       if (issues.length) { setError(issues[0].message); return; }
     }
     if ((stage.id === "date" || stage.id === "review") && (!updated.date || updated.date < zonedNow(updated.timeZone).date)) { setError("Choose today or a future day for your date."); return; }
-    if ((stage.id === "time" || stage.id === "review") && !updated.startTime) { setError("Choose a time for your date."); return; }
-    if (stage.id === "time") { const issue = scheduleError({ ...updated, timeZoneConfirmed: true, endTime: "" }); if (issue) { setError(issue); return; } }
+    if ((stage.id === "date" || stage.id === "time" || stage.id === "review") && !updated.startTime) { setError("Choose a time for your date."); return; }
+    if (stage.id === "date" || stage.id === "time") { const issue = scheduleError({ ...updated, timeZoneConfirmed: true, endTime: "" }); if (issue) { setError(issue); return; } }
     if (stage.id === "review") { const issue = scheduleError({ ...updated, timeZoneConfirmed: true, endTime: "" }); if (issue) { setError(issue); return; } }
     if (stage.id === "city" && (locationMode === "choose" || locating)) {
       setError(locating ? "Finding your area. Please wait a moment." : "Use your location or choose an area manually to continue.");
@@ -310,16 +301,16 @@ export function PlannerWizard({
     }
     if (stage.id === "city" && manualLocation) {
       setError("");
-      setRequest((previous) => ({ ...previous, currentCity: (updated.currentCity || updated.city).trim() }));
+      updated = { ...updated, currentCity: (updated.currentCity || updated.city).trim() };
+      setRequest(updated);
       setLocationMode("selected");
       setLocationMessage("");
-      return;
     }
     onAnswer?.(stage.id, updated);
+    if (stage.id === "date") onAnswer?.("time", updated);
     if (step === plannerQuestionCount - 1) void onGenerate();
-    else if (reviewing && stage.id === "city") advance(plannerQuestions.findIndex((question) => question.id === "area"), updated);
-    else if (reviewing) { setReviewing(false); advance(plannerQuestionCount - 1, updated); }
-    else advance(questionSteps[position + 1] ?? plannerQuestionCount - 1, updated);
+    else if (reviewing) { setReviewing(false); move(plannerQuestionCount - 1); }
+    else move(questionSteps[position + 1] ?? plannerQuestionCount - 1);
   }
   function choose<K extends keyof PlanRequest>(key: K, value: PlanRequest[K]) {
     if (transitioning || loading) return;
@@ -416,14 +407,13 @@ export function PlannerWizard({
     { id: "interests", label: "Interests & preferences", value: [request.interests, request.notes, request.surprises ? "Surprises welcome" : "No surprises"].filter(Boolean).join(" · ") },
     { id: "requirements", label: "Place preferences", value: [request.environment === "indoor" ? "Indoors" : request.environment === "outdoor" ? "Outdoors" : "", request.quiet ? "Quiet enough to talk" : "", request.accessibility ? "Step-free entrance required" : "", request.dislikes ? `Avoid: ${request.dislikes}` : "", ...request.dietary].filter(Boolean).join(" · ") || "No additional preferences" },
     { id: "budget", label: "Spending limit", value: request.budget === null ? "No spending limit set" : `${money(request.budget, request.currency)} ${request.budgetType === "total" ? "total" : "per person"} · ${request.includeFood ? "Food included" : "Food excluded"} · ${request.includeTransport ? "Transport included" : "Transport excluded"}` },
-    { id: "date", label: "Date", value: request.date ? calendarLabel(request.date) : "Choose a day" },
+    { id: "date", label: "Day & time", value: `${request.date ? calendarLabel(request.date) : "Choose a day"} · ${request.startTime || "Choose a time"}` },
     { id: "time", label: "Starting time", value: request.startTime || "Choose a time" },
   ];
   const total =
     (request.budget ?? 0) * (request.budgetType === "per-person" ? request.guests : 1);
   const reviewIssues = stage.id === "review" ? plannerValidationIssues(request) : [];
   if (loading) return <GeneratingScreen stage={loadingStage} theme={theme} onCancel={onCancelGeneration} />;
-  if (feedback) return <PlannerReaction key={feedback.target} line={feedback.line} theme={theme} onComplete={() => { setStep(feedback.target); setFeedback(null); }} />;
   return (
     <main className={`typeform-shell ${styles.wizard} ${stage.id === "review" ? "planner-review" : ""}`}>
       {(position > 0 || reviewing) && !(editingPlan && stage.id === "review") && <div className="typeform-stage-bar">
@@ -460,7 +450,6 @@ export function PlannerWizard({
           if (event.target === event.currentTarget && pending !== null) {
             setStep(pending);
             setPending(null);
-            setFeedback(null);
           }
         }}
       >
@@ -476,7 +465,11 @@ export function PlannerWizard({
           {stage.id === "review" && <>
             {reviewIssues.length > 0 && <div className="review-missing" role="alert"><strong>A few details need attention</strong>{reviewIssues.map((issue) => <div key={issue.question}><p>{issue.message}</p><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex((question) => question.id === issue.question)); }}>Fix this answer</button></div>)}</div>}
             {(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance">{requirementsGuidance(request)}</p>}
-            <div className="review-answers">{reviewGroups.map((item) => <div className="review-answer" key={item.id}><div><small>{item.label}</small><p>{item.value}</p></div><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex((question) => question.id === item.id)); }}>Edit {item.label.toLowerCase()}</button></div>)}</div>
+            <p className="answer-help">For {request.guests} people · {request.occasion}</p>
+            <div className="review-answers">{reviewGroups.filter(item => ["area", "vibes", "budget", "date"].includes(item.id)).map((item) => <div className="review-answer" key={item.id}><div><small>{item.label}</small><p>{item.value}</p></div><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex((question) => question.id === item.id)); }}>Edit {item.label.toLowerCase()}</button></div>)}</div>
+            <button type="button" className="text-link" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex(question => question.id === "requirements")); }}>Access, setting or places to avoid</button>
+            <p className="answer-help">{reviewGroups.find(item => item.id === "requirements")?.value}</p>
+            <details className="flow-details"><summary>Personalise this date (optional)</summary><div className="review-answers">{reviewGroups.filter(item => !["area", "vibes", "budget", "date", "time", "requirements"].includes(item.id)).map(item => <div className="review-answer" key={item.id}><div><small>{item.label}</small><p>{item.value}</p></div><button type="button" onClick={() => { setReviewing(true); move(plannerQuestions.findIndex(question => question.id === item.id)); }}>Edit {item.label.toLowerCase()}</button></div>)}</div></details>
           </>}
           {stage.id === "city" && !selectedCity && (
             <>
@@ -729,7 +722,10 @@ export function PlannerWizard({
             </div>
           )}
           {stage.id === "date" && (
-            <DatePicker key={request.timeZone} timeZone={request.timeZone} value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
+            <>
+              <DatePicker key={request.timeZone} timeZone={request.timeZone} value={request.date} disabled={transitioning} onChange={(date) => { setRequest((previous) => ({ ...previous, date, datePreference: [0, 6].includes(calendarDay(date)) ? "weekend" : "weekday" })); setError(""); }} />
+              <Field label="Choose your start time"><input type="time" required value={request.startTime} onChange={event => update("startTime", event.target.value)} /></Field>
+            </>
           )}
           {stage.id === "time" && <Field label="Choose your start time"><input type="time" required value={request.startTime} onChange={(event) => update("startTime", event.target.value)} /></Field>}
 

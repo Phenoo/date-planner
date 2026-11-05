@@ -19,10 +19,12 @@ class GoogleRatingError extends RequestError {
 }
 
 export async function discoverDatePlaces(request: PlanRequest, center: Coordinates | undefined, options: DiscoveryOptions = {}, progress?: (stage: string) => void): Promise<NearbyResult> {
+  options.signal?.throwIfAborted();
   progress?.("Understanding your kind of date");
-  const brief = await createDiscoveryBrief(request, options);
+  const brief = request.interests || request.notes || options.likedPlaceCategories?.length
+    ? createDiscoveryBrief(request, options) : Promise.resolve(null);
   progress?.("Finding real places for your date");
-  const { result } = await loadPlaceCandidates(request, center, { excludeCategories: options.excludeCategories, queries: brief?.queries, excludeIds: options.excludePlaceIds, signal: options.signal, limit: 24 });
+  const { result } = await loadPlaceCandidates(request, center, { excludeCategories: options.excludeCategories, queries: brief.then((value) => value?.queries), excludeIds: options.excludePlaceIds, signal: options.signal, limit: 24 });
   progress?.("Matching places to your preferences");
   const ranked = await rankDiscoveredPlaces(result, request, options);
   const chosen = ranked.places[0];

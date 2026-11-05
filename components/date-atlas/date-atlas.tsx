@@ -77,6 +77,7 @@ import {
 import {
   plannerDraftVersion,
   plannerQuestions,
+  plannerStartStep,
   restorePlannerStep,
   type PlannerQuestionId,
 } from "@/lib/planner/questions";
@@ -159,7 +160,7 @@ export function DateAtlas({
   const [request, setRequest] = useState<PlanRequest>(defaultRequest);
   const restoredDiscovery = useRef(false);
   const rejectionMemory = useRef({ flow: "", picks: mergeRejectedPicks() });
-  const [plannerStep, setPlannerStep] = useState(0);
+  const [plannerStep, setPlannerStep] = useState(plannerStartStep);
   const [editingPlan, setEditingPlan] = useState(false);
   const [plannerMode, setPlannerMode] = useState<PlannerMode | null>(null);
   const [chatSession, setChatSession] = useState(emptyChatSession);
@@ -388,7 +389,7 @@ export function DateAtlas({
           if (previous && !previous.anonymous && previous.uid !== user?.uid) {
             setAuthReady(false);
             abortRef.current?.abort(); generationId.current++; setBusy(false);
-            setResult(null); setResumePath(null); setRequest(defaultRequest()); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
+            setResult(null); setResumePath(null); setRequest(defaultRequest()); setChatSession(emptyChatSession()); setPlannerStep(plannerStartStep); setEditingPlan(false);
             pendingSave.current = null; setSaved([]); setSignedIn(false); setAccountId(""); setDraftReady(true);
             shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
             setShareOpen(false); setShareSelection(null);
@@ -566,7 +567,7 @@ export function DateAtlas({
             version: plannerDraftVersion,
             expiresAt: Date.now() + draftLifetimeMs,
             request: { ...request, ...patch },
-            step: 0,
+            step: plannerStartStep,
             preferredIds: preferred ? [preferred] : [],
             plannerMode: null,
           }),
@@ -587,7 +588,7 @@ export function DateAtlas({
       localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey); localStorage.removeItem(pendingDateReminderKey);
     } catch { setExitError("Your browser couldn't clear the draft. Please try again before starting over."); return; }
     pendingSave.current = null; rejectionMemory.current = { flow: "", picks: mergeRejectedPicks() };
-    setRequest(defaultRequest()); setPlannerStep(0); setEditingPlan(false); setPlannerMode(null); setChatSession(emptyChatSession()); setPreferredIds([]); setResult(null); setError(""); setExitOpen(false);
+    setRequest(defaultRequest()); setPlannerStep(plannerStartStep); setEditingPlan(false); setPlannerMode(null); setChatSession(emptyChatSession()); setPreferredIds([]); setResult(null); setError(""); setExitOpen(false);
   }
   function favorite(experience: Experience) {
     const next = favorites.includes(experience.id)

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
-import { resolveLocation } from "@/lib/maps/client-location";
+import { BrowserLocationFailure, getBrowserCoordinates, resolveLocation } from "@/lib/maps/client-location";
 import type { DetectedLocation } from "@/lib/maps/schema";
 import styles from "./chat-location-suggestion.module.css";
 
@@ -26,24 +26,16 @@ export function ChatLocationSuggestion({ disabled, onSelect, onManual }: {
     const finish = () => {
       if (!abort.signal.aborted) { current.controller = null; setFinding(false); }
     };
-    try {
-      navigator.geolocation.getCurrentPosition(async (position) => {
+    void (async () => {
+      try {
+        const coordinates = await getBrowserCoordinates(abort.signal);
         if (abort.signal.aborted) return;
-        try {
-          const result = await resolveLocation({ lat: position.coords.latitude, lng: position.coords.longitude }, abort.signal);
-          if (!abort.signal.aborted) setDetected(result);
-        } catch {
-          if (!abort.signal.aborted) setMessage("Couldn’t find your location.");
-        } finally { finish(); }
-      }, (failure) => {
-        if (abort.signal.aborted) return;
-        setMessage(failure.code === 3 ? "Location lookup timed out." : "Location unavailable.");
-        finish();
-      }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
-    } catch {
-      setMessage("Location unavailable.");
-      finish();
-    }
+        const result = await resolveLocation(coordinates, abort.signal);
+        if (!abort.signal.aborted) setDetected(result);
+      } catch (failure) {
+        if (!abort.signal.aborted) setMessage(failure instanceof BrowserLocationFailure && failure.code === 3 ? "Location lookup timed out. You can type your city instead." : "Couldn’t find your location. You can type your city instead.");
+      } finally { finish(); }
+    })();
   }, []);
 
   useEffect(() => {
