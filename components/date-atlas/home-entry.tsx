@@ -25,7 +25,7 @@ function hasCompletedIntro() {
 function serverIntroSnapshot() { return null; }
 
 export function HomeEntryFallback() {
-  return <PlannerLoadingScreen />;
+  return <PlannerLoadingScreen context="home" />;
 }
 
 export function HomeEntry() {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type Ref } from "react";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { CompanionTheme } from "@/lib/animations/registry";
 import appearance from "./planner-appearance.module.css";
@@ -9,13 +10,14 @@ import styles from "./planner-loading-screen.module.css";
 type Props = {
   theme?: CompanionTheme;
   mode?: "opening" | "generating";
+  context?: "home" | "planner";
   stage?: string;
   overlay?: boolean;
   screenRef?: Ref<HTMLElement>;
   onRetry?: () => void;
 };
 
-export function PlannerLoadingScreen({ theme = "red", mode = "opening", stage, overlay = false, screenRef, onRetry }: Props) {
+export function PlannerLoadingScreen({ theme = "red", mode = "opening", context = "planner", stage, overlay = false, screenRef, onRetry }: Props) {
   const [takingLonger, setTakingLonger] = useState(false);
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export function PlannerLoadingScreen({ theme = "red", mode = "opening", stage, o
   const generating = mode === "generating";
 
   return (
-    <main ref={screenRef} className={`${appearance.palette} ${!generating ? appearance.initialPalette : ""} ${styles.screen} ${overlay ? styles.overlay : ""}`} data-planner-theme={theme} aria-busy="true" aria-label={generating ? "Finding a date that suits you" : "Opening A Date At las"}>
+    <main ref={screenRef} className={`${appearance.palette} ${!generating ? appearance.initialPalette : ""} ${styles.screen} ${context === "home" ? styles.home : ""} ${overlay ? styles.overlay : ""}`} data-planner-theme={theme} aria-busy="true" aria-label={generating ? "Finding a date that suits you" : "Opening A Date At las"}>
       <div className={styles.backdrop} aria-hidden="true"><span /><span /></div>
       <header className={styles.header}>
         <span className={styles.logo} aria-label="A Date At las">adal<span>.</span></span>
@@ -52,6 +54,7 @@ export function PlannerLoadingScreen({ theme = "red", mode = "opening", stage, o
 
         <span className={styles.eyebrow}>{generating ? "A LITTLE THOUGHT, JUST FOR YOU" : "A LITTLE LOVE IS ON ITS WAY"}</span>
         <h1 className={styles.title} tabIndex={-1}>{generating ? <>Finding your<br />kind of date.</> : <>A little thought.<br />Something lovely.</>}</h1>
+        {context === "home" && <p className={styles.description}>Plan a thoughtful date around your city, budget and interests.</p>}
         <div className={styles.status} role="status" aria-live="polite" aria-atomic="true">
           <p className={styles.stage}>{stage ?? (generating ? "Looking for a date that suits you" : "Opening A Date At las…")}</p>
           {takingLonger && <p className={styles.slow}>This is taking longer than usual. Please keep this page open.</p>}
@@ -60,7 +63,7 @@ export function PlannerLoadingScreen({ theme = "red", mode = "opening", stage, o
         {takingLonger && onRetry && <button type="button" className={styles.retry} onClick={onRetry}>Try again<ArrowRight size={17} aria-hidden="true" /></button>}
       </div>
 
-      <footer className={styles.footer}><span /><small>Made for a little time together.</small><span /></footer>
+      <footer className={styles.footer}>{context === "home" ? <nav className={styles.publicLinks} aria-label="A Date At las links"><Link href="/plan">Plan a date</Link><Link href="/about">About</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></nav> : <><span /><small>Made for a little time together.</small><span /></>}</footer>
     </main>
   );
 }

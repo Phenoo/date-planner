@@ -1031,7 +1031,7 @@ export function DateAtlas({
   }
   const planning = view === "planner";
   const themedJourney = planning || view === "results";
-  if (!authReady) return <PlannerLoadingScreen theme={initialView === "planner" ? plannerAppearance : "red"} />;
+  if (!authReady) return <PlannerLoadingScreen context={initialView === "home" ? "home" : "planner"} theme={initialView === "planner" ? plannerAppearance : "red"} />;
   if (initialView === "planner" && !draftReady) return <PlannerInitializing theme={plannerAppearance} />;
   const authenticatedLayout = signedIn && !planning && view !== "results";
   return (

@@ -1,4 +1,5 @@
 .screen { position: relative; isolation: isolate; display: flex; flex-direction: column; min-height: 100svh; padding: 0 clamp(24px,5vw,76px); overflow: clip; background: var(--planner-bg); color: var(--planner-text); }
+.screen.home[data-planner-theme="red"] { --planner-bg: #d91335; }
 .overlay { position: fixed; inset: 0; z-index: 60; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 94px; flex-shrink: 0; border-bottom: 1px solid var(--planner-border); }
 .logo { font-size: 35px; font-weight: 650; letter-spacing: -.075em; line-height: 1; }
@@ -24,6 +25,7 @@
 .eyebrow { font-size: 10px; font-weight: 550; letter-spacing: .17em; line-height: 1.7; color: var(--planner-muted); }
 .title { margin: 18px 0 22px; font-size: clamp(42px,6.2vw,76px); font-weight: 550; line-height: 1.07; letter-spacing: -.055em; outline: none; }
 .status { width: min(380px,100%); min-height: 50px; }
+.screen .description { max-width: 420px; margin: 0 0 20px; font-size: 13px; line-height: 1.7; color: var(--planner-muted); }
 .status .stage { margin: 0; font-size: 14px; line-height: 1.75; color: var(--planner-muted); }
 .status .slow { margin: 14px auto 0; max-width: 310px; font-size: 12px; line-height: 1.7; color: var(--planner-muted); }
 .dots { display: flex; align-items: center; justify-content: center; gap: 7px; height: 26px; margin-top: 12px; color: var(--planner-accent); }
@@ -36,6 +38,9 @@
 .footer { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 0 max(26px,env(safe-area-inset-bottom)); color: var(--planner-muted); }
 .footer > span { width: 24px; height: 1px; background: var(--planner-border); }
 .footer > small { font-size: 10px; letter-spacing: .025em; line-height: 1.6; }
+.publicLinks { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 22px; font-size: 13px; }
+.publicLinks a { display: inline-flex; align-items: center; min-height: 44px; }
+.publicLinks a:hover { text-decoration: underline; text-underline-offset: 4px; }
 @keyframes orbit { to { transform: rotate(360deg); } }
 @keyframes heartFloat { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-9px) rotate(4deg); } }
 @keyframes shadowBreathe { 0%,100% { transform: scaleX(1); opacity: .12; } 50% { transform: scaleX(.72); opacity: .07; } }
