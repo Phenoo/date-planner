@@ -163,7 +163,8 @@ export async function sendAccountPasswordReset(email: string) {
 }
 
 async function requestAccountEmail(email: string, intent: "signIn" | "resetPassword") {
-  const returnPath = ["/", "/plan", "/saved", "/favorites", "/profile"].includes(window.location.pathname) ? window.location.pathname : "/";
+  const path = window.location.pathname === "/login" ? "/saved" : window.location.pathname;
+  const returnPath = ["/", "/plan", "/saved", "/favorites", "/profile"].includes(path) ? path : "/";
   const response = await fetch("/api/auth/email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim(), intent, returnPath }), signal: AbortSignal.timeout(20000) });
   if (!response.ok) throw new FirebaseError(response.status === 429 ? "auth/too-many-requests" : response.status === 400 ? "auth/invalid-email" : "auth/internal-error", "We couldn't send that email. Please try again shortly.");
 }

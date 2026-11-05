@@ -4,7 +4,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getDatabase } from "@/lib/firebase/server";
 import { RequestError } from "./http";
 
-export async function enforcePlannerLimit(request: Request, bucket: "planning" | "conversation" | "polling" | "telemetry" | "email" = "planning") {
+export async function enforcePlannerLimit(request: Request, bucket: "planning" | "conversation" | "polling" | "telemetry" | "email" | "partnership" = "planning") {
   if (process.env.DATE_ATLAS_CATALOG_MODE === "demo") return;
   const secret = process.env.PLANNER_RATE_LIMIT_SECRET;
   if (!secret)
@@ -28,7 +28,7 @@ export async function enforcePlannerLimit(request: Request, bucket: "planning" |
     const current =
       data?.resetAt instanceof Timestamp && data.resetAt.toMillis() > now;
     const count = current && typeof data?.count === "number" ? data.count : 0;
-    if (count >= ({ planning: 12, conversation: 30, polling: 120, telemetry: 120, email: 3 })[bucket])
+    if (count >= ({ planning: 12, conversation: 30, polling: 120, telemetry: 120, email: 3, partnership: 3 })[bucket])
       throw new RequestError(
         "There have been several requests in a moment. Please wait one minute and try again.",
         429,

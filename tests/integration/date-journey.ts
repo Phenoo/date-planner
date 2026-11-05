@@ -56,10 +56,10 @@ globalThis.fetch = async (input, init) => {
   const url = String(input);
   if (url.startsWith("https://maps.googleapis.com/maps/api/geocode/json")) return Response.json({ status: "OK", results: [{ geometry: { location: { lat: 6.45, lng: 3.46 } }, address_components: [], formatted_address: "TEST FIXTURE AREA" }] });
   if (url === "/api/account/merge") { if (heldMerge) { heldMerge.entered(); await heldMerge.released; heldMerge = null; } if (interruptMerge) { interruptMerge = false; return Response.json({ error: "Test-only interrupted transfer" }, { status: 503 }); } return mergeGuest(new Request("http://test.local/api/account/merge", init)); }
-  if (url.startsWith("https://places.googleapis.com/v1/places:")) return Response.json({ places: [{ id: "TEST_PLACE_0", displayName: { text: "TEST FIXTURE 0" }, formattedAddress: "TEST FIXTURE ADDRESS", primaryTypeDisplayName: { text: "Art gallery" }, businessStatus: "OPERATIONAL", location: { latitude: 6.45, longitude: 3.46 }, types: ["art_gallery"], attributions: [], photos: [] }] });
+  if (url.startsWith("https://places.googleapis.com/v1/places:")) return Response.json({ places: [{ id: "TEST_PLACE_0", displayName: { text: "TEST FIXTURE 0" }, formattedAddress: "TEST FIXTURE ADDRESS", primaryTypeDisplayName: { text: "Art gallery" }, businessStatus: "OPERATIONAL", location: { latitude: 6.45, longitude: 3.46 }, types: ["art_gallery"], rating: 4.5, attributions: [], photos: [] }] });
   if (url.startsWith("https://places.googleapis.com/v1/places/")) {
     const id = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!);
-    return Response.json({ id, displayName: { text: `TEST FIXTURE ${id}` }, formattedAddress: "TEST FIXTURE ADDRESS", primaryTypeDisplayName: { text: "Art gallery" }, businessStatus: "OPERATIONAL", location: { latitude: 6.45, longitude: 3.46 }, types: ["art_gallery"], attributions: [], photos: [] });
+    return Response.json({ id, displayName: { text: `TEST FIXTURE ${id}` }, formattedAddress: "TEST FIXTURE ADDRESS", primaryTypeDisplayName: { text: "Art gallery" }, businessStatus: "OPERATIONAL", location: { latitude: 6.45, longitude: 3.46 }, types: ["art_gallery"], rating: 4.5, attributions: [], photos: [] });
   }
   return originalFetch(input, init);
 };
@@ -95,11 +95,19 @@ choices.places[0].story = { ...fallbackDateStory("Art gallery"), introduction: "
 const session = await persistDiscoverySession(req({}, guest.idToken), choices, preferences);
 assert.ok(session.sessionId);
 const db = getDatabase();
-const recipe = { id: "TEST_SAVED_PLAN", title: "TEST FIXTURE — Saved date", type: "Best overall match", request: preferences, experienceIds: ["TEST_EXPERIENCE"], total: 0, image: "", demo: true, savedAt: new Date().toISOString() };
+const templateExperience = demoCatalog.find((experience) => experience.category === "Food & dining");
+assert.ok(templateExperience);
+const reviewedToday = new Date().toISOString().slice(0, 10);
+const savedExperience = { ...templateExperience, id: "TEST_EXPERIENCE", venue: "TEST FIXTURE SAVED VENUE", name: "TEST FIXTURE SAVED EXPERIENCE", demo: false, approved: true, active: true, sourceUrl: "https://example.test/saved-fixture", verifiedAt: reviewedToday, verificationExpiresAt: addCalendarDays(reviewedToday, 30), priceSource: "venue" as const, priceNote: "TEST FIXTURE — priced meal for one adult", hoursSourceUrl: "https://example.test/saved-fixture", timeZone: "Africa/Lagos", placeId: "TEST_PLACE_0" };
+const savedPlan = generateSinglePlan(generateSchema.parse({ request: preferences }), [savedExperience]).plans[0];
+assert.ok(savedPlan, "The save fixture must meet current catalog constraints");
+const recipe = { ...toRecipe(savedPlan), id: "TEST_SAVED_PLAN", title: "TEST FIXTURE — Saved date" };
 assert.equal((await savePlan(req(recipe))).status, 401);
 assert.equal((await savePlan(req(recipe, guest.idToken))).status, 401, "Anonymous planning is not permission to save a plan");
 assert.equal((await getSaved(req({}, guest.idToken))).status, 401);
 assert.equal((await deleteSaved(req({ id: recipe.id }, guest.idToken))).status, 401);
+assert.equal((await savePlan(req({ ...recipe, experienceIds: [`UNTRUSTED_${randomUUID()}`], demo: true }, member.idToken))).status, 409, "A client demo flag cannot bypass trusted catalog and Google rating checks");
+await db.collection("experiences").doc(savedExperience.id).set({ record: encodeExperience(savedExperience), active: true, approved: true, demo: false });
 for (const response of await Promise.all([savePlan(req(recipe, member.idToken)), savePlan(req(recipe, member.idToken))])) assert.equal(response.status, 200);
 assert.equal((await db.collection("users").doc(member.localId).collection("savedPlans").get()).size, 1, "Repeated saves update one deterministic record");
 const saved = await (await getSaved(req({}, member.idToken))).json();
@@ -246,8 +254,7 @@ assert.equal((await invitations(req({ ...note, message: "" }, member.idToken))).
 assert.equal(publicInvitationSchema.parse(await (await invitations(req({ action: "read", token: replacement.token }))).json()).message, undefined, "The creator can remove the public message");
 assert.equal((await invitations(req(revoke, member.idToken))).status, 200);
 assert.equal((await dateHistory(req({ action: "complete", id: replacement.id }, member.idToken))).status, 200, "Completing a private date must not depend on a revoked public record");
-const templateExperience = demoCatalog.find((experience) => experience.category === "Food & dining")!;
-const catalogExperience = { ...templateExperience, id: "TEST_CATALOG_EXPERIENCE", venue: "TEST FIXTURE RESTAURANT", name: "TEST FIXTURE DINNER", demo: false, approved: true, active: true, sourceUrl: "https://example.test/catalog-fixture", verifiedAt: today, verificationExpiresAt: addCalendarDays(today, 30), priceSource: "venue" as const, priceNote: "TEST FIXTURE — priced meal for one adult", hoursSourceUrl: "https://example.test/catalog-fixture", timeZone: "Africa/Lagos" };
+const catalogExperience = { ...savedExperience, id: "TEST_CATALOG_EXPERIENCE", venue: "TEST FIXTURE RESTAURANT", name: "TEST FIXTURE DINNER", sourceUrl: "https://example.test/catalog-fixture", hoursSourceUrl: "https://example.test/catalog-fixture" };
 const fixtureRef = db.collection("experiences").doc(catalogExperience.id);
 await fixtureRef.set({ record: encodeExperience(catalogExperience), active: true, approved: true, demo: false });
 const catalogPlan = generateSinglePlan(generateSchema.parse({ request: { ...preferences, budget: 60000, duration: 300 } }), [catalogExperience]).plans[0];
@@ -425,7 +432,9 @@ const measured = metricsResponseSchema.parse(JSON.parse(measuredText));
 assert.equal(measured.journeys.started, 1);
 assert.equal(measured.journeys.completed, 1);
 assert.equal(measured.vitals.find(row => row.name === "LCP" && row.device === "mobile")?.p75, 2800);
-const foreignRecipe = { ...recipe, id: "TEST_FOREIGN_RECIPE", request: { ...preferences, country: "United Kingdom", currency: "GBP", budget: 40.25, transportBudget: 12.1, timeZone: "Europe/London" }, total: 32.55 };
+const foreignExperience = { ...savedExperience, id: "TEST_UK_EXPERIENCE", venue: "TEST FIXTURE UK VENUE", name: "TEST FIXTURE UK EXPERIENCE", country: "United Kingdom", city: "London", area: "South Bank", currency: "GBP", price: 10, lat: 51.508, lng: -0.117, timeZone: "Europe/London", placeId: "TEST_UK_PLACE", sourceUrl: "https://example.test/uk-fixture", hoursSourceUrl: "https://example.test/uk-fixture" };
+await db.collection("experiences").doc(foreignExperience.id).set({ record: encodeExperience(foreignExperience), active: true, approved: true, demo: false });
+const foreignRecipe = { ...recipe, id: "TEST_FOREIGN_RECIPE", experienceIds: [foreignExperience.id], request: { ...preferences, country: "United Kingdom", city: "London", area: "South Bank", currency: "GBP", budget: 40.25, transportBudget: 12.1, timeZone: "Europe/London" }, total: 32.55 };
 assert.equal((await savePlan(req({ ...foreignRecipe, flowScope }, member.idToken))).status, 200);
 const foreignSaved = (await (await getSaved(req({}, member.idToken))).json()).plans.find((plan: { id: string }) => plan.id === foreignRecipe.id);
 assert.equal(foreignSaved.request.currency, "GBP");

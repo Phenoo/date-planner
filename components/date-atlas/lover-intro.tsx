@@ -86,7 +86,7 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
 
       <footer className={styles.footer}>
         <div className={styles.chapter}><span /><small>A Date At las</small></div>
-        <div className={styles.footerLinks}><a href={`mailto:${supportEmail}`}>Support</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
+        <div className={styles.footerLinks}><Link href="/about">About</Link><Link href="/partners">Partner with us</Link><a href={`mailto:${supportEmail}`}>Support</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
       </footer>
     </main>
   );

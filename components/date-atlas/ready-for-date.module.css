@@ -9,7 +9,7 @@
 .ready h2 { font-size: clamp(29px,4vw,42px); line-height: 1.1; letter-spacing: -.04em; font-weight: 500; }
 .when { margin: 20px 0; font-size: 15px; line-height: 1.8; color: var(--planner-muted, #704251); }
 .when small { font-size: 12px; }
-.address { margin: 16px auto; color: var(--planner-muted, #704251); font-size: 13px; line-height: 1.8; max-width: 580px; }
+.address { margin: 16px auto; color: var(--planner-muted, #704251); font-size: 16px; line-height: 1.8; max-width: 580px; }
 .actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .actions a,.actions button { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 12px 16px; border: 1px solid var(--planner-border, #dbaaba); border-radius: 0; color: var(--planner-accent, #9c203b); background: var(--planner-surface, white); font-size: 13px; line-height: 1.5; text-align: center; }
 .actions :is(a,button):hover { background: var(--planner-hover, #fff0f4); }

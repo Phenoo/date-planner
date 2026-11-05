@@ -1275,13 +1275,9 @@ export function DateAtlas({
               </div>
               <div>
                 <strong>A little about us</strong>
-                {["About A Date At las", "Partner with us", "Help & support"].map(
-                  (page) => (
-                    <button key={page} onClick={() => setInfoPage(page)}>
-                      {page}
-                    </button>
-                  ),
-                )}
+                <Link href="/about">About A Date At las</Link>
+                <Link href="/partners">Partner with us</Link>
+                <button onClick={() => setInfoPage("Help & support")}>Help &amp; support</button>
               </div>
               <div>
                 <strong>The details</strong>
@@ -1369,12 +1365,7 @@ export function DateAtlas({
               </p>
               <Link href="/terms">Read the full terms, including Google Maps terms</Link>
             </>
-          ) : infoPage === "Partner with us" ? (
-            <>
-              <p>Run a venue or experience? Share your location, current prices, opening hours and booking details so we can review it for our catalog.</p>
-              <a href={`mailto:${supportInbox}?subject=Venue%20partnership`}>Talk to us about your venue</a>
-            </>
-          ) : infoPage === "Help & support" ? (
+          ) : (
             <>
               <p>
                 Tell Oge what you have in mind, by typing or using the microphone,
@@ -1388,12 +1379,6 @@ export function DateAtlas({
               </p>
               <p>Need a hand? Email <a href={`mailto:${supportEmail}`}>{supportEmail}</a> or <a href={`mailto:${supportInbox}`}>{supportInbox}</a>.</p>
             </>
-          ) : (
-            <p>
-              A Date At las connects your interests, time, and budget into a
-              thoughtful date. Tell Oge your city or neighborhood to explore
-              nearby suggestions. Coverage and confirmed venue information vary by location.
-            </p>
           )}
         </Dialog>
         <Dialog open={shareOpen && !authOpen && signedIn} onOpenChange={(open) => { setShareOpen(open); if (!open) { shareController.current?.abort(); shareController.current = null; } }} title="Your date invitation" description="Choose how to share your invitation.">
