@@ -6,7 +6,7 @@ import type { PlanRequest } from "@/lib/planner/schema";
 import { VenueDecisionFacts } from "./venue-decision-facts";
 import styles from "./date-journey.module.css";
 
-export function ChosenPlaceCard({ place, placeId, animated = false, catalog = false, request }: { place: PublicInvitation["place"]; placeId: string; animated?: boolean; catalog?: boolean; request?: PlanRequest }) {
+export function ChosenPlaceCard({ place, placeId, animated = false, catalog = false, request, showMapLink = true }: { place: PublicInvitation["place"]; placeId: string; animated?: boolean; catalog?: boolean; request?: PlanRequest; showMapLink?: boolean }) {
   const [photoFailed, setPhotoFailed] = useState(false);
   const maps = place?.mapsUrl ?? `https://www.google.com/maps/search/?${new URLSearchParams({ api: "1", query: "Date venue", query_place_id: placeId })}`;
   return <article className={`${styles.chosenCard} ${animated ? styles.chosenCardAnimated : ""}`}>
@@ -16,7 +16,7 @@ export function ChosenPlaceCard({ place, placeId, animated = false, catalog = fa
     {catalog && place?.photo && <small>Illustrative date photography</small>}
     {place && request && <VenueDecisionFacts place={{ ...place, distanceKm: 0, reason: "" }} request={request} />}
     {!place && <p>{catalog ? "This experience is no longer listed. Ask the creator to review the date before going." : "Place details are temporarily unavailable. You can still open the chosen location on Maps."}</p>}
-    {(!catalog || place) && <a className={styles.mapLink} href={maps} target="_blank" rel="noreferrer">View on Google Maps <span aria-hidden="true">↗</span></a>}
+    {showMapLink && (!catalog || place) && <a className={styles.mapLink} href={maps} target="_blank" rel="noreferrer">View on Google Maps <span aria-hidden="true">↗</span></a>}
     {place?.attributions.map((item, index) => <small key={`${item.name}:${index}`}>{item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : item.name}</small>)}
   </article>;
 }

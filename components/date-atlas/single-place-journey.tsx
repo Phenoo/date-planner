@@ -35,6 +35,6 @@ export function SinglePlaceJourney({ place, sessionId, request, signedIn, accoun
     } catch { /* The current tab still preserves the accepted date. */ }
     onSignIn();
   }
-  if (accepted) return <ChosenDateReveal key={`${place.id}:${accountRevision}`} place={place} sessionId={sessionId} request={request} signedIn={signedIn} onSignIn={signIn} onTiming={onTiming} onChange={() => { try { sessionStorage.removeItem(key); } catch { /* The current choice can still change. */ } setAccepted(false); setReturning(true); window.scrollTo({ top: 0 }); }} />;
+  if (accepted) return <ChosenDateReveal key={`${place.id}:${accountRevision}`} place={place} sessionId={sessionId} request={request} signedIn={signedIn} onSignIn={signIn} onChange={() => { try { sessionStorage.removeItem(key); } catch { /* The current choice can still change. */ } setAccepted(false); setReturning(true); window.scrollTo({ top: 0 }); }} />;
   return <CinematicReveal loadingStage={loadingStage} onCancelGeneration={onCancelGeneration} place={place} request={request} busy={busy} error={error} rejected={rejected} initialChapter={returning ? 2 : 0} onAccept={accept} onReject={onReject} onEdit={onEdit} onTiming={onTiming} />;
 }

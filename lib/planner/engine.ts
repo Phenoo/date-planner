@@ -391,6 +391,8 @@ export function generatePlans(
     const reasons = rejectionReasons(experience, request, origin);
     if (excludeIds.includes(experience.id))
       reasons.push("Excluded from this regeneration");
+    if (experience.placeId && input.excludePlaceIds.includes(experience.placeId))
+      reasons.push("Google venue excluded from this recommendation");
     return {
       id: experience.id,
       name: experience.name,
@@ -648,6 +650,7 @@ export function generateSinglePlan(input: GenerateInput, catalog: Experience[], 
   const diagnostics = catalog.map((experience) => {
     const reasons = rejectionReasons(experience, request, origin);
     if (input.excludeIds.includes(experience.id)) reasons.push("Excluded from this recommendation");
+    if (experience.placeId && input.excludePlaceIds.includes(experience.placeId)) reasons.push("Google venue excluded from this recommendation");
     if (input.excludeCategories.some((category) => category.toLowerCase() === experience.category.toLowerCase())) reasons.push("You asked for a different activity type");
     return { id: experience.id, name: experience.name, eligible: reasons.length === 0, reasons, ...(!reasons.length ? { score: scoreExperience(experience, request, weights, origin).score } : {}) };
   });

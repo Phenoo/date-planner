@@ -20,6 +20,7 @@ import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebas
 import { AnimatedFeedback } from "@/components/animations/feedback";
 import { recommendationResultSchema } from "@/lib/planner/response-schema";
 import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeRejectedPicks } from "@/lib/planner/discovery-session";
+import { recommendationExclusions, replacementPreferredIds } from "@/lib/planner/recommendation-replacement";
 import { createdInvitationSchema, pendingInvitationKey } from "@/lib/planner/invitations";
 import { RevokeInvitation } from "./revoke-invitation";
 import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
@@ -583,12 +584,19 @@ export function DateAtlas({
   }
   function customize(questionId: PlannerQuestionId = "review") {
     const step = plannerQuestions.findIndex((question) => question.id === questionId);
+    const flow = new URLSearchParams(window.location.search).get("flow") ?? "direct";
+    let exclusions = mergeRejectedPicks(rejectionMemory.current.flow === flow ? rejectionMemory.current.picks : null, recommendationExclusions(result));
+    try { exclusions = mergeRejectedPicks(readRejectedPicks(sessionStorage.getItem(rejectedPicksKey(flow))), exclusions); } catch { /* The current replacement still excludes the previous recommendation. */ }
+    rejectionMemory.current = { flow, picks: exclusions };
+    const nextPreferredIds = replacementPreferredIds(preferredIds, exclusions.excludeIds);
     setError("");
     setEditingPlan(true);
     setPlannerMode("steps");
+    setPreferredIds(nextPreferredIds);
     try {
       sessionStorage.removeItem(activePlanKey);
       sessionStorage.removeItem(activeDiscoveryKey);
+      sessionStorage.setItem(rejectedPicksKey(flow), JSON.stringify(exclusions));
     } catch {
       /* The current session remains usable. */
     }
@@ -596,15 +604,18 @@ export function DateAtlas({
       setPlannerStep(step);
       setView("planner");
     } else {
+      const nextFlow = crypto.randomUUID();
       try {
+        sessionStorage.setItem(rejectedPicksKey(nextFlow), JSON.stringify(exclusions));
         sessionStorage.setItem(
           draftKey,
           draftJSON({
             ownerId: getBrowserAuth()?.currentUser?.uid ?? null,
             version: plannerDraftVersion,
+            flow: nextFlow,
             request,
             step,
-            preferredIds,
+            preferredIds: nextPreferredIds,
             editingPlan: true,
             plannerMode: "steps",
             chatSession,
@@ -613,7 +624,7 @@ export function DateAtlas({
       } catch {
         /* Answers remain available in the current itinerary. */
       }
-      planDate();
+      router.push(`/plan?flow=${nextFlow}`);
     }
   }
   function choosePlannerMode(mode: PlannerMode) {
@@ -656,10 +667,12 @@ export function DateAtlas({
       try { storedRejections = readRejectedPicks(sessionStorage.getItem(rejectedPicksKey(flow))); } catch { /* Memory preserves exclusions when storage is unavailable. */ }
       const exclusions = mergeRejectedPicks(storedRejections, rejectionMemory.current.flow === flow ? rejectionMemory.current.picks : null, extra);
       rejectionMemory.current = { flow, picks: exclusions };
+      const nextPreferredIds = replacementPreferredIds(extra.preferredIds ?? preferredIds, exclusions.excludeIds);
+      if (nextPreferredIds.length !== preferredIds.length) setPreferredIds(nextPreferredIds);
       try {
         sessionStorage.setItem(rejectedPicksKey(flow), JSON.stringify(exclusions));
         if (extra.excludeIds?.length || extra.excludePlaceIds?.length) {
-          sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds, plannerMode, chatSession }));
+          sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, plannerMode, chatSession }));
           sessionStorage.removeItem(activeDiscoveryKey);
           sessionStorage.removeItem(activePlanKey);
         }
@@ -668,7 +681,7 @@ export function DateAtlas({
       await planningToken();
       if (controller.signal.aborted) return;
       setLoadingStage("Preparing your recommendations");
-      const body = JSON.stringify({ request: preferences, flowId: funnelScope(), preferredIds, ...extra, ...exclusions });
+      const body = JSON.stringify({ request: preferences, flowId: funnelScope(), ...extra, ...exclusions, preferredIds: nextPreferredIds });
       const attempt = generationAttempt.current?.body === body ? generationAttempt.current : { body, key: crypto.randomUUID() };
       generationAttempt.current = attempt;
       const data = recommendationResultSchema.parse(await requestGeneration(body, attempt.key, controller.signal, (stage) => { if (!controller.signal.aborted) setLoadingStage(stage); }));
@@ -683,7 +696,7 @@ export function DateAtlas({
         if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(data.nearby.sessionId ? { flow, sessionId: data.nearby.sessionId, placeId: data.nearby.places[0].id, expiresAt: Date.now() + 3600000, accepted: false } : { flow, request: draftRequest(data.request ?? preferences), result: { ...data, request: undefined }, expiresAt: Date.now() + 3600000, accepted: false }));
         else sessionStorage.removeItem(activeDiscoveryKey);
         if (data.plans.length || data.nearby?.places.length) sessionStorage.removeItem(draftKey);
-        else sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds, editingPlan: true, plannerMode: "steps", chatSession }));
+        else sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, editingPlan: true, plannerMode: "steps", chatSession }));
         sessionStorage.removeItem("date-atlas:planning-draft:v12");
         sessionStorage.removeItem("date-atlas:planning-draft:v11");
         sessionStorage.removeItem("date-atlas:planning-draft:v10");

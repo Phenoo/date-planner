@@ -4,12 +4,15 @@ import { calendarLabel, clockLabel, timeMinutes } from "@/lib/planner/schedule";
 import { money } from "@/lib/utils";
 import styles from "./venue-details.module.css";
 import { ReviewArticle } from "./venue-review";
+import { VenueInstagram } from "./venue-instagram";
 
 export function VenueDetails({ place, request, inverted = false }: { place: NearbyResult["places"][number]; request: PlanRequest; inverted?: boolean }) {
   const details = place.details;
   const budget = request.budget === null ? null : request.budget * (request.budgetType === "per-person" ? request.guests : 1);
   const currency = (amount: number) => money(amount, details?.price?.currency ?? request.currency);
+  const phone = details?.phone?.replace(/[^+\d]/g, "");
   return <section className={`${styles.details} ${inverted ? styles.inverted : ""}`} aria-label="Experience information and reviews">
+    {details?.description && <div className={styles.about}><h3>About this place.</h3><p>{details.description}</p></div>}
     <div className={styles.facts}>
       <div><span>THE DAY</span><strong>{request.date ? calendarLabel(request.date, { weekday: "short", day: "numeric", month: "short" }) : "Choose a day"}</strong><p>{request.startTime ? clockLabel(timeMinutes(request.startTime)) : "Choose a time"} · {request.guests} people</p></div>
       <div><span>GETTING THERE</span><strong>{details ? `About ${details.travelMinutes} min each way` : "Travel time unconfirmed"}</strong><p>Travel is an estimate.</p></div>
@@ -21,9 +24,10 @@ export function VenueDetails({ place, request, inverted = false }: { place: Near
       {details?.price ? <p>Google Maps typical spend: {details.price.min !== undefined ? `${currency(details.price.min)}${details.price.max !== undefined ? ` – ${currency(details.price.max)}` : "+"}` : `up to ${currency(details.price.max ?? 0)}`} per person. This is a provider estimate, not a quote. Transport, extras and final charges need confirmation.</p> : <p>Venue pricing is unavailable. {budget !== null ? `Keep the complete date within ${money(budget, request.currency)} and confirm the venue's costs before committing.` : "Ask the venue about costs before committing."}</p>}
       {(request.dietary.length > 0 || request.accessibility || request.quiet) && <p>Confirm your dietary, access and atmosphere requirements with the venue before going.</p>}
       <p className={styles.address}>{place.address}</p>
-      <div className={styles.links}><a href={place.mapsUrl} target="_blank" rel="noreferrer">Directions on Google Maps ↗</a>{details?.website && <a href={details.website} target="_blank" rel="noreferrer">Visit the venue website ↗</a>}</div>
+      <div className={styles.links}><a href={place.mapsUrl} target="_blank" rel="noreferrer">Directions on Google Maps ↗</a>{details?.website && !details.instagram && <a href={details.website} target="_blank" rel="noreferrer">Visit the venue website ↗</a>}{phone && <a href={`tel:${phone}`}>Call the venue</a>}</div>
       {details?.hours.length ? <details><summary>Listed opening hours</summary>{details.hours.map((line) => <p key={line}>{line}</p>)}</details> : null}
     </div>
+    {details?.instagram && <VenueInstagram url={details.instagram} />}
     <div className={styles.reviews}>
       <div className={styles.reviewHeading}><h3>What people say.</h3>{details?.rating !== undefined && <span>{details.rating.toFixed(1)} / 5 · {details.reviewCount ?? 0} Google reviews</span>}</div>
       {details?.reviews.length ? details.reviews.slice(0, 3).map((review, index) => <ReviewArticle key={`${review.author}:${index}`} review={review} />) : <p>Reviews aren&apos;t available here yet. <a href={place.mapsUrl} target="_blank" rel="noreferrer">Read reviews on Google Maps ↗</a></p>}

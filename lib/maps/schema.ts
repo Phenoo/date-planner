@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { vibes } from "@/lib/planner/schema";
 import { dateStorySchema } from "@/lib/planner/date-story";
+import { instagramProfileUrl } from "./instagram";
 
 export const coordinatesSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -29,14 +30,18 @@ export const nearbySearchSchema = z.object({
 export type NearbySearch = z.infer<typeof nearbySearchSchema>;
 export const searchIssueSchema = z.enum(["travel-time", "accessible-entrance", "vegetarian", "unverified-dietary", "opening-hours", "budget", "distance", "preferences", "no-places", "venue-changed", "google-rating"]);
 export type SearchIssue = z.infer<typeof searchIssueSchema>;
+export const placePhotoSchema = z.object({ url: z.url({ protocol: /^https$/ }), authors: z.array(z.object({ name: z.string(), url: z.url({ protocol: /^https$/ }).optional() })) });
 export const nearbyPlaceSchema = z.object({
   id: z.string().min(1).max(200), name: z.string(), address: z.string(), category: z.string(), distanceKm: z.number().nonnegative(), reason: z.string(),
   mapsUrl: z.url({ protocol: /^https$/ }),
   attributions: z.array(z.object({ name: z.string(), url: z.url({ protocol: /^https$/ }).optional() })),
-  photo: z.object({ url: z.url({ protocol: /^https$/ }), authors: z.array(z.object({ name: z.string(), url: z.url({ protocol: /^https$/ }).optional() })) }).optional(),
+  photo: placePhotoSchema.optional(),
+  photos: z.array(placePhotoSchema).max(6).optional(),
   story: dateStorySchema.optional(),
   details: z.object({
     checkedAt: z.iso.datetime(), opening: z.enum(["fits", "unknown"]), hours: z.array(z.string()), timeZone: z.string().optional(),
+    description: z.string().optional(),
+    instagram: z.url({ protocol: /^https$/ }).refine((url) => instagramProfileUrl(url) === url).optional(),
     rating: z.number().optional(), reviewCount: z.number().optional(), website: z.url({ protocol: /^https$/ }).optional(), phone: z.string().optional(),
     price: z.object({ currency: z.string().regex(/^[A-Z]{3}$/), min: z.number().nonnegative().optional(), max: z.number().nonnegative().optional() }).optional(),
     travelMinutes: z.number(),

@@ -4,6 +4,8 @@
 .facts span { display: block; font-size: 9px; letter-spacing: .12em; color: var(--detail-muted); }
 .facts strong { display: block; font-size: 23px; font-weight: 500; letter-spacing: -.04em; line-height: 1.2; margin: 12px 0 8px; }
 .details p { color: var(--detail-muted); font-size: 13px; line-height: 1.8; }
+.about { padding-bottom: 28px; }
+.about p { white-space: pre-line; }
 .logistics { padding: 28px 0; border-bottom: 1px solid var(--detail-border); }
 .details h3 { color: var(--detail-text); font-size: 24px; font-weight: 500; margin-bottom: 15px; }
 .logistics > p { margin-bottom: 12px; }

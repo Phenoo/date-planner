@@ -14,6 +14,7 @@ export const providerFactsSchema = z.object({
   priceRange: z.object({ startPrice: money.optional(), endPrice: money.optional() }).optional(),
   rating: z.number().min(0).max(5).optional(), userRatingCount: z.number().nonnegative().optional(),
   websiteUri: z.string().optional(), nationalPhoneNumber: z.string().optional(),
+  editorialSummary: z.object({ text: z.string(), languageCode: z.string().optional() }).optional(),
   accessibilityOptions: z.object({ wheelchairAccessibleEntrance: z.boolean().optional() }).optional(),
   servesVegetarianFood: z.boolean().optional(),
   reviews: z.array(z.object({ rating: z.number().optional(), text: z.object({ text: z.string() }).optional(), relativePublishTimeDescription: z.string().optional(), authorAttribution: z.object({ displayName: z.string(), uri: z.string().optional() }) })).default([]),

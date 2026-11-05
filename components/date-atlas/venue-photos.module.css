@@ -1,0 +1,12 @@
+.gallery { --gallery-text: var(--charcoal); --gallery-muted: var(--muted); --gallery-border: var(--border); width: min(900px,100%); margin: 32px auto; color: var(--gallery-text); text-align: left; }
+.inverted { --gallery-text: #fff; --gallery-muted: #ffffffbd; --gallery-border: #ffffff60; }
+.gallery h3 { font-size: 25px; line-height: 1.2; letter-spacing: -.035em; font-weight: 550; margin-bottom: 10px; }
+.gallery > p { color: var(--gallery-muted); font-size: 12px; line-height: 1.6; margin-bottom: 18px; }
+.track { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 12px; overscroll-behavior-x: contain; }
+.track:focus-visible { outline: 2px solid var(--gallery-text); outline-offset: 5px; }
+.photo { flex: 0 0 min(76vw,400px); min-width: 0; margin: 0; scroll-snap-align: start; }
+.photo > div { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: var(--gallery-border); }
+.photo img { object-fit: cover; }
+.photo figcaption { display: flex; gap: 6px 14px; flex-wrap: wrap; padding-top: 10px; color: var(--gallery-muted); font-size: 11px; line-height: 1.6; }
+.photo a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+@media(max-width:600px) { .gallery h3 { font-size: 23px; } .track { gap: 12px; } }

@@ -1,7 +1,7 @@
 import "server-only";
 import { geocodeLocation, mapsServerKey } from "./google";
 import { discoveryQuery } from "./location";
-import { placePhoto } from "./photos";
+import { placePhoto, placePhotos } from "./photos";
 import { mapNearbyPlaces, placesResponseSchema, placeTypeGroups } from "./nearby";
 import type { Coordinates, NearbySearch } from "./schema";
 import { RequestError } from "@/lib/planner/http";
@@ -46,10 +46,15 @@ export async function loadPlaceCandidates(request: NearbySearch, center?: Coordi
 }
 
 export async function attachPlacePhotos(result: Awaited<ReturnType<typeof loadPlaceCandidates>>["result"], records: PlaceRecord[]) {
-  const photos = await Promise.allSettled(result.places.map((place) => placePhoto(records.find((record) => record.id === place.id && record.photos.length)?.photos[0])));
+  const galleries = await Promise.allSettled(result.places.map(async (place) => {
+    const sources = records.find((record) => record.id === place.id)?.photos;
+    if (result.places.length === 1) return placePhotos(sources);
+    const photo = await placePhoto(sources?.[0]);
+    return photo ? [photo] : [];
+  }));
   return { ...result, places: result.places.map((place, index) => {
-    const photo = photos[index];
-    return photo?.status === "fulfilled" && photo.value ? { ...place, photo: photo.value } : place;
+    const gallery = galleries[index];
+    return gallery?.status === "fulfilled" && gallery.value.length ? { ...place, photo: gallery.value[0], ...(result.places.length === 1 ? { photos: gallery.value } : {}) } : place;
   }) };
 }
 
