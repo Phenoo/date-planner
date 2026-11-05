@@ -17,6 +17,7 @@ type State = {
   persistWait?: Promise<void>;
   onPersistStart?: () => void;
   lastOrigin?: { lat: number; lng: number };
+  lastCatalog?: unknown[];
 };
 type Harness = Pick<typeof import("../lib/server/actions/generate"), "generate">
   & Pick<typeof import("../lib/server/date-discovery"), "discoverDatePlaces">
@@ -47,7 +48,7 @@ test("recommendation preparation removes duplicate location work and overlaps in
       export const state = { events: [], catalog: [], catalogPlan: false, briefQueries: ["pottery studios", "ceramic galleries"], blocked: [] };
       export async function getCatalog() { state.events.push("catalog"); return state.catalog; }
       export function generateSinglePlan(input, catalog, unused, origin) {
-        state.events.push("catalog-plan"); state.lastOrigin = origin;
+        state.events.push("catalog-plan"); state.lastOrigin = origin; state.lastCatalog = catalog;
         return { plans: state.catalogPlan ? [{ id: "catalog-date", request: input.request, activities: [] }] : [], warnings: [], rejected: [] };
       }
       export async function personalize(result) { state.events.push("personalize"); return result; }
@@ -75,6 +76,7 @@ test("recommendation preparation removes duplicate location work and overlaps in
     const harness: Harness = await import(pathToFileURL(output).href);
     const { state } = harness;
     let geocodeWait: Promise<void> | undefined;
+    let geocodeFails = false;
     let records: (Omit<ReturnType<typeof provider>, "rating"> & { rating?: number })[] = [provider()];
     const searches: { url: URL; body: Record<string, unknown> }[] = [];
     const geocodes: URL[] = [];
@@ -82,6 +84,7 @@ test("recommendation preparation removes duplicate location work and overlaps in
       const url = new URL(String(input));
       if (url.hostname === "maps.googleapis.com") {
         geocodes.push(url); state.events.push("geocode-start"); await geocodeWait; state.events.push("geocode-end");
+        if (geocodeFails) throw new Error("Fixture geocoding unavailable");
         return Response.json({ status: "OK", results: [{ address_components: [], geometry: { location: { lat: 6.45, lng: 3.46 } } }] });
       }
       assert.equal(url.origin, "https://places.googleapis.com");
@@ -94,8 +97,8 @@ test("recommendation preparation removes duplicate location work and overlaps in
     });
     const reset = () => {
       state.events.length = 0; state.catalog = []; state.catalogPlan = false; state.blocked = [];
-      state.briefWait = undefined; state.controlsWait = undefined; state.persistWait = undefined; state.onPersistStart = undefined; state.lastOrigin = undefined;
-      geocodeWait = undefined; searches.length = 0; geocodes.length = 0; records = [provider()];
+      state.briefWait = undefined; state.controlsWait = undefined; state.persistWait = undefined; state.onPersistStart = undefined; state.lastOrigin = undefined; state.lastCatalog = undefined;
+      geocodeWait = undefined; geocodeFails = false; searches.length = 0; geocodes.length = 0; records = [provider()];
     };
     const generate = (request: PlanRequest) => harness.generate(new Request("https://adateatlas.com/api/generate", { method: "POST", body: JSON.stringify({ request }) }));
 
@@ -114,6 +117,19 @@ test("recommendation preparation removes duplicate location work and overlaps in
       assert.ok(state.events.indexOf("rank") < state.events.indexOf("final-details"));
       assert.ok(state.events.indexOf("final-details") < state.events.indexOf("persist-start"));
       assert.equal(state.lastOrigin, undefined);
+    });
+
+    await t.test("foreign-city-only catalog keeps all rejection records but uses one discovery geocode", async () => {
+      reset();
+      state.catalog = [{ id: "london", city: "London", country: "United Kingdom" }, { id: "same-city-foreign-country", city: "Lagos", country: "Portugal" }];
+      const response = await generate({ ...preferences, locationScope: "city", startingArea: "An unrelated starting point" });
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.nearby.places[0].id, "fixture");
+      assert.equal(geocodes.length, 1);
+      assert.equal(geocodes[0].searchParams.get("address"), "Lagos, Nigeria");
+      assert.equal(state.lastOrigin, undefined);
+      assert.deepEqual(state.lastCatalog, state.catalog, "The engine must retain the complete catalog for its existing rejection diagnostics");
     });
 
     await t.test("custom interests retain AI queries while brief, geocode and controls start together", async () => {
@@ -145,7 +161,7 @@ test("recommendation preparation removes duplicate location work and overlaps in
     });
 
     await t.test("catalog plans retain their origin, quality check and persistence", async () => {
-      reset(); state.catalog = [{}]; state.catalogPlan = true;
+      reset(); state.catalog = [{ id: "local", city: "lAGos", country: "nIgErIa" }]; state.catalogPlan = true;
       const response = await generate(preferences);
       assert.equal(response.status, 200);
       assert.equal((await response.json()).plans[0].id, "catalog-date");
@@ -154,6 +170,19 @@ test("recommendation preparation removes duplicate location work and overlaps in
       assert.equal(searches.length, 0);
       assert.ok(state.events.includes("catalog-rating"));
       assert.ok(state.events.includes("persist-plans:1"));
+      assert.deepEqual(state.lastCatalog, state.catalog);
+    });
+
+    await t.test("a local catalog origin failure keeps the existing fallback and does not launch discovery", async () => {
+      reset(); state.catalog = [{ id: "local", city: "Lagos", country: "Nigeria" }]; geocodeFails = true;
+      const response = await generate(preferences);
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.nearby, undefined);
+      assert.equal(state.lastOrigin, undefined);
+      assert.equal(geocodes.length, 1);
+      assert.equal(searches.length, 0);
+      assert.ok(result.warnings.some((warning: string) => warning.includes("Catalog location estimates were used")));
     });
 
     await t.test("parallel preparation still excludes disabled and low-rated candidates before ranking", async () => {

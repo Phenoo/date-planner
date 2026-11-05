@@ -45,9 +45,10 @@ export async function generate(request: Request, progress?: (stage: string) => v
       await enforcePlannerLimit(operationRequest);
       progress?.("Retrieving verified experiences");
       const catalog = await getCatalog();
+      const hasLocalCatalog = catalog.some((experience) => experience.city.toLowerCase() === parsed.data.request.city.toLowerCase() && experience.country.toLowerCase() === parsed.data.request.country.toLowerCase());
       let origin: Coordinates | undefined;
       const mapWarnings: string[] = [];
-      if (catalog.length) {
+      if (hasLocalCatalog) {
         try { origin = await planningOrigin(parsed.data.request); }
         catch { mapWarnings.push("Maps couldn't resolve the selected area. Catalog location estimates were used; nearby suggestions are temporarily unavailable."); }
       }
@@ -58,7 +59,7 @@ export async function generate(request: Request, progress?: (stage: string) => v
         candidates.plans = candidates.plans.filter((_, index) => ratingChecks[index]);
         candidates.warnings.push("Catalog places without a confirmed Google average rating above 3.75 stars were excluded.");
       }
-      const discovery = !candidates.plans.length && (!catalog.length || origin) ? discoverDatePlaces(parsed.data.request, !parsed.data.request.startingArea && parsed.data.request.locationScope === "area" ? origin : undefined, {
+      const discovery = !candidates.plans.length && (!hasLocalCatalog || origin) ? discoverDatePlaces(parsed.data.request, !parsed.data.request.startingArea && parsed.data.request.locationScope === "area" ? origin : undefined, {
         excludeCategories: parsed.data.excludeCategories, excludePlaceIds: parsed.data.excludePlaceIds, likedPlaceCategories: parsed.data.likedPlaceCategories, signal,
       }, progress).catch(() => { mapWarnings.push("Google Maps suggestions couldn't be loaded. Please try again or adjust your destination."); return undefined; }) : Promise.resolve(undefined);
       const [result, discovered]: [Awaited<ReturnType<typeof personalize>>, NearbyResult | undefined] = await Promise.all([personalize(candidates, signal), discovery]);
