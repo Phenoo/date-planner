@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { FirebaseError } from "firebase/app";
-import { GoogleAuthProvider, EmailAuthProvider, linkWithCredential, linkWithPopup, signInWithPopup, signInWithCredential, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { getBrowserAuth, authenticateAccount, hasPendingAccountTransfer, completeEmailSignIn, hasEmailSignInLink, sendEmailSignIn, authErrorMessage } from "@/lib/firebase/client";
+import { GoogleAuthProvider, EmailAuthProvider, linkWithCredential, linkWithPopup, signInWithPopup, signInWithCredential, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { getBrowserAuth, authenticateAccount, hasPendingAccountTransfer, completeEmailSignIn, hasEmailSignInLink, sendEmailSignIn, sendAccountPasswordReset, authErrorMessage } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
 import styles from "./auth-screen.module.css";
 export function AccountAccess({ onDone }: { onDone: () => void }) {
@@ -21,7 +21,7 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
     if (!auth) { setError("Password recovery isn't available right now. Please try again later."); return; }
     authenticating.current = true; setBusy(true); setError("");
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendAccountPasswordReset(email.trim());
       if (mounted.current) setResetSent(true);
     } catch (failure) {
       if (!mounted.current) return;

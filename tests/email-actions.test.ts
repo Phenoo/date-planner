@@ -1,6 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { GET } from "../app/auth/action/route";
+import { accountEmailMessage, accountEmailSchema } from "../lib/firebase/email-actions";
+
+test("Resend account emails use the public brand and only a safe return path", () => {
+  for (const intent of ["signIn", "resetPassword"] as const) {
+    const input = accountEmailSchema.parse({ email: "  qa@example.com  ", intent, returnPath: "/saved" });
+    const message = accountEmailMessage(input, `https://project.firebaseapp.com/__/auth/action?mode=${intent}&oobCode=one-time-code&apiKey=wrong-maps-key&continueUrl=https://attacker.example`);
+    assert.equal(message.from, "A Date Atlas <noreply@adateatlas.com>");
+    assert.equal(message.reply_to, "support@adateatlas.com");
+    assert.deepEqual(message.to, ["qa@example.com"]);
+    assert.match(message.subject, /A Date Atlas/);
+    assert.ok(!message.text.includes("wrong-maps-key"));
+    assert.ok(!message.text.includes("attacker.example"));
+    const link = new URL(message.text.split("\n").find((line) => line.startsWith("https://")) ?? "");
+    assert.equal(link.origin, "https://adateatlas.com");
+    assert.equal(link.pathname, "/auth/action");
+    assert.equal(link.searchParams.get("oobCode"), "one-time-code");
+    assert.equal(link.searchParams.get("mode"), intent);
+    const destination = new URL(link.searchParams.get("continueUrl") ?? "");
+    assert.equal(destination.origin, "https://adateatlas.com");
+    assert.equal(destination.pathname, "/saved");
+    assert.equal(destination.searchParams.get("auth"), intent === "signIn" ? "email" : null);
+    assert.throws(() => accountEmailMessage(input, "https://project.firebaseapp.com/?mode=unknown&oobCode=code"));
+    assert.throws(() => accountEmailMessage(input, `https://project.firebaseapp.com/?mode=${intent}`));
+  }
+  for (const returnPath of ["//attacker.example", "https://attacker.example", "/auth/action", "/api/account/privacy"]) {
+    assert.equal(accountEmailSchema.safeParse({ email: "qa@example.com", intent: "signIn", returnPath }).success, false);
+  }
+  assert.equal(accountEmailSchema.safeParse({ email: "qa@example.com", intent: "unsupported" }).success, false);
+  assert.equal(accountEmailSchema.safeParse({ email: "bad-address", intent: "signIn" }).success, false);
+});
 
 test("email actions use the configured Firebase key and preserve the one-time code", () => {
   const previousKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;

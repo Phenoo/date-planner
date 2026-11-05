@@ -1,10 +1,9 @@
 "use client";
-import { getApps, initializeApp } from "firebase/app";
+import { FirebaseError, getApps, initializeApp } from "firebase/app";
 import {
   getAuth,
   connectAuthEmulator,
   isSignInWithEmailLink,
-  sendSignInLinkToEmail,
   signInWithEmailLink,
   signInAnonymously,
   type Auth,
@@ -151,18 +150,22 @@ export async function sendEmailSignIn(email: string) {
     throw new Error(
       "Account sign-in is unavailable. You can still plan; sign in when account services return to save your date.",
     );
-  const returnUrl = new URL(window.location.href);
-  for (const key of ["apiKey", "oobCode", "mode", "lang"]) returnUrl.searchParams.delete(key);
-  returnUrl.searchParams.set("auth", "email");
-  await sendSignInLinkToEmail(auth, email, {
-    url: returnUrl.toString(),
-    handleCodeInApp: true,
-  });
+  await requestAccountEmail(email, "signIn");
   try {
     localStorage.setItem(emailKey, email);
   } catch {
     /* The email can be entered again on return. */
   }
+}
+
+export async function sendAccountPasswordReset(email: string) {
+  await requestAccountEmail(email, "resetPassword");
+}
+
+async function requestAccountEmail(email: string, intent: "signIn" | "resetPassword") {
+  const returnPath = ["/", "/plan", "/saved", "/favorites", "/profile"].includes(window.location.pathname) ? window.location.pathname : "/";
+  const response = await fetch("/api/auth/email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim(), intent, returnPath }), signal: AbortSignal.timeout(20000) });
+  if (!response.ok) throw new FirebaseError(response.status === 429 ? "auth/too-many-requests" : response.status === 400 ? "auth/invalid-email" : "auth/internal-error", "We couldn't send that email. Please try again shortly.");
 }
 
 export function authErrorMessage(error: unknown) {
