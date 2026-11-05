@@ -5,7 +5,7 @@ import type { PlannerMode } from "@/lib/planner/intake";
 import styles from "./planner-chat.module.css";
 
 const modes = [
-  { value: "steps", label: "Step by step", title: "Step by step", description: "Place, vibe, budget and when. Add any extras if you want.", action: "Take me through it" },
+  { value: "steps", label: "Step by step", title: "Step by step", description: "A few thoughtful questions, with room to make every answer yours.", action: "Take me through it" },
   { value: "chat", label: "Chat", title: "Chat with the planner", description: "Type or speak your date ideas. We’ll work out the details together.", action: "Start a conversation" },
 ] as const;
 

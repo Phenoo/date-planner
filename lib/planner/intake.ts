@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { requestSchema, type PlanRequest } from "./schema";
-import { plannerQuestions, quickPlannerQuestionIds, type PlannerQuestionId } from "./questions";
+import { plannerQuestions, type PlannerQuestionId } from "./questions";
 import { calendarDay, calendarLabel, clockLabel, zonedNow, scheduleError, timeMinutes } from "./schedule";
 import { explicitSpendingAmounts, explicitClockTimes, normalizeClockPunctuation, spokenClockReply } from "./spoken-values";
 import { explicitLagosNeighborhood } from "./intake-location";
@@ -43,10 +43,10 @@ export function intakeFieldForQuestion(id: PlannerQuestionId) { return questionF
 export function wizardQuestionSteps(request: PlanRequest, answered: readonly IntakeField[], today = zonedNow(request.timeZone).date) {
   const valid = requestSchema.safeParse(request);
   return plannerQuestions.flatMap((question, index) => {
-    if (!quickPlannerQuestionIds.some(id => id === question.id)) return [];
     const field = questionFields[question.id];
-    if (question.id === "date" && (!answered.includes("date") || !answered.includes("time") || !request.date || request.date < today || !request.startTime || scheduleError({ ...request, timeZoneConfirmed: true, endTime: "" }, today))) return [index];
-    if (!field || !answered.includes(field)) return [index];
+    if (!field || question.id === "area" || !answered.includes(field)) return [index];
+    if (field === "date" && (!request.date || request.date < today)) return [index];
+    if (field === "time" && (!request.startTime || scheduleError({ ...request, timeZoneConfirmed: true, endTime: "" }, today))) return [index];
     if (!valid.success && valid.error.issues.some((issue) => question.fields.some((key) => key === issue.path[0]))) return [index];
     return [];
   });

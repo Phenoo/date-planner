@@ -3,8 +3,8 @@ import type { PlanRequest } from "./schema";
 const originalQuestions = [
   {
     id: "city",
-    title: "Where would you like your date?",
-    description: "Choose a city or use your location to find places nearby.",
+    title: "What city are you starting from?",
+    description: "Choose your city. Next, we’ll work out where you’d like to go.",
     fields: ["country", "city", "currentCity"],
   },
   {
@@ -105,8 +105,6 @@ export const plannerQuestions: readonly { id: PlannerQuestionId; title: string; 
 });
 export const plannerQuestionCount = plannerQuestions.length;
 export const plannerDraftVersion = 13;
-export const quickPlannerQuestionIds = ["city", "vibes", "budget", "date", "review"] as const satisfies readonly PlannerQuestionId[];
-export const plannerStartStep = plannerQuestions.findIndex(({ id }) => id === "city");
 function currentStep(id: string) {
   const mapped = id === "duration" ? "review" : id === "notes" ? "interests" : id === "intro" ? "city" : id;
   const index = plannerQuestions.findIndex(question => question.id === mapped);

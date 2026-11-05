@@ -1,6 +1,6 @@
 import { incorporatePreferences } from "./preferences";
 import { requestSchema, type PlanRequest } from "./schema";
-import { plannerQuestions, plannerDraftVersion, plannerStartStep, restorePlannerStep } from "./questions";
+import { plannerQuestions, plannerDraftVersion, restorePlannerStep } from "./questions";
 
 export const draftLifetimeMs = 60 * 60 * 1000;
 export const plannerModeKey = "date-atlas:planning-style:v1";
@@ -16,7 +16,7 @@ export function draftResumePath(raw: string | null, now = Date.now()) {
     if (!draft || typeof draft !== "object" || !draftIsCurrent(draft, now) || !("expiresAt" in draft) || !("request" in draft)) return null;
     const request = requestSchema.safeParse(draft.request);
     if (!request.success) return null;
-    const progressed = "step" in draft && typeof draft.step === "number" && draft.step > 0 && (draft.step !== plannerStartStep || !!request.data.currentCity)
+    const progressed = "step" in draft && typeof draft.step === "number" && draft.step > 0 && (plannerQuestions[draft.step]?.id !== "city" || !!request.data.currentCity)
       || "chatSession" in draft && !!draft.chatSession && typeof draft.chatSession === "object" && "answered" in draft.chatSession && Array.isArray(draft.chatSession.answered) && draft.chatSession.answered.length > 0;
     if (!progressed) return null;
     return "flow" in draft && typeof draft.flow === "string" && /^[a-f0-9-]{36}$/.test(draft.flow) ? `/plan?flow=${encodeURIComponent(draft.flow)}` : "/plan";
