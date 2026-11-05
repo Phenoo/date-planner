@@ -13,7 +13,7 @@
 .timePreset > span { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.4; }
 .timePreset > span > svg { flex-shrink: 0; }
 .timePreset > strong { font-size: 21px; line-height: 1.2; font-weight: 550; letter-spacing: -.035em; }
-.timePreset:hover:not(:disabled) { background: var(--planner-hover); border-color: var(--planner-accent); }
+.timePreset[aria-pressed="false"]:hover:not(:disabled) { background: var(--planner-hover); border-color: var(--planner-accent); }
 .timePreset[aria-pressed="true"] { background: var(--planner-selected-bg); color: var(--planner-selected-text); border-color: var(--planner-accent); }
 .timePreset:focus-visible { outline: 2px solid var(--planner-accent); outline-offset: 4px; }
 .timePreset:disabled { cursor: not-allowed; }
