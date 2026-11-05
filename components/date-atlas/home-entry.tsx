@@ -4,6 +4,7 @@ import { useCallback, useLayoutEffect, useState, useSyncExternalStore } from "re
 import { useSearchParams } from "next/navigation";
 import { DateAtlas } from "./date-atlas";
 import { Preloader } from "./preloader";
+import { PlannerLoadingScreen } from "./planner-loading-screen";
 import { observeSavedDatesAccess } from "./saved-dates-access";
 
 const introKey = "date-atlas:onboarding:v3";
@@ -24,7 +25,7 @@ function hasCompletedIntro() {
 function serverIntroSnapshot() { return null; }
 
 export function HomeEntryFallback() {
-  return <Preloader />;
+  return <PlannerLoadingScreen />;
 }
 
 export function HomeEntry() {
