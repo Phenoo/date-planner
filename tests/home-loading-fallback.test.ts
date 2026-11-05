@@ -32,10 +32,10 @@ test("the homepage streams the branded red loader before stored onboarding state
       const html = renderToStaticMarkup(createElement(fixture.HomeEntryFallback));
       assert.match(html, /data-planner-theme="red"/);
       assert.match(html, /aria-busy="true"/);
-      assert.match(html, /<svg/);
-      assert.match(html, /Something lovely\./);
-      assert.match(html, /Plan a thoughtful date around your city, budget and interests\./);
-      for (const path of ["/plan", "/about", "/privacy", "/terms"]) assert.ok(html.includes(`href="${path}"`), `Keep the public ${path} link in server-rendered loading HTML`);
+      assert.match(html, /tabindex="-1"/);
+      assert.match(html, /role="status" aria-live="polite" aria-atomic="true"/);
+      assert.match(html, /Loading your date\.\.\./);
+      assert.doesNotMatch(html, /<h1|<header|<footer|<svg|Something lovely|A LITTLE LOVE|A little thought/);
       assert.doesNotMatch(html, /data-welcome-introduction/);
     });
     await t.test("the server snapshot of returning visitors uses that same loader", () => {
