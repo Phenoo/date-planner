@@ -11,7 +11,7 @@ export function DateStoryView({ story, category, label = "IMAGINE YOUR DATE" }: 
       const visual = visuals[index] ?? visuals[0];
       return <article key={`${index}:${moment.title}`}>
         <div className={styles.momentVisual}>
-          <Image src={visual.src} alt={visual.alt} fill loading="lazy" sizes="(max-width:700px) calc(100vw - 36px), (max-width:1120px) 32vw, 344px" />
+          <Image src={visual.src} alt={visual.alt} fill loading="lazy" sizes="auto, (max-width:700px) calc(100vw - 36px), (max-width:808px) calc(100vw - 48px), (max-width:1120px) 32vw, 344px" />
         </div>
         <div className={styles.momentCopy}><span className={styles.chapter}>0{index + 1}</span><h3>{moment.title}</h3><p>{moment.text}</p></div>
       </article>;
