@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { Suspense, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { z } from "zod";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -28,6 +28,8 @@ import { requestGeneration } from "@/lib/planner/generation-client";
 import { pendingDateReminderKey } from "@/lib/planner/date-reminder-intent";
 import { activePlanKey, clearPlanningContinuations, continuationPath, readPlanningContinuation, retainPlanningContinuation } from "@/lib/planner/planning-continuation";
 import { Homepage } from "./homepage";
+import { PlannerLoadingScreen } from "./planner-loading-screen";
+import { GeneratingScreen } from "./generating-screen";
 import { PlaceDiscovery } from "./place-discovery";
 import { currencyForCountry } from "@/lib/planner/currency";
 import authenticatedStyles from "./authenticated-shell.module.css";
@@ -83,9 +85,8 @@ import {
 
 const PlannerWizard = dynamic(() =>
   import("./planner-wizard").then((module) => module.PlannerWizard),
-  { loading: () => <PlannerInitializing /> },
 );
-const PlannerChat = dynamic(() => import("./planner-chat").then((module) => module.PlannerChat), { loading: () => <PlannerInitializing /> });
+const PlannerChat = dynamic(() => import("./planner-chat").then((module) => module.PlannerChat));
 const Results = dynamic(() =>
   import("./results").then((module) => module.Results),
 );
@@ -124,14 +125,9 @@ const defaultRequest = () =>
     quiet: false,
   });
 
-function PlannerInitializing() {
-  return <main className={plannerStyles.initializing} aria-busy="true">
-    <span className="eyebrow">A LITTLE SPACE FOR YOUR IDEAS</span>
-    <h1>Let’s get you started.</h1>
-    <p role="status">Getting your planner ready and checking for recent answers…</p>
-    <div className={plannerStyles.skeleton} aria-hidden="true"><span /><span /><span /></div>
-    <small>This tab keeps your core date details for one hour. Personal notes stay out of browser drafts.</small>
-  </main>;
+function PlannerInitializing({ theme = "red", overlay = false }: { theme?: PlannerAppearance; overlay?: boolean }) {
+  const stage = "Getting your planner ready and checking for recent answers…";
+  return overlay ? <GeneratingScreen theme={theme} mode="opening" stage={stage} /> : <PlannerLoadingScreen theme={theme} stage={stage} />;
 }
 
 export function DateAtlas({
@@ -696,6 +692,7 @@ export function DateAtlas({
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const operationSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(75000)]);
     const id = ++generationId.current;
     setBusy(true);
     setError("");
@@ -716,14 +713,15 @@ export function DateAtlas({
         }
       } catch { /* The current request still uses the complete exclusion list. */ }
       setLoadingStage("Preserving your guest session");
-      await planningToken();
-      if (controller.signal.aborted) return;
+      await planningToken(operationSignal);
+      operationSignal.throwIfAborted();
       setLoadingStage("Preparing your recommendations");
       const body = JSON.stringify({ request: preferences, flowId: funnelScope(), ...extra, ...exclusions, preferredIds: nextPreferredIds });
       const attempt = generationAttempt.current?.body === body ? generationAttempt.current : { body, key: crypto.randomUUID() };
       generationAttempt.current = attempt;
-      const data = recommendationResultSchema.parse(await requestGeneration(body, attempt.key, controller.signal, (stage) => { if (!controller.signal.aborted) setLoadingStage(stage); }));
-      if (controller.signal.aborted || id !== generationId.current) return;
+      const data = recommendationResultSchema.parse(await requestGeneration(body, attempt.key, operationSignal, (stage) => { if (!operationSignal.aborted) setLoadingStage(stage); }));
+      operationSignal.throwIfAborted();
+      if (id !== generationId.current) return;
       if ((extra.excludePlaceIds?.length || extra.excludeIds?.length) && !data.plans.length && !data.nearby?.places.length)
         throw new Error("No new place matched these preferences. Try changing the location, time or vibe.");
       setRequest(data.request ?? data.plans[0]?.request ?? preferences);
@@ -1026,8 +1024,8 @@ export function DateAtlas({
   }
   const planning = view === "planner";
   const themedJourney = planning || view === "results";
-  if (!authReady) return <main className={authenticatedStyles.initializing} role="status" aria-busy="true">Opening A Date At las…</main>;
-  if (initialView === "planner" && !draftReady) return <PlannerInitializing />;
+  if (!authReady) return <PlannerLoadingScreen theme={plannerAppearance} />;
+  if (initialView === "planner" && !draftReady) return <PlannerInitializing theme={plannerAppearance} />;
   const authenticatedLayout = signedIn && !planning && view !== "results";
   return (
       <div
@@ -1101,7 +1099,7 @@ export function DateAtlas({
         {view === "home" && (signedIn ? preferencesReady && <PlaceDiscovery key={`${accountId}:${request.city}:${request.country}`} city={request.city} country={request.country} onPlan={() => planDate()} onPlanNearby={(place, destination) => {
           const currency = currencyForCountry(destination.country) ?? request.currency;
           planDate({ city: destination.city, currentCity: destination.city, country: destination.country, area: place.name.slice(0, 80), locationScope: "area", maxDistance: 15, startingArea: "", timeZoneConfirmed: false, currency, ...(currency !== request.currency ? { budget: null, transportBudget: null } : {}) });
-        }} /> : authReady ? <Homepage onResume={resumePath ? () => router.push(resumePath) : undefined} onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} /> : <main className={authenticatedStyles.initializing} role="status">Opening A Date At las…</main>)}
+        }} /> : authReady ? <Homepage onResume={resumePath ? () => router.push(resumePath) : undefined} onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} /> : <PlannerLoadingScreen theme={plannerAppearance} />)}
         {view === "explore" && (
           <Explore
             initialExperiences={initialCatalog}
@@ -1217,10 +1215,11 @@ export function DateAtlas({
             </small>
           </div>
         )}
-        {planning && (!draftReady || plannerMode === null && busy) && <PlannerInitializing />}
+        {planning && (!draftReady || plannerMode === null && busy) && <PlannerInitializing theme={plannerAppearance} overlay />}
         {planning && draftReady && plannerMode === null && !busy && <PlannerModeChoice onChoose={choosePlannerMode} />}
-        {planning && draftReady && plannerMode === "chat" && <PlannerChat appearance={plannerAppearance} onCancelGeneration={cancelGeneration} request={request} setRequest={setRequest} session={chatSession} setSession={setChatSession} onGenerate={() => generate()} loading={busy} loadingStage={loadingStage} serverError={error} />}
+        {planning && draftReady && plannerMode === "chat" && <Suspense fallback={<PlannerInitializing theme={plannerAppearance} overlay />}><PlannerChat appearance={plannerAppearance} onCancelGeneration={cancelGeneration} request={request} setRequest={setRequest} session={chatSession} setSession={setChatSession} onGenerate={() => generate()} loading={busy} loadingStage={loadingStage} serverError={error} /></Suspense>}
         {planning && draftReady && plannerMode === "steps" && (
+          <Suspense fallback={<PlannerInitializing theme={plannerAppearance} overlay />}>
             <PlannerWizard
               request={request}
               setRequest={setRequest}
@@ -1247,8 +1246,10 @@ export function DateAtlas({
               serverError={error}
               loadingStage={loadingStage}
             />
+          </Suspense>
           )}
         {view === "results" && result && (
+          <Suspense fallback={<GeneratingScreen theme={plannerAppearance} stage="Getting your date ready to reveal…" />}>
           <Results
             result={result}
             planningRequest={request}
@@ -1272,6 +1273,7 @@ export function DateAtlas({
             requestError={error}
             loadingStage={loadingStage}
           />
+          </Suspense>
         )}
         {view === "saved" && (
           <Dashboard

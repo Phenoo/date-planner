@@ -140,7 +140,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       if (!abort.signal.aborted) { setSending(false); controller.current = null; }
     }
   }
-  if (loading) return <GeneratingScreen stage={loadingStage} onCancel={onCancelGeneration} />;
+  if (loading) return <GeneratingScreen stage={loadingStage} theme={appearance} onCancel={onCancelGeneration} />;
   return <main ref={screen} className={styles.chat}>
     <h1 className="sr-only">Plan your date</h1>
     <div ref={conversation} className={styles.transcript} onScroll={(event) => {

@@ -1,14 +1,31 @@
 "use client";
 import { ensurePlanningIdentity, getAuthToken, waitForAccountTransition } from "./client";
-export async function planningToken() {
-  await ensurePlanningIdentity();
-  return getAuthToken();
+
+function identityWait<T>(operation: () => Promise<T>, signal?: AbortSignal | null): Promise<T> {
+  signal?.throwIfAborted();
+  if (!signal) return operation();
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener("abort", abort);
+    const abort = () => { cleanup(); reject(signal.reason); };
+    signal.addEventListener("abort", abort, { once: true });
+    // Firebase calls cannot be canceled; observe late failures without continuing the request.
+    Promise.resolve().then(() => { signal.throwIfAborted(); return operation(); }).then(
+      (value) => { cleanup(); resolve(value); },
+      (error: unknown) => { cleanup(); reject(error); },
+    );
+  });
+}
+
+export async function planningToken(signal?: AbortSignal) {
+  await identityWait(ensurePlanningIdentity, signal);
+  return identityWait(getAuthToken, signal);
 }
 export async function plannerFetch(url: string, init?: RequestInit) {
-  await waitForAccountTransition();
+  await identityWait(waitForAccountTransition, init?.signal);
   const headers = new Headers(init?.headers);
-  const token = await getAuthToken();
+  const token = await identityWait(getAuthToken, init?.signal);
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  init?.signal?.throwIfAborted();
   return fetch(url, { ...init, headers });
 }
 export class PlanningRequestError extends Error { constructor(message: string, public status: number) { super(message); } }
