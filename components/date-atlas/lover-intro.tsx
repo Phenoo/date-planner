@@ -66,7 +66,7 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
           <div className={styles.artHalo} />
           <div className={styles.parallax}>
             <div className={styles.postcardBack} />
-            <div className={styles.postcard} tabIndex={0} onFocus={() => setPaused(true)} onPointerDown={() => setPaused(true)}>
+            <div className={styles.postcard} tabIndex={0} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
               <div key={card.art} className={`${styles.flipPanel} ${card.art === "vibe" ? styles.vibe : card.art === "together" ? styles.together : ""}`} role="group" aria-roledescription="slide" aria-label={`${slide + 1} of ${storyCards.length}`} aria-live={paused ? "polite" : "off"}>
                 <div className={styles.postcardTop}><span>{card.kicker}</span><span>{String(slide + 1).padStart(2, "0")} / 04</span></div>
                 <div className={styles.storyArt}>
@@ -80,7 +80,6 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
               </div>
             </div>
           </div>
-          <div className={styles.slideControls} aria-label="Story controls"><button type="button" aria-label="Previous story" onClick={() => { setPaused(true); setSlide((value) => (value + storyCards.length - 1) % storyCards.length); }}>←</button><span>{slide + 1} / {storyCards.length}</span><button type="button" aria-label="Next story" onClick={() => { setPaused(true); setSlide((value) => (value + 1) % storyCards.length); }}>→</button>{!reduced && <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? "Play stories" : "Pause stories"}</button>}</div>
         </section>
       </div>
 

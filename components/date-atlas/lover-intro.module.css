@@ -155,7 +155,3 @@
 @media (max-width:700px) and (max-height:740px) { .layout { padding-top: 19px; gap: 5px; } .kicker { margin-bottom: 17px; } .title { font-size: 52px; } .description { margin-top: 18px; } .art { height: 270px; } .parallax { scale: .9; transform-origin: center top; } }
 @media (prefers-reduced-motion:reduce) { .intro *, .intro *::before, .intro *::after { animation: none !important; transition: none !important; } .parallax { transform: none; } .flipPanel { transform: rotateY(180deg); } .flipPanel:first-child { transform: none; } }
 @media (hover:none) { .parallax { transform: none; } }
-
-.slideControls { position: absolute; bottom: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; color: white; }
-.slideControls button { min-height: 44px; min-width: 44px; font-size: 12px; padding: 6px; }
-.slideControls span { font-size: 11px; }
