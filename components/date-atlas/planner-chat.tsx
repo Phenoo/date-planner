@@ -1,4 +1,5 @@
 "use client";
+import { lockBodyScroll } from "@/lib/planner/body-scroll-lock";
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { ArrowDown, ArrowUp, ArrowUpRight, LoaderCircle, Mic, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,9 +64,8 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
     const app = screen.current?.closest<HTMLElement>(".is-planning") ?? document.querySelector<HTMLElement>('.is-planning[data-planner-mode="chat"]');
     if (!app) return;
     const viewport = window.visualViewport;
-    const previousOverflow = document.body.style.overflow;
+    const unlockScroll = lockBodyScroll(document.body);
     const previousBackground = document.body.style.backgroundColor;
-    document.body.style.overflow = "hidden";
     document.body.style.backgroundColor = getComputedStyle(app).backgroundColor;
     const resize = () => {
       if (viewport && viewport.scale !== 1) return;
@@ -82,7 +82,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       app.style.removeProperty("--chat-viewport-height");
       app.style.removeProperty("--chat-viewport-top");
       delete app.dataset.chatKeyboardOpen;
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       document.body.style.backgroundColor = previousBackground;
       viewport?.removeEventListener("resize", resize);
       viewport?.removeEventListener("scroll", resize);

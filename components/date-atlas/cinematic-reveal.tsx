@@ -1,5 +1,6 @@
 "use client";
 import { coverScreenSiblings } from "@/lib/planner/focus-screen";
+import { lockBodyScroll } from "@/lib/planner/body-scroll-lock";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import Image from "next/image";
 import { ArrowDown } from "lucide-react";
@@ -60,10 +61,9 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
   }
   useEffect(() => {
     if (busy) return;
-    const overflow = document.body.style.overflow;
+    const unlockScroll = lockBodyScroll(document.body);
     const uncover = coverScreenSiblings(screen.current);
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = overflow; uncover(); };
+    return () => { unlockScroll(); uncover(); };
   }, [busy]);
   useEffect(() => {
     if (busy) return;
