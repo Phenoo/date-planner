@@ -12,6 +12,9 @@ export const dateEmailPayloadSchema = z.object({
 }).strict();
 
 export const dateEmailJobSchema = z.object({
+  kind: z.enum(["date-created", "reminder"]).default("date-created"),
+  sourceDateId: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  reminderOccurrenceId: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   source: z.enum(["google", "catalog"]),
   recipeId: z.string().max(500).optional(),
   status: z.enum(["pending", "sending", "retry", "sent", "skipped", "failed", "needs-review"]),

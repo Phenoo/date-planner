@@ -4,10 +4,12 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp, type DocumentReference, type DocumentSnapshot } from "firebase-admin/firestore";
 import { z } from "zod";
 import { dateCreatedEmail } from "@/lib/email/date-created";
+import { dateReminderEmail } from "@/lib/email/date-reminder";
 import { brandEmail } from "@/lib/email/brand-template";
 import { getDatabase, getFirebaseAdmin } from "@/lib/firebase/server";
 import { savedDocumentId } from "@/lib/firebase/paths";
 import { loadPlaceDetails } from "@/lib/maps/place-details";
+import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
 import { getCatalog } from "@/lib/planner/catalog";
 import { recalculateExactPlan } from "@/lib/planner/engine";
 import { datePreferencesSchema } from "@/lib/planner/invitations";
@@ -16,6 +18,7 @@ import { calendarLabel } from "@/lib/planner/schedule";
 import { siteName, siteOrigin, supportEmail } from "@/lib/seo/site";
 import { deletionKey } from "./account-privacy";
 import { dateEmailJobSchema, dateEmailPayloadSchema, type DateEmailJob, type DateEmailPayload } from "./date-email-outbox";
+import { dateReminderSchema, reminderCanSend, reminderSourceSchema } from "./date-reminder-state";
 
 export { queueDateCreatedEmail } from "./date-email-outbox";
 
@@ -26,7 +29,7 @@ const terminal = new Set<DateEmailJob["status"]>(["sent", "skipped", "failed", "
 const scheduleSchema = datePreferencesSchema.extend({ source: z.enum(["google", "catalog"]).default("google"), placeId: z.string().min(1).max(200) });
 const providerResultSchema = z.object({ id: z.string().min(1).max(200).optional(), name: z.string().max(100).optional() });
 
-type Source = { ref: DocumentReference; snapshot: DocumentSnapshot; payload?: DateEmailPayload };
+type Source = { ref: DocumentReference; snapshot: DocumentSnapshot; payload?: DateEmailPayload; reminder?: DocumentReference };
 type Claim = { leaseId: string; payload: DateEmailPayload; personalized: boolean };
 
 function deleting(record: unknown) {
@@ -55,11 +58,22 @@ function scheduleLabel(date: z.infer<typeof datePreferencesSchema>) {
 }
 
 async function sourceFor(user: DocumentReference, dateId: string, job: DateEmailJob, recipient: string, personalized: boolean): Promise<Source | null> {
-  const historyRef = user.collection("dateHistory").doc(dateId);
+  if (job.kind === "reminder" && (!job.sourceDateId || !job.reminderOccurrenceId || job.source !== "google" || !personalized)) return null;
+  const historyRef = user.collection("dateHistory").doc(job.kind === "reminder" ? job.sourceDateId ?? dateId : dateId);
   const history = await historyRef.get();
   if (history.exists) {
     const parsed = scheduleSchema.safeParse(history.data());
     if (!parsed.success || parsed.data.source !== job.source) return null;
+    if (job.kind === "reminder") {
+      const reminderRef = user.collection("dateReminders").doc(job.sourceDateId ?? dateId);
+      const reminder = dateReminderSchema.safeParse((await reminderRef.get()).data());
+      const source = reminderSourceSchema.safeParse(history.data());
+      if (!reminder.success || !source.success || !reminderCanSend(reminder.data, job.reminderOccurrenceId ?? "", source.data, recipient)) return null;
+      const details = await loadPlaceDetails(parsed.data.placeId, false);
+      if (!details.operational || !hasQualifyingGoogleRating(details.record.rating)) return null;
+      if (job.payload) return { ref: historyRef, snapshot: history, reminder: reminderRef };
+      return { ref: historyRef, snapshot: history, reminder: reminderRef, payload: { from: `${siteName} <noreply@adateatlas.com>`, to: [recipient], reply_to: supportEmail, ...dateReminderEmail({ venueName: details.place.name, address: details.place.address, city: parsed.data.city, scheduleLabel: scheduleLabel(parsed.data) }) } };
+    }
     if (job.payload) return { ref: historyRef, snapshot: history };
     const date = parsed.data;
     if (!personalized) return { ref: historyRef, snapshot: history, payload: genericEmailBody(recipient) };
@@ -113,7 +127,10 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
       const job = dateEmailJobSchema.safeParse(snapshot.data());
       if (!snapshot.exists || !job.success || terminal.has(job.data.status) || leaseId && job.data.leaseId !== leaseId) return;
       if (!leaseId && job.data.status === "sending" && job.data.leaseUntil && job.data.leaseUntil.toMillis() > Date.now()) throw new Error("Date email is already being processed.");
+      const reminderRef = job.data.kind === "reminder" && job.data.sourceDateId ? user.collection("dateReminders").doc(job.data.sourceDateId) : null;
+      const reminder = reminderRef ? dateReminderSchema.safeParse((await tx.get(reminderRef)).data()) : null;
       tx.update(jobRef, { status, reason, updatedAt: Timestamp.now(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete(), ...(status !== "retry" ? { payload: FieldValue.delete() } : {}), ...(emailId ? { emailId, sentAt: Timestamp.now() } : {}) });
+      if (reminderRef && reminder?.success && reminder.data.occurrenceId === job.data.reminderOccurrenceId && status !== "retry") tx.update(reminderRef, { status: status === "sent" ? "sent" : "canceled", updatedAt: Timestamp.now() });
     });
   }
 
@@ -134,7 +151,7 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
 
   const leaseId = randomUUID();
   const claim: Claim | null = await db.runTransaction(async tx => {
-    const [snapshot, currentOwner, currentDeletion, currentSource] = await Promise.all([tx.get(jobRef), tx.get(user), tx.get(deletion), tx.get(source.ref)]);
+    const [snapshot, currentOwner, currentDeletion, currentSource, currentReminder] = await Promise.all([tx.get(jobRef), tx.get(user), tx.get(deletion), tx.get(source.ref), source.reminder ? tx.get(source.reminder) : Promise.resolve(null)]);
     const parsed = dateEmailJobSchema.safeParse(snapshot.data());
     if (!parsed.success || terminal.has(parsed.data.status)) return null;
     const job = parsed.data;
@@ -143,6 +160,14 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
     if (!currentOwner.exists || deleting(currentDeletion.data()) || !currentSource.exists) {
       tx.update(jobRef, { status: "skipped", reason: "source-unavailable", payload: FieldValue.delete(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete() });
       return null;
+    }
+    if (job.kind === "reminder") {
+      const reminder = dateReminderSchema.safeParse(currentReminder?.data());
+      const reminderSource = reminderSourceSchema.safeParse(currentSource.data());
+      if (!reminder.success || !reminderSource.success || !reminderCanSend(reminder.data, job.reminderOccurrenceId ?? "", reminderSource.data, recipient.email ?? "")) {
+        tx.update(jobRef, { status: "skipped", reason: "reminder-changed", payload: FieldValue.delete(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete() });
+        return null;
+      }
     }
     if (job.firstAttemptAt && now - job.firstAttemptAt.toMillis() >= retryWindowMs) {
       tx.update(jobRef, { status: "needs-review", reason: "retry-window-expired", payload: FieldValue.delete(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete() });
@@ -159,12 +184,20 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
   if (!claim) return;
 
   try {
-    const [currentOwner, currentDeletion, currentJob, currentSource, currentRecipient] = await Promise.all([user.get(), deletion.get(), jobRef.get(), source.ref.get(), ownerEmail(ownerId)]);
+    const [currentOwner, currentDeletion, currentJob, currentSource, currentRecipient, currentReminder] = await Promise.all([user.get(), deletion.get(), jobRef.get(), source.ref.get(), ownerEmail(ownerId), source.reminder ? source.reminder.get() : Promise.resolve(null)]);
     const latest = dateEmailJobSchema.safeParse(currentJob.data());
     if (!latest.success || latest.data.status !== "sending" || latest.data.leaseId !== claim.leaseId) return;
     if (!currentOwner.exists || deleting(currentDeletion.data()) || !currentSource.exists || !currentRecipient.email || currentRecipient.email.toLowerCase() !== claim.payload.to[0].toLowerCase() || claim.personalized && !currentRecipient.verified) {
       await finish("skipped", "recipient-or-source-unavailable", claim.leaseId);
       return;
+    }
+    if (latest.data.kind === "reminder") {
+      const reminder = dateReminderSchema.safeParse(currentReminder?.data());
+      const reminderSource = reminderSourceSchema.safeParse(currentSource.data());
+      if (!reminder.success || !reminderSource.success || !currentRecipient.verified || !reminderCanSend(reminder.data, latest.data.reminderOccurrenceId ?? "", reminderSource.data, currentRecipient.email)) {
+        await finish("skipped", "reminder-no-longer-active", claim.leaseId);
+        return;
+      }
     }
     if (!latest.data.firstAttemptAt || Date.now() - latest.data.firstAttemptAt.toMillis() >= retryWindowMs) {
       await finish("needs-review", "retry-window-expired", claim.leaseId);
@@ -172,7 +205,7 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
     }
     if (!latest.data.leaseUntil || latest.data.leaseUntil.toMillis() <= Date.now()) throw new Error("Date email lease expired before delivery.");
     if (!currentSource.updateTime || !source.snapshot.updateTime || !currentSource.updateTime.isEqual(source.snapshot.updateTime)) throw new Error("Date details changed before delivery.");
-    const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `date-created/${createHash("sha256").update(ownerId).digest("hex")}/${dateId}` }, body: JSON.stringify(claim.payload), signal: AbortSignal.timeout(15000) });
+    const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `${latest.data.kind === "reminder" ? "date-reminder" : "date-created"}/${createHash("sha256").update(ownerId).digest("hex")}/${dateId}` }, body: JSON.stringify(claim.payload), signal: AbortSignal.timeout(15000) });
     const result = providerResultSchema.safeParse(await response.json().catch(() => null));
     if (response.ok && result.success && result.data.id) { await finish("sent", "provider-accepted", claim.leaseId, result.data.id); return; }
     if (response.status === 409 && (!result.success || result.data.name !== "concurrent_idempotent_requests")) { await finish("needs-review", "idempotency-conflict", claim.leaseId); return; }

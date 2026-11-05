@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "dateReminders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "sendAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "experiences",
       "queryScope": "COLLECTION",
       "fields": [

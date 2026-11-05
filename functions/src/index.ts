@@ -1,5 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import { getAppCheck } from "firebase-admin/app-check";
 import { getFirebaseAdmin } from "../../lib/firebase/server";
@@ -11,6 +12,8 @@ import { restore } from "../../lib/server/actions/restore";
 import { locate } from "../../lib/server/actions/location";
 import { places } from "../../lib/server/actions/places";
 import { discoverPlaces } from "../../lib/server/actions/discover-places";
+import { dateReminders } from "../../lib/server/actions/date-reminders";
+import { dispatchDueDateReminders, reconcileDateReminder } from "../../lib/server/date-reminders";
 import { invitations } from "../../lib/server/actions/invitations";
 import { dateHistory } from "../../lib/server/actions/date-history";
 import { conversation } from "../../lib/server/actions/conversation";
@@ -28,7 +31,15 @@ export const dateCreatedEmail = onDocumentCreated({
 }, async event => {
   if (event.data) await sendDateCreatedEmail(event.params.ownerId, event.params.dateId);
 });
-const actions = { generate, chat, customize, swap, restore, locate, places, discoverPlaces, invitations, dateHistory, conversation, intake };
+export const dateReminderSchedule = onSchedule({
+  schedule: "every 5 minutes", timeZone: "UTC", region: "europe-west1", timeoutSeconds: 60, memory: "256MiB", maxInstances: 1,
+  serviceAccount: "date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com",
+}, async () => { await dispatchDueDateReminders(); });
+export const dateReminderChanged = onDocumentWritten({
+  document: "users/{ownerId}/dateHistory/{dateId}", region: "europe-west1", timeoutSeconds: 60, memory: "256MiB", maxInstances: 2,
+  serviceAccount: "date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com", retry: true,
+}, async event => { await reconcileDateReminder(event.params.ownerId, event.params.dateId); });
+const actions = { generate, chat, customize, swap, restore, locate, places, discoverPlaces, dateReminders, invitations, dateHistory, conversation, intake };
 export const datePlanner = onRequest({ region: "europe-west1", invoker: ["date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com"], timeoutSeconds: 60, memory: "512MiB", maxInstances: 3,
   serviceAccount: "date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com", secrets: [deepseek, limiter, maps],
 }, async (req, res) => {
