@@ -1,6 +1,7 @@
 "use client";
 import { coverScreenSiblings } from "@/lib/planner/focus-screen";
 import { lockBodyScroll } from "@/lib/planner/body-scroll-lock";
+import { watchRevealControls } from "@/lib/planner/reveal-controls";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import Image from "next/image";
 import { ArrowDown } from "lucide-react";
@@ -38,6 +39,12 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
   const heading = useRef<HTMLHeadingElement>(null);
   const screen = useRef<HTMLElement>(null);
   const [moreBelow, setMoreBelow] = useState(false);
+  const gateActive = introComplete && chapter === 2 && !busy && !(rejected && error);
+  const controlsKey = JSON.stringify([revealFingerprint, chapter, introComplete, busy, rejected && Boolean(error)]);
+  const [controlsGate, setControlsGate] = useState({ key: controlsKey, ready: false });
+  // Reset before commit so controls unlocked on an earlier visit cannot flash.
+  if (controlsGate.key !== controlsKey) setControlsGate({ key: controlsKey, ready: false });
+  const controlsVisible = !gateActive || controlsGate.key === controlsKey && controlsGate.ready;
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const titles = ["Not just any date.", "Meet your next memory.", "Does this feel like you?"];
   const descriptions = [
@@ -68,9 +75,13 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
   }, [busy]);
   useEffect(() => {
     if (busy) return;
-    screen.current?.scrollTo({ top: 0 });
+    screen.current?.scrollTo({ top: 0, behavior: "instant" });
     if (introComplete) heading.current?.focus({ preventScroll: true });
-  }, [chapter, introComplete, busy]);
+  }, [chapter, introComplete, busy, revealFingerprint]);
+  useEffect(() => {
+    if (!gateActive || !screen.current) return;
+    return watchRevealControls(screen.current, () => setControlsGate({ key: controlsKey, ready: true }));
+  }, [gateActive, controlsKey]);
   useEffect(() => {
     const viewport = screen.current;
     const scene = viewport?.querySelector<HTMLElement>("section");
@@ -86,7 +97,7 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
     viewport.addEventListener("scroll", onScroll, { passive: true });
     const frame = requestAnimationFrame(update);
     return () => { cancelAnimationFrame(frame); observer.disconnect(); viewport.removeEventListener("scroll", onScroll); };
-  }, [chapter, introComplete, busy]);
+  }, [chapter, introComplete, busy, revealFingerprint]);
   function move(next: number) { setChapter(Math.max(0, Math.min(chapterNames.length - 1, next))); }
   function keyDown(event: KeyboardEvent<HTMLElement>) {
     if (!introComplete) return;
@@ -114,9 +125,16 @@ export function CinematicReveal({ place, request, catalogPlan, busy, error, reje
           {chapter === 1 && <VenueDecisionFacts place={place} request={request} plan={catalogPlan} />}{chapter === 1 && !catalogPlan && <VenueReview place={place} />}
         </div>}
         {chapter === 0 && <div className={styles.companion} aria-hidden="true"><span className={styles.companionHalo} /><AtlasCompanion pose="discover" theme="red" lively reactionKey={chapter} width="100%" height="100%" /></div>}
-        {chapter === 2 && <div className={styles.detailContent}>{catalogPlan ? <section className={styles.catalogFacts} aria-label="Catalog experience details"><h3>{catalogPlan.activities[0].experience.name}</h3><p>{request.date ? calendarLabel(request.date) : "Choose a day"} · {request.startTime ? clockLabel(timeMinutes(request.startTime)) : "Choose a time"} · {request.guests} people</p><p>{catalogPlan.activities[0].experience.description}</p><div><span>Experience <strong>{money(catalogPlan.activityCost, request.currency)}</strong></span><span>Transport estimate <strong>{catalogPlan.unpricedCosts?.includes("transport") ? "Quote needed" : money(catalogPlan.transportCost, request.currency)}</strong></span><span>Contingency <strong>{money(catalogPlan.contingencyCost, request.currency)}</strong></span><span>{catalogPlan.unpricedCosts?.length ? "Known costs" : "Estimated total"} <strong>{money(catalogPlan.total, request.currency)}</strong></span></div><p>{catalogPlan.demo ? "Fictional demonstration venue and sample prices. No real-world bookings or reviews." : `Catalog source checked ${catalogPlan.activities[0].experience.verifiedAt ?? "date unavailable"}. ${catalogPlan.activities[0].experience.reservation} Reservation availability still needs venue confirmation.`}</p><p>Reviews are not available for this catalog record.</p>{!catalogPlan.demo && catalogPlan.activities[0].experience.sourceUrl && <a href={catalogPlan.activities[0].experience.sourceUrl} target="_blank" rel="noreferrer">View the venue source ↗</a>}</section> : <><VenuePhotos key={place.id} place={place} inverted /><VenueDetails place={place} request={request} inverted /></>}{error && <p role="alert" className={styles.error}>{error}</p>}<div className={styles.decision}><span>THERE&apos;S NO COMMITMENT YET.</span><h2>Your kind of yes?</h2><div className={styles.actions}><Button className={styles.primary} onClick={acceptPick}>I love it</Button><Button className={styles.secondary} variant="outline" onClick={() => setRejectOpen(true)}>Not my vibe</Button></div><button type="button" disabled={busy} onClick={() => rejectPick("place")}>Show another option ↗</button><button type="button" onClick={onTiming}>Change the date or time ↗</button></div></div>}
+        {chapter === 2 && <div className={styles.detailContent}>{catalogPlan ? <section className={styles.catalogFacts} aria-label="Catalog experience details"><h3>{catalogPlan.activities[0].experience.name}</h3><p>{request.date ? calendarLabel(request.date) : "Choose a day"} · {request.startTime ? clockLabel(timeMinutes(request.startTime)) : "Choose a time"} · {request.guests} people</p><p>{catalogPlan.activities[0].experience.description}</p><div><span>Experience <strong>{money(catalogPlan.activityCost, request.currency)}</strong></span><span>Transport estimate <strong>{catalogPlan.unpricedCosts?.includes("transport") ? "Quote needed" : money(catalogPlan.transportCost, request.currency)}</strong></span><span>Contingency <strong>{money(catalogPlan.contingencyCost, request.currency)}</strong></span><span>{catalogPlan.unpricedCosts?.length ? "Known costs" : "Estimated total"} <strong>{money(catalogPlan.total, request.currency)}</strong></span></div><p>{catalogPlan.demo ? "Fictional demonstration venue and sample prices. No real-world bookings or reviews." : `Catalog source checked ${catalogPlan.activities[0].experience.verifiedAt ?? "date unavailable"}. ${catalogPlan.activities[0].experience.reservation} Reservation availability still needs venue confirmation.`}</p><p>Reviews are not available for this catalog record.</p>{!catalogPlan.demo && catalogPlan.activities[0].experience.sourceUrl && <a href={catalogPlan.activities[0].experience.sourceUrl} target="_blank" rel="noreferrer">View the venue source ↗</a>}</section> : <><VenuePhotos key={place.id} place={place} inverted /><VenueDetails place={place} request={request} inverted /></>}{error && <p role="alert" className={styles.error}>{error}</p>}{controlsVisible && <div className={`${styles.decision} ${styles.controlsEnter}`}><span>THERE&apos;S NO COMMITMENT YET.</span><h2>Your kind of yes?</h2><div className={styles.actions}><Button className={styles.primary} onClick={acceptPick}>I love it</Button><Button className={styles.secondary} variant="outline" onClick={() => setRejectOpen(true)}>Not my vibe</Button></div><button type="button" disabled={busy} onClick={() => rejectPick("place")}>Show another option ↗</button><button type="button" onClick={onTiming}>Change the date or time ↗</button></div>}</div>}
       </section>
-      <footer className={styles.footer}>{moreBelow && chapter > 0 && <button type="button" className={styles.scrollCue} aria-label="Scroll to more content in this reveal chapter" onClick={() => { const viewport = screen.current; if (viewport) viewport.scrollTo({ top: viewport.scrollTop + viewport.clientHeight * .7, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }}><ArrowDown size={22} aria-hidden="true" /></button>}<button type="button" className={styles.previous} disabled={chapter === 0} aria-label="Previous chapter" onClick={() => move(chapter - 1)}>←</button><span>{chapter === 2 ? "One place. Your decision." : "A little thought, every step of the way."}</span>{chapter < 2 ? <Button className={styles.primary} onClick={() => move(chapter + 1)}>{chapter === 0 ? "Reveal our pick" : "Take a closer look"}<span aria-hidden="true">→</span></Button> : <Button className={styles.primary} onClick={acceptPick}>I love it</Button>}</footer>
+      <footer className={`${styles.footer} ${controlsVisible ? "" : styles.footerWaiting}`}>
+        {moreBelow && chapter > 0 && <button type="button" className={styles.scrollCue} aria-label="Scroll to more content in this reveal chapter" onClick={() => { const viewport = screen.current; if (viewport) viewport.scrollTo({ top: viewport.scrollTop + viewport.clientHeight * .7, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }}><ArrowDown size={22} aria-hidden="true" /></button>}
+        <div className={`${styles.footerControls} ${chapter === 2 && controlsVisible ? styles.controlsEnter : ""}`} aria-hidden={!controlsVisible} inert={!controlsVisible}>
+          <button type="button" className={styles.previous} disabled={chapter === 0} aria-label="Previous chapter" onClick={() => move(chapter - 1)}>←</button>
+          <span>{chapter === 2 ? "One place. Your decision." : "A little thought, every step of the way."}</span>
+          {chapter < 2 ? <Button className={styles.primary} onClick={() => move(chapter + 1)}>{chapter === 0 ? "Reveal our pick" : "Take a closer look"}<span aria-hidden="true">→</span></Button> : <Button className={styles.primary} onClick={acceptPick}>I love it</Button>}
+        </div>
+      </footer>
     </>}
   </main>;
 }
