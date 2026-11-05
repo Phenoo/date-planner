@@ -5,15 +5,15 @@ import type { PlannerMode } from "@/lib/planner/intake";
 import styles from "./planner-chat.module.css";
 
 const modes = [
-  { value: "chat", label: "Chat", title: "Chat with the planner", description: "Type or speak your date ideas. We’ll work out the details together.", action: "Start a conversation" },
   { value: "steps", label: "Step by step", title: "Step by step", description: "A few thoughtful questions, with room to make every answer yours.", action: "Take me through it" },
+  { value: "chat", label: "Chat", title: "Chat with the planner", description: "Type or speak your date ideas. We’ll work out the details together.", action: "Start a conversation" },
 ] as const;
 
 export function PlannerModeChoice({ onChoose }: { onChoose: (mode: PlannerMode) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const id = useId();
-  const [selected, setSelected] = useState<PlannerMode>("chat");
+  const [selected, setSelected] = useState<PlannerMode>("steps");
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
 
   function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
