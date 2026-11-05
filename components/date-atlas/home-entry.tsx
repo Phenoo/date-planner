@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { DateAtlas } from "./date-atlas";
 import { Preloader } from "./preloader";
@@ -29,7 +29,7 @@ export function HomeEntryFallback() {
   </main>;
 }
 
-export function HomeEntry({ children }: { children?: ReactNode }) {
+export function HomeEntry() {
   const params = useSearchParams();
   const [ready, setReady] = useState(false);
   const completedIntro = useSyncExternalStore(subscribeIntro, hasCompletedIntro, serverIntroSnapshot);
@@ -40,7 +40,7 @@ export function HomeEntry({ children }: { children?: ReactNode }) {
   }, []);
   const returning = params.has("plan") || params.has("auth") || params.has("oobCode");
 
-  if (ready || returning || completedIntro) return <DateAtlas homeContent={children} />;
-  if (completedIntro === null) return <><HomeEntryFallback />{children}</>;
-  return <><Preloader onContinue={continueToHome} />{children}</>;
+  if (ready || returning || completedIntro) return <DateAtlas />;
+  if (completedIntro === null) return <HomeEntryFallback />;
+  return <Preloader onContinue={continueToHome} />;
 }

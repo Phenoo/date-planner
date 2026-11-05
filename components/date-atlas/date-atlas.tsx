@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { z } from "zod";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -132,12 +132,10 @@ export function DateAtlas({
   initialView = "home",
   experienceId,
   initialCatalog,
-  homeContent,
 }: {
   initialView?: Exclude<View, "results">;
   experienceId?: string;
   initialCatalog?: Experience[];
-  homeContent?: ReactNode;
 }) {
   const router = useRouter();
   const [view, setView] = useState<View>(initialView);
@@ -1048,7 +1046,7 @@ export function DateAtlas({
             </>
           )}
         </header>
-        {view === "home" && <><Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />{homeContent}</>}
+        {view === "home" && <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />}
         {view === "explore" && (
           <Explore
             initialExperiences={initialCatalog}
