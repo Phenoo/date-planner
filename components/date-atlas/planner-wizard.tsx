@@ -1,7 +1,7 @@
 "use client";
 
 import { useDestinationTimeZone } from "./use-destination-time-zone";
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
 import { ArrowDown, Coffee, Moon, Sun, Sunset, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -110,6 +110,58 @@ function PreferenceTiles<T extends string | boolean>({ label, name, options, sel
 
 type DestinationChoice = "city" | "area" | "elsewhere";
 
+function observeReviewAction(placeholder: HTMLElement, onChange: (floating: boolean) => void) {
+  let active = true;
+  let frame: number | null = null;
+  let previousScrollY = Math.max(0, window.scrollY);
+  let scrolled = false;
+  let floating: boolean | undefined;
+  const update = () => {
+    frame = null;
+    if (!active) return;
+    const bounds = placeholder.getBoundingClientRect();
+    const header = placeholder.closest(".atlas-app")?.querySelector<HTMLElement>(".atlas-header");
+    const top = Math.max(0, header?.getBoundingClientRect().bottom ?? 0);
+    const originalVisible = bounds.top >= top && bounds.bottom <= window.innerHeight;
+    const next = scrolled && window.scrollY > 8 && !originalVisible;
+    if (next !== floating) { floating = next; onChange(next); }
+  };
+  const schedule = () => { if (active && frame === null) frame = requestAnimationFrame(update); };
+  const onScroll = () => {
+    const scrollY = Math.max(0, window.scrollY);
+    if (scrollY <= 8) scrolled = false;
+    else if (scrollY > previousScrollY) scrolled = true;
+    previousScrollY = scrollY;
+    schedule();
+  };
+  const intersection = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(schedule, { threshold: 1 });
+  const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+  intersection?.observe(placeholder);
+  resize?.observe(document.body);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", schedule);
+  update();
+  return () => {
+    active = false;
+    if (frame !== null) cancelAnimationFrame(frame);
+    intersection?.disconnect();
+    resize?.disconnect();
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", schedule);
+  };
+}
+
+function ReviewAction({ children, enabled }: { children: ReactNode; enabled: boolean }) {
+  const placeholder = useRef<HTMLDivElement>(null);
+  const [floating, setFloating] = useState(false);
+  useLayoutEffect(() => {
+    if (enabled && placeholder.current) return observeReviewAction(placeholder.current, setFloating);
+  }, [enabled]);
+  return <div ref={placeholder} className={styles.reviewActionSlot}>
+    <div className={`typeform-confirm ${styles.reviewActionBar} ${enabled && floating ? styles.reviewActionFixed : ""}`} data-floating={enabled && floating}>{children}</div>
+  </div>;
+}
+
 function ReviewScrollCue() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -184,6 +236,7 @@ export function PlannerWizard({
   const [feedback, setFeedback] = useState<{ line: string; target: number } | null>(null);
   const transitioning = pending !== null || feedback !== null;
   const heading = useRef<HTMLHeadingElement>(null);
+  const formId = useId();
   const [reviewing, setReviewing] = useState(editingPlan && step !== plannerQuestionCount - 1);
   const [locating, setLocating] = useState(false);
   const [resolvingArea, setResolvingArea] = useState(false);
@@ -436,6 +489,12 @@ export function PlannerWizard({
   const total =
     (request.budget ?? 0) * (request.budgetType === "per-person" ? request.guests : 1);
   const reviewIssues = stage.id === "review" ? plannerValidationIssues(request) : [];
+  const confirmation = <>
+    <Button type="submit" form={formId} disabled={transitioning || locating}>
+      {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? editingPlan ? "Find a new match" : "Reveal my date" : reviewing ? "Back to my details" : "Continue"}
+    </Button>
+    {selectedCity ? <Button type="button" variant="outline" disabled={pending !== null} onClick={() => editLocation("choose")}>Change</Button> : <span>press <strong>Enter</strong></span>}
+  </>;
   if (loading) return <GeneratingScreen stage={loadingStage} theme={theme} onCancel={onCancelGeneration} />;
   if (feedback) return <PlannerReaction key={feedback.target} line={feedback.line} theme={theme} onComplete={() => { setStep(feedback.target); setFeedback(null); }} />;
   return (
@@ -463,6 +522,7 @@ export function PlannerWizard({
         />
       </div>
       <form
+        id={formId}
         className={`typeform-stage ${stage.id === "city" ? "location-stage" : ""} ${selectedCity ? "location-selected" : ""} ${pending === null ? `question-enter ${styles.enter}` : "question-exit-forward"}`}
         key={step}
         onSubmit={(event) => {
@@ -765,14 +825,7 @@ export function PlannerWizard({
             {error || serverError}
           </p>
         )}
-        {(stage.id !== "city" || locationMode !== "choose") && <div className="typeform-confirm">
-          <Button type="submit" disabled={transitioning || locating}>
-            {stage.id === "city" && manualLocation ? "Use this city" : selectedCity ? "Continue" : step === plannerQuestionCount - 1 ? editingPlan ? "Find a new match" : "Reveal my date" : reviewing ? "Back to my details" : "Continue"}
-          </Button>
-          {selectedCity ? <Button type="button" variant="outline" disabled={pending !== null} onClick={() => editLocation("choose")}>Change</Button> : <span>
-            press <strong>Enter</strong>
-          </span>}
-        </div>}
+        {(stage.id !== "city" || locationMode !== "choose") && (stage.id === "review" ? <ReviewAction enabled={!transitioning}>{confirmation}</ReviewAction> : <div className="typeform-confirm">{confirmation}</div>)}
       </form>
       {editingPlan && stage.id === "review" && <ReviewScrollCue />}
     </main>
