@@ -1,5 +1,5 @@
 .palette[data-planner-theme="white"],
-:global(html[data-page-surface="planner"][data-planner-appearance="white"]) .initialPalette {
+:global(html[data-page-surface="planner"][data-planner-appearance="white"]) {
   --planner-bg: #fff;
   --planner-text: #261014;
   --planner-muted: #725d63;
@@ -15,7 +15,7 @@
   color-scheme: light;
 }
 .palette[data-planner-theme="red"],
-:global(html[data-page-surface="planner"][data-planner-appearance="red"]) .initialPalette {
+:global(html[data-page-surface="planner"][data-planner-appearance="red"]) {
   --planner-bg: #cd1234;
   --planner-text: #fff;
   --planner-muted: #fff0f4;
@@ -31,7 +31,7 @@
   color-scheme: dark;
 }
 .palette[data-planner-theme="dark"],
-:global(html[data-page-surface="planner"][data-planner-appearance="dark"]) .initialPalette {
+:global(html[data-page-surface="planner"][data-planner-appearance="dark"]) {
   --planner-bg: #171417;
   --planner-text: #fcf7f9;
   --planner-muted: #c6b8c0;
@@ -45,6 +45,22 @@
   --planner-accent: #ff9caf;
   --planner-art: #302129;
   color-scheme: dark;
+}
+:global(html[data-page-surface="planner"]) .palette.initialPalette {
+  /* Opening screens inherit the prepaint palette before React restores their theme. */
+  --planner-bg: inherit;
+  --planner-text: inherit;
+  --planner-muted: inherit;
+  --planner-surface: inherit;
+  --planner-hover: inherit;
+  --planner-border: inherit;
+  --planner-selected-bg: inherit;
+  --planner-selected-text: inherit;
+  --planner-primary-bg: inherit;
+  --planner-primary-text: inherit;
+  --planner-accent: inherit;
+  --planner-art: inherit;
+  color-scheme: inherit;
 }
 .palette {
   --ivory: var(--planner-bg);
