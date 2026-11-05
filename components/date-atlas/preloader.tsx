@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { SwipeToContinue } from "./swipe-to-continue";
 import { BrandMorph } from "./brand-morph";
 import styles from "./preloader.module.css";
@@ -142,6 +143,8 @@ export function Preloader({ onContinue }: { onContinue?: () => void }) {
     <main className={styles.preloader} aria-label="Welcome to A Date At las">
       <BrandMorph />
       <div className={styles.content}>
+        <h1 className={styles.title}>A Date At las</h1>
+        <p className={styles.description}>Plan a thoughtful date around your city, budget and interests. Answer a few questions or chat with Oge to find a place you’ll both enjoy.</p>
         <div className={styles.paper}>
           <svg className={styles.drawing} viewBox="0 30 480 370" role="img" aria-label="A hand draws a heart, then writes A Date At las">
             <path className={styles.guide} d={heartPath} />
@@ -171,6 +174,12 @@ export function Preloader({ onContinue }: { onContinue?: () => void }) {
       </div>
       <div className={styles.footer}>
         {onContinue && <SwipeToContinue onContinue={complete} />}
+        <nav className={styles.links} aria-label="Welcome links">
+          <Link href="/plan">Plan a date</Link>
+          <Link href="/about">About</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </nav>
       </div>
     </main>
   );

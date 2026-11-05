@@ -9,7 +9,9 @@
 }
 .brand { align-self: flex-start; }
 .content { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 20px 0 45px; }
-.paper { width: min(480px,100%); position: relative; }
+.title { font-size: clamp(26px,4vw,36px); line-height: 1.2; margin: 0 0 12px; text-align: center; }
+.description { max-width: 480px; margin: 0 0 18px; font-size: 16px; line-height: 1.65; text-align: center; color: #70515a; }
+.paper { width: min(360px,100%); position: relative; }
 .paper::before { content: ""; position: absolute; inset: 6% 10%; border-radius: 50%; background: radial-gradient(ellipse,#fff3f6,transparent 70%); }
 .drawing { position: relative; display: block; width: 100%; height: auto; overflow: visible; }
 .guide { fill: none; stroke: #f3e5e8; stroke-width: 1.2; stroke-dasharray: 2 7; }
@@ -19,7 +21,9 @@
 .wordmark { fill: none; stroke: #d91335; stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
 .wordmark .underline { stroke: #df8293; stroke-width: 1.8; }
 .caption { font-size: 13px; line-height: 1.5; color: #8c5663; letter-spacing: .015em; margin: 13px 0 0; }
-.footer { display: flex; align-self: stretch; justify-content: center; min-height: 64px; }
+.footer { display: flex; flex-direction: column; align-items: center; align-self: stretch; justify-content: center; gap: 12px; min-height: 64px; }
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; }
+.links a { display: inline-flex; align-items: center; min-height: 44px; font-size: 16px; text-underline-offset: 4px; }
 @media (max-width:700px) {
   .preloader { padding: max(25px,env(safe-area-inset-top)) 24px max(24px,env(safe-area-inset-bottom)); }
   .content { padding-bottom: 36px; }

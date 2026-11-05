@@ -46,7 +46,7 @@ export function LoverIntro({ onContinue, onResume }: { onContinue: () => void; o
           <h1 ref={heading} tabIndex={-1} id="lover-intro-heading" className={styles.title}>
             <span className={styles.line}><span>Are you a</span></span><span className={styles.line}><span>real <span className={styles.underlined}>lover?</span></span></span>
           </h1>
-          <p className={styles.description}>The thoughtful kind. The “I planned something for us” kind. The little-things-mean-everything kind.</p>
+          <p className={styles.description}>A Date At las helps you plan thoughtful dates around your city, budget and interests. Answer a few questions or chat with Oge to find a place you’ll both enjoy.</p>
           <div className={styles.actions}>
             <button type="button" className={styles.primary} disabled={pending} aria-busy={pending} onClick={() => startTransition(onResume ?? onContinue)}>{onResume ? "Continue planning" : "Let's plan a date"}{pending && <span aria-hidden="true"><i className={styles.spinner} /></span>}</button>
             {onResume && <button type="button" className={styles.newPlan} disabled={pending} onClick={() => startTransition(onContinue)}>Plan a new date</button>}

@@ -4,7 +4,6 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { DateAtlas } from "./date-atlas";
 import { Preloader } from "./preloader";
-import styles from "./preloader.module.css";
 
 const introKey = "date-atlas:onboarding:v3";
 
@@ -24,9 +23,7 @@ function hasCompletedIntro() {
 function serverIntroSnapshot() { return null; }
 
 export function HomeEntryFallback() {
-  return <main className={styles.preloader} aria-label="Loading A Date At las" aria-busy="true">
-    <span className={`atlas-wordmark ${styles.brand}`}>A Date At las<span>.</span></span>
-  </main>;
+  return <Preloader />;
 }
 
 export function HomeEntry() {
