@@ -9,6 +9,7 @@ import { swap } from "../../lib/server/actions/swap";
 import { restore } from "../../lib/server/actions/restore";
 import { locate } from "../../lib/server/actions/location";
 import { places } from "../../lib/server/actions/places";
+import { discoverPlaces } from "../../lib/server/actions/discover-places";
 import { invitations } from "../../lib/server/actions/invitations";
 import { dateHistory } from "../../lib/server/actions/date-history";
 import { conversation } from "../../lib/server/actions/conversation";
@@ -16,7 +17,7 @@ import { intake } from "../../lib/server/actions/intake";
 const deepseek = defineSecret("DEEPSEEK_API_KEY");
 const limiter = defineSecret("PLANNER_RATE_LIMIT_SECRET");
 const maps = defineSecret("GOOGLE_MAPS_SERVER_KEY");
-const actions = { generate, chat, customize, swap, restore, locate, places, invitations, dateHistory, conversation, intake };
+const actions = { generate, chat, customize, swap, restore, locate, places, discoverPlaces, invitations, dateHistory, conversation, intake };
 export const datePlanner = onRequest({ region: "europe-west1", invoker: ["date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com"], timeoutSeconds: 60, memory: "512MiB", maxInstances: 3,
   serviceAccount: "date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com", secrets: [deepseek, limiter, maps],
 }, async (req, res) => {

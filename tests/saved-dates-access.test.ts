@@ -105,6 +105,18 @@ test("saved-date access waits for account readiness and guest transfers", async 
         authChanged(); await setImmediate();
         assert.ok(events.every((value) => value === "signed-in"));
       });
+      await t.test("reactivating a cached page waits for the current account and ignores an old account check", async () => {
+        start(); state.user = { uid: "first-member", isAnonymous: false }; observe(); await setImmediate();
+        assert.equal(events.at(-1), "signed-in");
+        const oldTransition = deferred(); state.transition = oldTransition.promise; authChanged(); await setImmediate();
+        cleanup(); events.length = 0;
+        const currentReady = deferred(); state.ready = currentReady.promise; state.transition = Promise.resolve();
+        state.user = null; observe();
+        oldTransition.resolve(); await setImmediate();
+        assert.deepEqual(events, [], "Cached authenticated state cannot resolve before the fresh auth check");
+        currentReady.resolve(); await setImmediate();
+        assert.deepEqual(events, ["sign-in"], "The reactivated page uses the current signed-out session");
+      });
       await t.test("unmount cleans subscriptions and suppresses late readiness results", async () => {
         start(); const ready = deferred(); state.ready = ready.promise; observe();
         assert.equal(state.authListeners.size, 1); assert.equal(state.transferListeners.size, 1);

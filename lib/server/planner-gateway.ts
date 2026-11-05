@@ -7,12 +7,13 @@ import { swap } from "./actions/swap";
 import { restore } from "./actions/restore";
 import { locate } from "./actions/location";
 import { places } from "./actions/places";
+import { discoverPlaces } from "./actions/discover-places";
 import { invitations } from "./actions/invitations";
 import { dateHistory } from "./actions/date-history";
 import { conversation } from "./actions/conversation";
 import { intake } from "./actions/intake";
 import { apiError, RequestError } from "@/lib/planner/http";
-export const plannerActions = { generate, chat, customize, swap, restore, locate, places, invitations, dateHistory, conversation, intake };
+export const plannerActions = { generate, chat, customize, swap, restore, locate, places, discoverPlaces, invitations, dateHistory, conversation, intake };
 export type PlannerAction = keyof typeof plannerActions;
 let googleAuth: GoogleAuth | null = null;
 export async function plannerAction(action: PlannerAction, request: Request) {

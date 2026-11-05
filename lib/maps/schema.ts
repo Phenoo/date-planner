@@ -30,7 +30,7 @@ export const nearbySearchSchema = z.object({
 export type NearbySearch = z.infer<typeof nearbySearchSchema>;
 export const searchIssueSchema = z.enum(["travel-time", "accessible-entrance", "vegetarian", "unverified-dietary", "opening-hours", "budget", "distance", "preferences", "no-places", "venue-changed", "google-rating"]);
 export type SearchIssue = z.infer<typeof searchIssueSchema>;
-export const placePhotoSchema = z.object({ url: z.url({ protocol: /^https$/ }), authors: z.array(z.object({ name: z.string(), url: z.url({ protocol: /^https$/ }).optional() })) });
+export const placePhotoSchema = z.object({ url: z.url({ protocol: /^https$/ }), sourceUrl: z.url({ protocol: /^https$/ }).optional(), authors: z.array(z.object({ name: z.string(), url: z.url({ protocol: /^https$/ }).optional() })) });
 export const nearbyPlaceSchema = z.object({
   id: z.string().min(1).max(200), name: z.string(), address: z.string(), category: z.string(), distanceKm: z.number().nonnegative(), reason: z.string(),
   mapsUrl: z.url({ protocol: /^https$/ }),

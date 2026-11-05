@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { currencyDigits } from "@/lib/planner/currency";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -15,9 +17,10 @@ import { dateTimingLabel } from "@/lib/planner/date-story";
 import { ChosenPlaceCard } from "./chosen-place-card";
 import { DateStoryView } from "./date-story-view";
 import { InvitationNote } from "./invitation-note";
-import styles from "./date-journey.module.css";
+import { RevokeInvitation } from "./revoke-invitation";
+import styles from "./date-history.module.css";
 
-export function DateActions({ date, disabled, onChanged }: { date: ChosenDate; disabled: boolean; onChanged: () => void }) {
+export function DateActions({ date, disabled, completing, onComplete, onRevoked, onChanged }: { date: ChosenDate; disabled: boolean; completing: boolean; onComplete: () => void; onRevoked: () => void; onChanged: () => void }) {
   const [mode, setMode] = useState<"details" | "rename" | "edit" | "feedback" | null>(null);
   const [title, setTitle] = useState(date.title ?? date.place?.name ?? date.story.title);
   const [preferences, setPreferences] = useState<PlanRequest | null>(null);
@@ -74,17 +77,21 @@ export function DateActions({ date, disabled, onChanged }: { date: ChosenDate; d
   }
   function updatePreferences(changes: Partial<PlanRequest>) { setPreferences((current) => current ? { ...current, ...changes, ...(changes.city && changes.city !== current.city || changes.country && changes.country !== current.country ? { timeZoneConfirmed: false } : {}) } : current); }
   function close(open: boolean) { if (!open && !busy) { setMode(null); setMessage(""); } }
-  return <div>
-    {date.suggestedTime && <p role="status">Another time suggested: {date.suggestedTime.date} at {date.suggestedTime.startTime}. Review it before updating the plan.</p>}
-    <div className={styles.actions}>
-      <Button variant="outline" disabled={busy || disabled} onClick={() => { setMessage(""); setMode("details"); }}>View date</Button>
+  return <div className={styles.cardActions}>
+    <Button className={styles.open} disabled={busy || disabled} onClick={() => { setMessage(""); setMode("details"); }}>Open date</Button>
+    <details className={styles.options}>
+      <summary aria-label={`More options for ${date.title ?? date.place?.name ?? date.story.title}`}>More options<ChevronDown size={16} aria-hidden="true" /></summary>
+    {date.suggestedTime && <p className={styles.optionsNotice} role="status">Another time suggested: {date.suggestedTime.date} at {date.suggestedTime.startTime}. Review it before updating the plan.</p>}
+    <div className={styles.optionList}>
       <Button variant="outline" disabled={busy || disabled} onClick={() => { setMessage(""); setMode("rename"); }}>Rename</Button>
-      {date.dateStatus !== "completed" && date.canEdit && <Button variant="outline" disabled={busy || disabled} onClick={() => void openEdit()}>Edit plan</Button>}
+      {date.dateStatus !== "completed" && date.canEdit && <Button variant="outline" disabled={busy || disabled} onClick={() => void openEdit()}>Edit or reschedule</Button>}
+      {date.dateStatus !== "completed" && <Button variant="outline" disabled={busy || disabled} onClick={onComplete}>{completing ? "Saving…" : "Mark as done"}</Button>}
       {date.date && date.startTime && <Button variant="outline" onClick={download}>Add to calendar</Button>}
       <Button variant="outline" disabled={busy || disabled} onClick={() => { setMessage(""); setMode("feedback"); }}>Leave feedback</Button>
-      {date.invitationPublished && !date.invitationRevoked ? <><Button variant="outline" disabled={invitationDirty} onClick={() => void share()}>Share invitation</Button><Button variant="outline" disabled={invitationDirty} onClick={() => void share(true)}>Copy link</Button><a target="_blank" rel="noreferrer" aria-disabled={invitationDirty} onClick={(event) => { if (invitationDirty) event.preventDefault(); }} href={`https://wa.me/?text=${encodeURIComponent(`A date, just us two. ${typeof window === "undefined" ? "" : window.location.origin}/invite/${date.token}`)}`}>WhatsApp ↗</a></> : date.dateStatus !== "completed" && date.canEdit && <AlertDialog open={publishOpen} onOpenChange={setPublishOpen}><AlertDialogTrigger asChild><Button variant="outline" disabled={busy || disabled}>Create invitation</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Share this date?</AlertDialogTitle><AlertDialogDescription>Anyone with the link can see the venue, day, time and date preview, and respond. Your private answers stay private. You can revoke access.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); void saveAction({ action: "publish", id: date.id }); }}>Create invitation</AlertDialogAction></AlertDialogFooter>{message && <p role="alert">{message}</p>}</AlertDialogContent></AlertDialog>}
+      {date.invitationPublished && !date.invitationRevoked ? <><Link href={`/invite/${date.token}`}>View invitation</Link><RevokeInvitation id={date.id} onRevoked={onRevoked} /><Button variant="outline" disabled={invitationDirty} onClick={() => void share()}>Share invitation</Button><Button variant="outline" disabled={invitationDirty} onClick={() => void share(true)}>Copy link</Button><a target="_blank" rel="noreferrer" aria-disabled={invitationDirty} onClick={(event) => { if (invitationDirty) event.preventDefault(); }} href={`https://wa.me/?text=${encodeURIComponent(`A date, just us two. ${typeof window === "undefined" ? "" : window.location.origin}/invite/${date.token}`)}`}>WhatsApp ↗</a></> : date.dateStatus !== "completed" && date.canEdit && <AlertDialog open={publishOpen} onOpenChange={setPublishOpen}><AlertDialogTrigger asChild><Button variant="outline" disabled={busy || disabled}>Create invitation</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Share this date?</AlertDialogTitle><AlertDialogDescription>Anyone with the link can see the venue, day, time and date preview, and respond. Your private answers stay private. You can revoke access.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); void saveAction({ action: "publish", id: date.id }); }}>Create invitation</AlertDialogAction></AlertDialogFooter>{message && <p role="alert">{message}</p>}</AlertDialogContent></AlertDialog>}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogTrigger asChild><Button variant="outline" disabled={busy || disabled}>Delete date</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this date?</AlertDialogTitle><AlertDialogDescription>This removes the date and its linked saved plan and feedback. Its invitation link will stop working. This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={busy}>Keep date</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); void saveAction({ action: "delete", id: date.id }); }}>Delete date</AlertDialogAction></AlertDialogFooter>{message && <p role="alert">{message}</p>}</AlertDialogContent></AlertDialog>
     </div>
+    </details>
     <Dialog open={mode !== null} onOpenChange={close} title={mode === "details" ? "Your saved date" : mode === "edit" ? "Edit your date plan" : mode === "feedback" ? "Private date feedback" : "Rename your date"}>
       <div className="form-stack" style={{ padding: 28 }}><h2>{mode === "details" ? date.title ?? "Your saved date" : mode === "edit" ? "Edit your date plan" : mode === "feedback" ? "How was your date?" : "Give this date a name"}</h2>
         {mode === "details" && <><p>{dateTimingLabel(date.datePreference, date.startTime, date.dateStatus === "completed", date.date)}</p><ChosenPlaceCard place={date.place} placeId={date.placeId} catalog={date.source === "catalog"} /><p>Confirm current costs, opening hours and any reservation directly with the venue.</p>{date.place?.details?.website && <a href={date.place.details.website} target="_blank" rel="noreferrer">Visit the venue website ↗</a>}{date.invitationPublished && !date.invitationRevoked && <InvitationNote key={date.token} selection={date} onDirtyChange={setInvitationDirty} onSaved={onChanged} />}<DateStoryView story={date.story} label="YOUR DATE, SAVED PRIVATELY" /></>}

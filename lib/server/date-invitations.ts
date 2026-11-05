@@ -165,7 +165,7 @@ export async function updateInvitationMessage(request: Request, id: string, mess
   return { message };
 }
 
-export async function hydrateDate(record: StoredDate, withPhoto = true): Promise<PublicInvitation> {
+export async function hydrateDate(record: StoredDate, withPhoto: boolean | "hero" = true): Promise<PublicInvitation> {
   let place: PublicInvitation["place"] = null;
   if (record.source === "catalog") {
     const catalog = await getCatalog().catch(() => []);
@@ -213,7 +213,7 @@ export async function listChosenDates(request: Request, cursor?: string, status?
   const dates = await Promise.all(rows.docs.slice(0, 10).map(async (row): Promise<ChosenDate | null> => {
     const record = storedDateSchema.safeParse(row.data());
     if (!record.success) return null;
-    return { ...await hydrateDate(record.data, false), id: row.id, token: record.data.token, invitationRevoked: record.data.invitationRevoked, invitationPublished: record.data.invitationPublished, ...(record.data.customTitle ? { title: record.data.customTitle } : {}), canEdit: Boolean(record.data.planningRequest) };
+    return { ...await hydrateDate(record.data, "hero"), id: row.id, token: record.data.token, invitationRevoked: record.data.invitationRevoked, invitationPublished: record.data.invitationPublished, ...(record.data.customTitle ? { title: record.data.customTitle } : {}), canEdit: Boolean(record.data.planningRequest) };
   }));
   return { dates: dates.filter((date) => date !== null), nextCursor: rows.docs.length > 10 ? rows.docs[9].id : null };
 }

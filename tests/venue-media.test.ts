@@ -114,6 +114,17 @@ test("venue media is attributed, bounded and loaded only for the selected venue"
       assert.ok(!JSON.stringify(details.place).includes(fixtureKey));
     });
 
+    await t.test("saved-date thumbnails load one attributed photo without a full gallery or rich summary", async () => {
+      calls.length = 0;
+      const details = await media.loadPlaceDetails("fixture", "hero");
+      assert.equal(mediaCalls().length, 1);
+      assert.equal(calls.length, 2);
+      assert.ok(calls[0].headers.get("X-Goog-FieldMask")?.split(",").includes("photos"));
+      assert.ok(!calls[0].headers.get("X-Goog-FieldMask")?.split(",").includes("editorialSummary"));
+      assert.equal(details.place.photos?.length, 1);
+      assert.deepEqual(details.place.photo?.authors, [{ name: "Photographer 0", url: "https://maps.google.com/contrib/author0" }]);
+    });
+
     await t.test("unavailable photos leave valid venue details usable without a broken hero", async () => {
       brokenMedia = true;
       const partial = await media.loadPlaceDetails("fixture");

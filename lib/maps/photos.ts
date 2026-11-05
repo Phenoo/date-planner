@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { mapsServerKey } from "./google";
 
-type PhotoSource = { name: string; authorAttributions: { displayName: string; uri?: string }[] };
+type PhotoSource = { name: string; googleMapsUri?: string; authorAttributions: { displayName: string; uri?: string }[] };
 const photoName = /^places\/[\w-]+\/photos\/[\w-]+$/;
 
 export async function placePhoto(source: PhotoSource | undefined) {
@@ -18,7 +18,8 @@ export async function placePhoto(source: PhotoSource | undefined) {
   if (!data.success || data.data.photoUri.includes(key)) return undefined;
   const host = new URL(data.data.photoUri).hostname;
   if (!host.endsWith(".googleusercontent.com") && !host.endsWith(".ggpht.com")) return undefined;
-  return { url: data.data.photoUri, authors: source.authorAttributions.map((author) => {
+  const sourceUrl = z.url({ protocol: /^https$/ }).safeParse(source.googleMapsUri);
+  return { url: data.data.photoUri, ...(sourceUrl.success && !sourceUrl.data.includes(key) ? { sourceUrl: sourceUrl.data } : {}), authors: source.authorAttributions.map((author) => {
     const link = author.uri?.startsWith("//") ? `https:${author.uri}` : author.uri;
     const parsed = z.url({ protocol: /^https$/ }).safeParse(link);
     return { name: author.displayName, ...(parsed.success ? { url: parsed.data } : {}) };

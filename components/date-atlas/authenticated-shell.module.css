@@ -1,0 +1,21 @@
+.shell { background: #fcf9f8; min-height: 100svh; }
+.shell > .header { min-height: 80px; padding: 18px max(28px,calc((100vw - 1120px)/2)); background: #fffcfaf5; border-bottom: 1px solid #eee4e7; box-shadow: none; gap: 24px; }
+.navigation { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.navigation a { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 15px; border-radius: 40px; color: #806b72; font-size: 14px; }
+.navigation a[aria-current="page"] { background: #f6e9ed; color: #b91436; font-weight: 600; }
+.header .plan { min-height: 44px; padding: 10px 18px; border-radius: 40px; font-size: 13px; gap: 8px; }
+.mobile { display: none; }
+.footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; padding: 28px 20px 24px; border-top: 1px solid #f0e7e9; margin-top: 30px; color: #8a737d; }
+.footer a { display: inline-flex; align-items: center; min-height: 44px; font-size: 16px; text-underline-offset: 4px; }
+.navigation a:focus-visible,.mobile a:focus-visible,.footer a:focus-visible { outline: 3px solid #bd1b47; outline-offset: 4px; }
+.initializing { min-height: 65svh; display: grid; place-items: center; color: #806b72; font-size: 14px; }
+@media (max-width: 700px) {
+  .shell { padding-bottom: calc(78px + env(safe-area-inset-bottom)); }
+  .shell > .header { min-height: 68px; padding: 14px 20px; gap: 15px; }
+  .navigation { display: none; }
+  .header .plan { margin-left: auto; padding: 8px 14px; font-size: 12px; min-height: 40px; }
+  .mobile { position: fixed; z-index: 40; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(3,1fr); padding: 8px 12px max(8px,env(safe-area-inset-bottom)); background: #fffcfafa; backdrop-filter: blur(16px); border-top: 1px solid #ebdfe4; }
+  .mobile a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 7px 10px; min-height: 52px; color: #947c87; font-size: 11px; }
+  .mobile a[aria-current="page"] { color: #b91436; font-weight: 650; }
+  .footer { margin-top: 14px; padding-block: 20px; gap: 6px 20px; }
+}

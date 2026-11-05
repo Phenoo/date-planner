@@ -13,7 +13,7 @@ export const placesResponseSchema = z.object({
     primaryTypeDisplayName: z.object({ text: z.string() }).optional(), types: z.array(z.string()).default([]), businessStatus: z.string().optional(),
     location: z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180) }),
     attributions: z.array(z.object({ provider: z.string().optional(), providerUri: z.string().optional() })).default([]),
-    photos: z.array(z.object({ name: z.string(), authorAttributions: z.array(z.object({ displayName: z.string(), uri: z.string().optional() })).default([]) })).default([]),
+    photos: z.array(z.object({ name: z.string(), googleMapsUri: z.string().optional(), authorAttributions: z.array(z.object({ displayName: z.string(), uri: z.string().optional() })).default([]) })).default([]),
   }).extend(providerFactsSchema.shape)).default([]),
 });
 export function excludedPlaceTypes(request: NearbySearch) {

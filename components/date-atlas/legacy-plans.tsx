@@ -1,13 +1,23 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { parseSaved, toRecipe, type SavedRecipe } from "@/lib/planner/saved";
 import { plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { recommendationResultSchema } from "@/lib/planner/response-schema";
 import { getBrowserAuth } from "@/lib/firebase/client";
 const legacyKey = "date-atlas:saved:v1";
+function subscribeLegacyPlans(notify: () => void) {
+  const onStorage = (event: StorageEvent) => { if (event.key === legacyKey || event.key === null) notify(); };
+  window.addEventListener("storage", onStorage);
+  return () => window.removeEventListener("storage", onStorage);
+}
+function hasLegacyPlans() {
+  try { return parseSaved(localStorage.getItem(legacyKey)).length > 0; }
+  catch { return false; }
+}
 
 export function LegacyPlans({ onImported }: { onImported: (recipe: SavedRecipe) => void }) {
+  const hasOlderPlans = useSyncExternalStore(subscribeLegacyPlans, hasLegacyPlans, () => false);
   const [plans, setPlans] = useState<SavedRecipe[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -37,5 +47,5 @@ export function LegacyPlans({ onImported }: { onImported: (recipe: SavedRecipe) 
     } catch (error) { if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : "Import failed. The older copy has been kept."); }
     finally { if (!controller.signal.aborted) { active.current = null; setBusy(false); } }
   }
-  return <details className="data-notice"><summary>Recover older plans saved on this device</summary><p>These older plans have no account owner. On a shared device, review them and import only your own plans into the account you are signed into.</p><Button variant="outline" disabled={busy} onClick={review}>Review older device plans</Button>{plans?.length === 0 && <p>No older device plans found.</p>}{plans?.map((plan) => <div key={plan.id}><p>{plan.title} · {plan.request.city} · {plan.request.date}</p><Button disabled={busy} onClick={() => void importPlan(plan)}>Import this plan to my account</Button></div>)}{message && <p role="status">{message}</p>}</details>;
+  return hasOlderPlans ? <details className="data-notice"><summary>Recover older plans saved on this device</summary><p>These older plans have no account owner. On a shared device, review them and import only your own plans into the account you are signed into.</p><Button variant="outline" disabled={busy} onClick={review}>Review older device plans</Button>{plans?.length === 0 && <p>No older device plans found.</p>}{plans?.map((plan) => <div key={plan.id}><p>{plan.title} · {plan.request.city} · {plan.request.date}</p><Button disabled={busy} onClick={() => void importPlan(plan)}>Import this plan to my account</Button></div>)}{message && <p role="status">{message}</p>}</details> : null;
 }

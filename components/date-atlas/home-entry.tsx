@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { DateAtlas } from "./date-atlas";
 import { Preloader } from "./preloader";
+import { observeSavedDatesAccess } from "./saved-dates-access";
 
 const introKey = "date-atlas:onboarding:v3";
 
@@ -29,6 +30,13 @@ export function HomeEntryFallback() {
 export function HomeEntry() {
   const params = useSearchParams();
   const [ready, setReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const query = params.toString();
+  useLayoutEffect(() => observeSavedDatesAccess(state => setSignedIn(state === "signed-in")), [query]);
+  useLayoutEffect(() => () => {
+    // Activity preserves hidden pages; recheck authentication before showing their account UI.
+    setSignedIn(false);
+  }, []);
   const completedIntro = useSyncExternalStore(subscribeIntro, hasCompletedIntro, serverIntroSnapshot);
   const continueToHome = useCallback(() => {
     try { localStorage.setItem(introKey, "complete"); }
@@ -37,7 +45,7 @@ export function HomeEntry() {
   }, []);
   const returning = params.has("plan") || params.has("auth") || params.has("oobCode");
 
-  if (ready || returning || completedIntro) return <DateAtlas />;
+  if (signedIn || ready || returning || completedIntro) return <DateAtlas />;
   if (completedIntro === null) return <HomeEntryFallback />;
   return <Preloader onContinue={continueToHome} />;
 }

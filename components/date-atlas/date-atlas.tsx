@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { z } from "zod";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import {
   Heart,
   CalendarDays,
   UserRound,
+  Compass,
   ArrowRight,
   X,
 } from "lucide-react";
@@ -25,10 +26,14 @@ import { RevokeInvitation } from "./revoke-invitation";
 import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
 import { requestGeneration } from "@/lib/planner/generation-client";
 import { Homepage } from "./homepage";
+import { PlaceDiscovery } from "./place-discovery";
+import { currencyForCountry } from "@/lib/planner/currency";
+import authenticatedStyles from "./authenticated-shell.module.css";
 import { InvitationNote } from "./invitation-note";
 import { Explore, ExperienceCard } from "./explore";
 import { ExperiencePage } from "./experience-page";
 import { Dashboard, ProfilePreferences } from "./dashboard";
+import { LegacyPlans } from "./legacy-plans";
 import { preferenceSchema } from "@/lib/planner/preferences-storage";
 import { chatSessionSchema, emptyChatSession, intakeFields, intakeNextField, intakeFieldForQuestion, stepForIntake, type PlannerMode } from "@/lib/planner/intake";
 import { PlannerModeChoice } from "./planner-mode-choice";
@@ -178,7 +183,9 @@ export function DateAtlas({
   const [loadingStage, setLoadingStage] = useState("Checking your preferences");
   const [feedbackState, setFeedbackState] = useState<"success" | "error" | null>(null);
   const [signedIn, setSignedIn] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [accountId, setAccountId] = useState("");
+  const [accountProfile, setAccountProfile] = useState<{ name: string | null; email: string | null }>({ name: null, email: null });
   const [historyRevision, setHistoryRevision] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const generationId = useRef(0);
@@ -196,6 +203,11 @@ export function DateAtlas({
   const restoreShared = useEffectEvent((recipe: SavedRecipe) => {
     void restore(recipe);
   });
+  useLayoutEffect(() => () => {
+    // Activity preserves state on hide; old auth callbacks must not reopen the cached account UI.
+    mounted.current = false;
+    setAuthReady(false);
+  }, []);
   useEffect(() => {
     let active = true;
     mounted.current = true;
@@ -360,11 +372,12 @@ export function DateAtlas({
     let sessionRevision = 0;
     const unsubscribe = auth
       ? onIdTokenChanged(auth, async (user) => {
-          if (!active) return;
+          if (!active || !mounted.current) return;
           const revision = ++sessionRevision;
           const previous = previousAccount.current;
           previousAccount.current = user ? { uid: user.uid, anonymous: user.isAnonymous } : null;
           if (previous && !previous.anonymous && previous.uid !== user?.uid) {
+            setAuthReady(false);
             abortRef.current?.abort(); generationId.current++; setBusy(false);
             setResult(null); setRequest(defaultRequest()); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
             pendingSave.current = null; setSaved([]); setSignedIn(false); setAccountId(""); setDraftReady(true);
@@ -380,14 +393,16 @@ export function DateAtlas({
             setView(initialView === "planner" ? "planner" : initialView);
           }
           try { await waitForAccountTransition(); } catch { /* The account can load while the separate guest transfer remains retryable. */ }
-          if (!active || revision !== sessionRevision || auth.currentUser?.uid !== user?.uid) return;
+          if (!active || !mounted.current || revision !== sessionRevision || auth.currentUser?.uid !== user?.uid) return;
           const saveRevision = ++savedRevision.current;
           if (shareOwner.current && shareOwner.current !== user?.uid) {
             shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
             setShareOpen(false); setShareSelection(null);
           }
           setSignedIn(!!user && !user.isAnonymous);
+          setAuthReady(true);
           setAccountId(user?.uid ?? "");
+          setAccountProfile({ name: user?.displayName ?? null, email: user?.email ?? null });
           try {
             setSaved(user && !user.isAnonymous ? parseSaved(localStorage.getItem(savedAccountKey(user.uid))) : []);
           } catch {
@@ -419,6 +434,7 @@ export function DateAtlas({
               });
         })
       : undefined;
+    if (!auth) void Promise.resolve().then(() => { if (active && mounted.current) setAuthReady(true); });
     void Promise.resolve().then(async () => {
       if (!active || !hasEmailSignInLink()) return;
       const email = storedSignInEmail();
@@ -985,13 +1001,15 @@ export function DateAtlas({
   }
   const planning = view === "planner";
   const themedJourney = planning || view === "results";
+  if (!authReady) return <main className={authenticatedStyles.initializing} role="status" aria-busy="true">Opening A Date At las…</main>;
+  const authenticatedLayout = signedIn && !planning && view !== "results";
   return (
       <div
-        className={`atlas-app ${themedJourney ? plannerStyles.palette : ""} ${planning ? `is-planning ${plannerStyles.planner}` : ""} ${view === "home" ? "is-lover-intro" : ""} ${signedIn && !planning ? "has-mobile-nav" : ""} ${view === "results" ? `has-itinerary ${plannerStyles.journey}` : ""}`}
+        className={`atlas-app ${authenticatedLayout ? authenticatedStyles.shell : ""} ${themedJourney ? plannerStyles.palette : ""} ${planning ? `is-planning ${plannerStyles.planner}` : ""} ${view === "home" && !signedIn ? "is-lover-intro" : ""} ${signedIn && !planning ? "has-mobile-nav" : ""} ${view === "results" ? `has-itinerary ${plannerStyles.journey}` : ""}`}
         data-planner-theme={themedJourney ? plannerAppearance : undefined}
         data-planner-mode={planning ? plannerMode ?? undefined : undefined}
       >
-        <header className={`atlas-header ${compactHeader ? "compact" : ""}`}>
+        <header className={`atlas-header ${authenticatedLayout ? authenticatedStyles.header : ""} ${compactHeader ? "compact" : ""}`}>
           <Link
             className="atlas-wordmark"
             href="/"
@@ -1023,6 +1041,8 @@ export function DateAtlas({
                 </AlertDialogContent>
               </AlertDialog>
             </div>
+          ) : authenticatedLayout ? (
+            <><nav className={authenticatedStyles.navigation} aria-label="Main navigation"><Link href="/" aria-current={view === "home" ? "page" : undefined}><Compass size={17} aria-hidden="true" />Discover</Link><Link href="/saved" aria-current={view === "saved" ? "page" : undefined}><CalendarDays size={17} aria-hidden="true" />My dates</Link><Link href="/profile" aria-current={view === "profile" ? "page" : undefined}><UserRound size={17} aria-hidden="true" />Profile</Link></nav>{view !== "home" && view !== "saved" && <Button className={authenticatedStyles.plan} size="small" onClick={() => planDate()}>Plan a date<ArrowRight size={15} aria-hidden="true" /></Button>}</>
           ) : view === "home" ? (
             <div className="header-actions">
               {signedIn && <Link href="/saved">My dates</Link>}
@@ -1051,7 +1071,10 @@ export function DateAtlas({
             </>
           )}
         </header>
-        {view === "home" && <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} />}
+        {view === "home" && (signedIn ? preferencesReady && <PlaceDiscovery key={`${accountId}:${request.city}:${request.country}`} city={request.city} country={request.country} onPlan={() => planDate()} onPlanNearby={(place, destination) => {
+          const currency = currencyForCountry(destination.country) ?? request.currency;
+          planDate({ city: destination.city, currentCity: destination.city, country: destination.country, area: place.name.slice(0, 80), locationScope: "area", maxDistance: 15, startingArea: "", timeZoneConfirmed: false, currency, ...(currency !== request.currency ? { budget: null, transportBudget: null } : {}) });
+        }} /> : authReady ? <Homepage onPlan={() => { try { clearPlannerDrafts(sessionStorage, plannerDraftVersion); } catch { /* A new flow can still open without storage. */ } planDate(); }} /> : <main className={authenticatedStyles.initializing} role="status">Opening A Date At las…</main>)}
         {view === "explore" && (
           <Explore
             initialExperiences={initialCatalog}
@@ -1109,6 +1132,9 @@ export function DateAtlas({
         )}
         {view === "profile" && preferencesReady && (
           <ProfilePreferences
+            key={accountId}
+            accountName={accountProfile.name}
+            accountEmail={accountProfile.email}
             request={request}
             signedIn={signedIn}
             onAuth={openAuthentication}
@@ -1252,7 +1278,7 @@ export function DateAtlas({
         )}
         {!planning && (
           <>
-            {view !== "home" && <footer className="atlas-footer content-width">
+            {view !== "home" && !signedIn && <footer className="atlas-footer content-width">
               <div>
                 <Link className="atlas-wordmark" href="/">
                   A Date At las<span>.</span>
@@ -1292,17 +1318,15 @@ export function DateAtlas({
                 <span>Thoughtful dates, wherever life takes you.</span>
               </div>
             </footer>}
+            {authenticatedLayout && <footer className={authenticatedStyles.footer}><Link href="/about">About</Link><Link href="/partners">Partner with us</Link><Link href="/privacy">Privacy</Link><a href={`mailto:${supportEmail}`}>Support</a></footer>}
             {signedIn && (
-              <nav className="mobile-nav" aria-label="Mobile navigation">
+              <nav className={authenticatedLayout ? authenticatedStyles.mobile : "mobile-nav"} aria-label="Mobile navigation">
                 <Link
-                  href="/plan"
-                  onNavigate={(event) => {
-                    event.preventDefault();
-                    planDate();
-                  }}
+                  href="/"
+                  aria-current={view === "home" ? "page" : undefined}
                 >
-                  <Heart size={19} />
-                  Plan
+                  <Compass size={21} aria-hidden="true" />
+                  Discover
                 </Link>
                 <Link
                   href="/saved"
@@ -1408,9 +1432,8 @@ export function DateAtlas({
         >
           {signedIn && authAccountView ? (
             <>
-            <span className="eyebrow">YOUR NEXT CHAPTER</span>
-            <h1>Good to have you here.</h1>
-            <p>Your saved date plans are kept privately with your account.</p>
+            <h1>Account settings</h1>
+            {accountProfile.email && <p>{accountProfile.email}</p>}
             <Button
               variant="outline"
               onClick={async () => {
@@ -1431,6 +1454,7 @@ export function DateAtlas({
               Log out
             </Button>
             <AccountPrivacy />
+            <LegacyPlans onImported={(recipe) => setSaved(previous => [recipe, ...previous.filter(item => item.id !== recipe.id)])} />
             </>
           ) : (
             <AccountAccess onDone={authenticationDone} />

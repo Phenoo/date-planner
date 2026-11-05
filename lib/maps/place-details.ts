@@ -7,7 +7,7 @@ import { RequestError } from "@/lib/planner/http";
 import { z } from "zod";
 import { venueControls } from "@/lib/server/venue-controls";
 
-export async function loadPlaceDetails(id: string, withPhoto = true, withDescription = withPhoto) {
+export async function loadPlaceDetails(id: string, withPhoto: boolean | "hero" = true, withDescription = withPhoto === true) {
   if ((await venueControls()).has(id)) throw new RequestError("This place is under review. Choose another recommendation.", 409);
   const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(id)}`, {
     cache: "no-store", signal: AbortSignal.timeout(8000),
@@ -19,7 +19,7 @@ export async function loadPlaceDetails(id: string, withPhoto = true, withDescrip
   if (!record || record.id !== id) throw new RequestError("We couldn't confirm this place. Please try again.", 503);
   const maps = new URL("https://www.google.com/maps/search/");
   maps.searchParams.set("api", "1"); maps.searchParams.set("query", record.displayName.text); maps.searchParams.set("query_place_id", record.id);
-  const photos = withPhoto ? await placePhotos(record.photos) : [];
+  const photos = withPhoto ? await placePhotos(withPhoto === "hero" ? record.photos.slice(0, 1) : record.photos) : [];
   const place = invitationPlaceSchema.parse({
     id: record.id, name: record.displayName.text, address: record.formattedAddress,
     category: record.primaryTypeDisplayName?.text ?? "Place to explore", mapsUrl: maps.toString(),

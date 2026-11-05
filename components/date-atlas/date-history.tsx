@@ -1,14 +1,24 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Image from "next/image";
+import { MapPin } from "lucide-react";
 import { z } from "zod";
 import { plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { dateHistoryResponseSchema, type ChosenDate } from "@/lib/planner/invitations";
 import { dateTimingLabel } from "@/lib/planner/date-story";
 import { Button } from "@/components/ui/button";
 import { DateActions } from "./date-actions";
-import { RevokeInvitation } from "./revoke-invitation";
-import styles from "./date-journey.module.css";
+import styles from "./date-history.module.css";
+
+function DatePhoto({ date }: { date: ChosenDate }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  const photo = date.place?.photo;
+  if (!photo || failed === photo.url) return <div className={styles.photoFallback} aria-hidden="true"><MapPin size={32} /></div>;
+  return <figure className={styles.photo}>
+    <Image src={photo.url} alt={date.source === "catalog" ? "Illustrative date atmosphere" : `A view of ${date.place?.name ?? "your chosen place"}`} fill unoptimized loading="lazy" sizes="(max-width:700px) 100vw, 50vw" onError={() => setFailed(photo.url)} />
+    <figcaption className={styles.photoCredit}>{date.source === "catalog" ? <span>Illustrative photo</span> : <a href={photo.sourceUrl ?? date.place?.mapsUrl} target="_blank" rel="noreferrer" translate="no">Google Maps</a>}{photo.authors.map((author, index) => author.url ? <a key={`${author.name}:${index}`} href={author.url} target="_blank" rel="noreferrer">Photo: {author.name}</a> : <span key={`${author.name}:${index}`}>Photo: {author.name}</span>)}</figcaption>
+  </figure>;
+}
 
 export function DateHistory({ onPlan, onChanged }: { onPlan: () => void; onChanged: () => void }) {
   const [dates, setDates] = useState<ChosenDate[]>([]);
@@ -34,7 +44,7 @@ export function DateHistory({ onPlan, onChanged }: { onPlan: () => void; onChang
     void load(); return () => controller.abort();
   }, [revision, filter]);
   async function complete(id: string) {
-    if (updating || loadingMore) return;
+    if (actionController.current || updating || loadingMore) return;
     const controller = new AbortController(); actionController.current = controller;
     setUpdating(id); setError("");
     try {
@@ -45,7 +55,7 @@ export function DateHistory({ onPlan, onChanged }: { onPlan: () => void; onChang
     finally { if (!controller.signal.aborted) { actionController.current = null; setUpdating(null); } }
   }
   async function loadMore() {
-    if (!nextCursor || loadingMore || updating) return;
+    if (!nextCursor || actionController.current || loadingMore || updating) return;
     const controller = new AbortController(); actionController.current = controller;
     setLoadingMore(true); setError("");
     try {
@@ -57,12 +67,17 @@ export function DateHistory({ onPlan, onChanged }: { onPlan: () => void; onChang
     finally { if (!controller.signal.aborted) { actionController.current = null; setLoadingMore(false); } }
   }
   const visible = dates.filter((date) => filter === "all" || date.dateStatus === filter);
-  return <section className={styles.history} aria-label="My dates"><div className={styles.historyHead}><span className={styles.eyebrow}>THE PLANS. THE YESES. THE MEMORIES.</span><h2>Your dates, in one place.</h2><p>Keep your chosen places, check their response, and remember the dates you&apos;ve done.</p></div>
-    <div className={styles.historyFilters}>{([{ value: "all", label: "All dates" }, { value: "planned", label: "Planned" }, { value: "completed", label: "Done" }] as const).map((tab) => <button key={tab.value} type="button" disabled={loadingMore || !!updating} aria-pressed={filter === tab.value} onClick={() => { if (tab.value === filter) return; setFilter(tab.value); setLoading(true); setError(""); setDates([]); setNextCursor(null); }}>{tab.label}</button>)}</div>
-    {loading ? <p className={styles.historyEmpty} role="status">Finding your little collection of dates…</p> : visible.length ? <div className={styles.historyGrid}>{visible.map((date) => <article key={date.id} className={styles.historyCard}>
-      <span className={styles.badge}>{date.dateStatus === "completed" ? "A memory made" : !date.invitationPublished ? "Saved privately" : date.invitationRevoked ? "Invitation revoked" : date.response === "accepted" ? "They said yes" : date.response === "declined" ? "Another time" : "Invitation pending"}</span><h3>{date.title ?? date.place?.name ?? date.story.title}</h3><p>{dateTimingLabel(date.datePreference, date.startTime, date.dateStatus === "completed", date.date)} · {date.city}</p><p>{date.story.introduction}</p><div className={styles.actions}>{!date.invitationPublished ? <span>Saved privately</span> : date.invitationRevoked ? <span>Invitation link revoked</span> : <><Link href={`/invite/${date.token}`}>View invitation ↗</Link><RevokeInvitation id={date.id} onRevoked={() => setDates((previous) => previous.map((item) => item.id === date.id ? { ...item, invitationRevoked: true } : item))} /></>}{date.dateStatus !== "completed" && <Button variant="outline" disabled={!!updating || loadingMore} onClick={() => void complete(date.id)}>{updating === date.id ? "Saving…" : "Mark as done"}</Button>}</div>
-      <DateActions date={date} disabled={!!updating || loadingMore} onChanged={() => { setLoading(true); setRevision((value) => value + 1); onChanged(); }} />
-    </article>)}</div> : !error && <div className={styles.historyEmpty}><p>{filter === "completed" ? "The dates you mark as done will appear here." : filter === "planned" ? "Your next little plan is waiting to happen." : "Save a date you love. Your chosen place will be kept here."}</p><Button onClick={onPlan}>Plan a date</Button></div>}
-    {error && <p className="error-message" role="alert">{error}</p>}<div className={styles.actions}>{nextCursor && <Button variant="outline" disabled={loadingMore || !!updating} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more dates"}</Button>}<button type="button" className={styles.textButton} disabled={loading || loadingMore || !!updating} onClick={() => { setLoading(true); setError(""); setRevision((value) => value + 1); }}>Refresh dates</button></div>
+  return <section className={styles.section} aria-label="Saved dates">
+    <div className={styles.filters}>{([{ value: "all", label: "All dates" }, { value: "planned", label: "Planned" }, { value: "completed", label: "Done" }] as const).map((tab) => <button key={tab.value} type="button" disabled={loadingMore || !!updating} aria-pressed={filter === tab.value} onClick={() => { if (tab.value === filter) return; setFilter(tab.value); setLoading(true); setError(""); setDates([]); setNextCursor(null); }}>{tab.label}</button>)}</div>
+    {loading ? <p className={styles.empty} role="status">Loading your dates…</p> : visible.length ? <div className={styles.grid}>{visible.map((date) => <article key={date.id} className={styles.card}>
+      <DatePhoto date={date} />
+      <div className={styles.body}>
+        <span className={styles.status}>{date.dateStatus === "completed" ? "Done" : date.suggestedTime ? "New time suggested" : !date.invitationPublished ? "Saved privately" : date.invitationRevoked ? "Invitation revoked" : date.response === "accepted" ? "They said yes" : date.response === "declined" ? "Another time" : "Invitation pending"}</span>
+        <h3>{date.title ?? date.place?.name ?? date.story.title}</h3><p className={styles.meta}>{dateTimingLabel(date.datePreference, date.startTime, date.dateStatus === "completed", date.date)} · {date.city}</p>
+        {date.place?.attributions.length ? <div className={styles.attributions}>{date.place.attributions.map((item, index) => item.url ? <a key={`${item.name}:${index}`} href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span key={`${item.name}:${index}`}>{item.name}</span>)}</div> : null}
+        <DateActions date={date} disabled={!!updating || loadingMore} completing={updating === date.id} onComplete={() => void complete(date.id)} onRevoked={() => setDates((previous) => previous.map((item) => item.id === date.id ? { ...item, invitationRevoked: true } : item))} onChanged={() => { setLoading(true); setRevision((value) => value + 1); onChanged(); }} />
+      </div>
+    </article>)}</div> : !error && <div className={styles.empty}><p>{filter === "completed" ? "The dates you mark as done will appear here." : filter === "planned" ? "Your next plan will appear here." : "Save a date you love to keep it here."}</p><Button onClick={onPlan}>Plan a date</Button></div>}
+    {error && <p className="error-message" role="alert">{error}</p>}<div className={styles.pagination}>{nextCursor && <Button variant="outline" disabled={loadingMore || !!updating} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more dates"}</Button>}<button type="button" disabled={loading || loadingMore || !!updating} onClick={() => { setLoading(true); setError(""); setRevision((value) => value + 1); }}>Refresh dates</button></div>
   </section>;
 }

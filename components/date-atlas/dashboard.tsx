@@ -4,7 +4,7 @@ import { zonedNow } from "@/lib/planner/schedule";
 import { currencyDigits, currencyOptions, currencyForCountry } from "@/lib/planner/currency";
 import { useState } from "react";
 import Image from "next/image";
-import { ArrowRight, CalendarDays, Heart, Settings2 } from "lucide-react";
+import { ArrowRight, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { vibes, type Experience, type PlanRequest } from "@/lib/planner/schema";
@@ -15,21 +15,17 @@ import {
 } from "@/lib/planner/preferences-storage";
 import { LottieAnimation } from "@/components/animations/lottie-animation";
 import { money } from "@/lib/utils";
-import { LegacyPlans } from "./legacy-plans";
 import { DateHistory } from "./date-history";
+import styles from "./dashboard.module.css";
 
 export function Dashboard({
   saved,
-  favorites,
   catalog,
   signedIn,
   busy,
   onPlan,
   onOpen,
   onRemove,
-  onFavorites,
-  onProfile,
-  onLegacyImported,
   onHistoryChanged,
   historyRevision = 0,
 }: {
@@ -57,63 +53,18 @@ export function Dashboard({
         ? saved.filter((item) => item.request.date < zonedNow(item.request.timeZone, now).date)
         : saved;
   return (
-    <main className="dashboard-page page-container">
-      <div className="dashboard-welcome">
+    <main className={styles.page}>
+      <header className={styles.header}>
         <div>
-          <span className="eyebrow">A LITTLE SOMETHING TO LOOK FORWARD TO</span>
-          <h1>
-            Your next memory
-            <br />
-            starts here.
-          </h1>
-          <p>
-            {signedIn
-              ? "The dates you’ve saved, ready when you are."
-              : "Sign in to see your saved plans across devices."}
-          </p>
-          <Button onClick={onPlan}>
-            Plan a date
-            <ArrowRight size={16} />
-          </Button>
+          <h1>My dates</h1>
+          <p>{signedIn ? "Your saved places, plans and invitations." : "Sign in to keep your plans together across devices."}</p>
         </div>
-        <div className="dashboard-art">
-          <Image
-            src="/images/date-atlas-hero.png"
-            alt="Illustrative creative date inspiration"
-            loading="eager"
-            fill
-            sizes="300px"
-          />
-        </div>
-      </div>
-      {signedIn && <LegacyPlans onImported={onLegacyImported} />}
+        <Button onClick={onPlan}>Plan a date<ArrowRight size={16} aria-hidden="true" /></Button>
+      </header>
       {signedIn && <DateHistory key={historyRevision} onPlan={onPlan} onChanged={onHistoryChanged} />}
       {(saved.length > 0 || !signedIn) && <>
-      <div className="dashboard-stats">
-        <div>
-          <CalendarDays size={20} />
-          <strong>{upcoming.length}</strong>
-          <span>Upcoming dates</span>
-        </div>
-        <button onClick={onFavorites}>
-          <Heart size={20} />
-          <strong>{favorites.length}</strong>
-          <span>
-            Favorite experiences
-            <ArrowRight size={14} />
-          </span>
-        </button>
-        <button onClick={onProfile}>
-          <Settings2 size={20} />
-          <strong>Your kind of date</strong>
-          <span>
-            Edit personal preferences
-            <ArrowRight size={14} />
-          </span>
-        </button>
-      </div>
-      <div className="section-heading">
-        <h2>A collection of good days.</h2>
+      <div className={styles.collectionHeader}>
+        <h2>Saved plans</h2>
         <div className="segmented-control">
           {["All plans", "Upcoming", "Past dates"].map((label) => (
             <button
@@ -207,12 +158,16 @@ export function Dashboard({
 export function ProfilePreferences({
   request,
   signedIn,
+  accountName,
+  accountEmail,
   onAuth,
   onSave,
   onReset,
 }: {
   request: PlanRequest;
   signedIn: boolean;
+  accountName?: string | null;
+  accountEmail?: string | null;
   onAuth: () => void;
   onSave: (preferences: StoredPreferences) => void;
   onReset: () => void;
@@ -228,158 +183,115 @@ export function ProfilePreferences({
     setPreferences((previous) => ({ ...previous, [key]: value }));
     setError("");
   }
+  const currency = preferences.currency ?? "NGN";
+  const location = [preferences.city, preferences.area].filter(Boolean).join(", ");
   return (
-    <main className="profile-page page-container">
-      <div className="results-heading">
+    <main className={`${styles.page} ${styles.profile}`}>
+      <header className={styles.header}>
         <div>
-          <span className="eyebrow">THE LITTLE THINGS THAT MAKE YOU, YOU</span>
-          <h1>A little more personal.</h1>
-          <p>Your preferences help shape the next date you plan.</p>
+          <h1>Your profile</h1>
+          <p>A few defaults to make your next date easier to plan.</p>
         </div>
-        <Button variant="outline" onClick={onAuth}>
+        <Button type="button" variant="ghost" className={styles.accountButton} onClick={onAuth}>
+          <Settings2 size={17} aria-hidden="true" />
           {signedIn ? "Manage account" : "Sign in or create account"}
         </Button>
-      </div>
-      <form
-        className="profile-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const parsed = preferenceSchema.safeParse(preferences);
-          if (!parsed.success) {
-            setError(parsed.error.issues[0].message);
-            return;
-          }
-          onSave(parsed.data);
-        }}
-      >
-        <section>
-          <h2>Your usual starting point.</h2>
-          <div className="field-grid">
-            <Field label="Country"><input value={preferences.country ?? request.country} onChange={(event) => { const country = event.target.value; const currency = currencyForCountry(country); setPreferences(previous => ({ ...previous, country, ...(currency ? { currency, ...(currency !== (previous.currency ?? request.currency) ? { budget: null, transportBudget: null } : {}) } : {}) })); setError(""); }} /></Field>
-            <Field label="City">
-              <input
-                value={preferences.city || ""}
-                onChange={(event) => update("city", event.target.value)}
-              />
-            </Field>
-            <Field label="Area">
-              <input
-                value={preferences.area || ""}
-                onChange={(event) => update("area", event.target.value)}
-              />
-            </Field>
-          </div>
-          <Field label="Budget currency"><select value={preferences.currency ?? "NGN"} onChange={(event) => { update("currency", event.target.value); update("budget", null); update("transportBudget", null); }}>{currencyOptions.map((currency) => <option key={currency}>{currency}</option>)}</select></Field>
-          <Field label={`Comfortable total budget (${preferences.currency ?? "NGN"}, optional)`}>
-            <input
-              type="number"
-              min={0}
-              step={10 ** -currencyDigits(preferences.currency ?? "NGN")}
-              max={10000000}
-              value={preferences.budget ?? ""}
-              onChange={(event) => {
-                update("budget", event.target.value ? Number(event.target.value) : null);
-                update("budgetType", "total");
-              }}
-            />
-          </Field>
-        </section>
-        <section>
-          <h2>Your kind of together.</h2>
-          <div className="pill-group">
-            {vibes.map((vibe) => (
-              <button
-                key={vibe}
-                type="button"
-                className={`filter-pill ${preferences.vibes?.includes(vibe) ? "active" : ""}`}
-                aria-pressed={preferences.vibes?.includes(vibe) || false}
-                onClick={() =>
-                  update(
-                    "vibes",
-                    preferences.vibes?.includes(vibe)
-                      ? preferences.vibes.filter((item) => item !== vibe)
-                      : [...(preferences.vibes || []), vibe],
-                  )
-                }
-              >
-                {vibe}
-              </button>
-            ))}
-          </div>
-          <Field label="Interests">
-            <textarea
-              rows={3}
-              maxLength={1000}
-              value={preferences.interests || ""}
-              onChange={(event) => update("interests", event.target.value)}
-            />
-          </Field>
-          <Field label="Things you'd rather skip">
-            <input
-              maxLength={500}
-              value={preferences.dislikes || ""}
-              onChange={(event) => update("dislikes", event.target.value)}
-            />
-          </Field>
-          <label className="plain-toggle">
-            <input
-              type="checkbox"
-              checked={preferences.quiet || false}
-              onChange={(event) => update("quiet", event.target.checked)}
-            />
-            Would you prefer somewhere quiet enough to talk?
-          </label>
-          <label className="plain-toggle">
-            <input
-              type="checkbox"
-              checked={preferences.accessibility || false}
-              onChange={(event) =>
-                update("accessibility", event.target.checked)
-              }
-            />
-            Is a step-free entrance essential?
-          </label>
-          <Field label="Where would you prefer to spend the date?">
-            <select
-              value={preferences.environment ?? "any"}
-              onChange={(event) => update("environment", event.target.value === "indoor" ? "indoor" : event.target.value === "outdoor" ? "outdoor" : "any")}
-            >
-              <option value="any">Either</option>
-              <option value="indoor">Indoors</option>
-              <option value="outdoor">Outdoors</option>
-            </select>
-          </Field>
-          {!!preferences.dietary?.length && <details className="flow-details">
-            <summary>Previously saved food requirements</summary>
-            <div className="form-stack">
-              <p>{preferences.dietary.join(", ")}</p>
-              <Button type="button" variant="outline" onClick={() => update("dietary", [])}>Remove saved food requirements</Button>
+      </header>
+      <div className={styles.profileLayout}>
+        <aside className={styles.summary} aria-labelledby="profile-summary-heading">
+          <div className={styles.profileMark} aria-hidden="true"><UserRound size={24} strokeWidth={1.6} /></div>
+          <h2 id="profile-summary-heading">{accountName || "Your planning defaults"}</h2>
+          <p>{signedIn ? accountEmail || "Signed in" : "Not signed in"}</p>
+          <dl>
+            <div><dt>Starting point</dt><dd>{location || "Choose your usual city"}</dd></div>
+            <div><dt>Budget</dt><dd>{preferences.budget == null ? "Open to suggestions" : `${money(preferences.budget, currency)}${preferences.budgetType === "per-person" ? " per person" : " total"}`}</dd></div>
+            <div><dt>Atmosphere</dt><dd>{preferences.vibes?.length ? preferences.vibes.join(", ") : "Choose what you enjoy"}</dd></div>
+          </dl>
+          <p className={styles.summaryNote}>You can change these details for each new date. Saved dates keep their original answers.</p>
+        </aside>
+        <form
+          className={styles.form}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const parsed = preferenceSchema.safeParse(preferences);
+            if (!parsed.success) {
+              setError(parsed.error.issues[0].message);
+              return;
+            }
+            onSave(parsed.data);
+          }}
+        >
+          <fieldset className={styles.group}>
+            <legend>Where you start</legend>
+            <p className={styles.groupHint}>Your usual city and neighbourhood. You can plan somewhere else any time.</p>
+            <div className={styles.fieldGrid}>
+              <Field label="Country">
+                <input autoComplete="country-name" maxLength={80} value={preferences.country ?? request.country} onChange={(event) => {
+                  const country = event.target.value;
+                  const nextCurrency = currencyForCountry(country);
+                  setPreferences(previous => ({ ...previous, country, ...(nextCurrency ? { currency: nextCurrency, ...(nextCurrency !== (previous.currency ?? request.currency) ? { budget: null, transportBudget: null } : {}) } : {}) }));
+                  setError("");
+                }} />
+              </Field>
+              <Field label="City"><input autoComplete="address-level2" maxLength={80} value={preferences.city || ""} onChange={(event) => update("city", event.target.value)} /></Field>
+              <Field label="Neighbourhood or area"><input maxLength={80} value={preferences.area || ""} onChange={(event) => update("area", event.target.value)} /></Field>
             </div>
-          </details>}
-        </section>
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="profile-actions">
-          <Button>Save preferences</Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              onReset();
-              setPreferences({});
-            }}
-          >
-            Delete saved preferences
-          </Button>
-        </div>
-        <p className="secondary-notice">
-          Preferences are saved on this device. You can edit or clear them at
-          any time. Existing saved plans keep their original answers.
-        </p>
-      </form>
+          </fieldset>
+          <fieldset className={styles.group}>
+            <legend>What feels comfortable to spend</legend>
+            <p className={styles.groupHint}>Leave the amount blank to keep your budget open.</p>
+            <div className={styles.fieldGrid}>
+              <Field label="Currency"><select value={currency} onChange={(event) => { update("currency", event.target.value); update("budget", null); update("transportBudget", null); }}>{currencyOptions.map((option) => <option key={option}>{option}</option>)}</select></Field>
+              <Field label={`Preferred budget (${currency})`} hint="Editing this amount sets a total budget for the date.">
+                <input type="number" min={0} step={10 ** -currencyDigits(currency)} max={10000000} inputMode="decimal" value={preferences.budget ?? ""} onChange={(event) => {
+                  update("budget", event.target.value ? Number(event.target.value) : null);
+                  update("budgetType", "total");
+                }} />
+              </Field>
+            </div>
+          </fieldset>
+          <fieldset className={styles.group}>
+            <legend>Your kind of date</legend>
+            <p className={styles.groupHint}>Choose the moods you enjoy. Keep at least one selected.</p>
+            <div className={styles.moods}>
+              {vibes.map((vibe) => (
+                <button key={vibe} type="button" className={styles.mood} aria-pressed={preferences.vibes?.includes(vibe) || false} onClick={() => update("vibes", preferences.vibes?.includes(vibe) ? preferences.vibes.filter((item) => item !== vibe) : [...(preferences.vibes || []), vibe])}>
+                  {vibe}
+                </button>
+              ))}
+            </div>
+            <Field label="What do you enjoy?" hint="Activities, food, music or anything you would love to try."><textarea rows={3} maxLength={1000} value={preferences.interests || ""} onChange={(event) => update("interests", event.target.value)} /></Field>
+            <Field label="Anything you would rather skip?"><input maxLength={500} value={preferences.dislikes || ""} onChange={(event) => update("dislikes", event.target.value)} /></Field>
+          </fieldset>
+          <fieldset className={styles.group}>
+            <legend>The practical details</legend>
+            <Field label="Preferred setting"><select value={preferences.environment ?? "any"} onChange={(event) => update("environment", event.target.value === "indoor" ? "indoor" : event.target.value === "outdoor" ? "outdoor" : "any")}><option value="any">Indoors or outdoors</option><option value="indoor">Indoors</option><option value="outdoor">Outdoors</option></select></Field>
+            <label className={styles.toggle}>
+              <span><strong>Somewhere quiet enough to talk</strong><small>Prefer a quieter atmosphere.</small></span>
+              <input type="checkbox" checked={preferences.quiet || false} onChange={(event) => update("quiet", event.target.checked)} />
+            </label>
+            <label className={styles.toggle}>
+              <span><strong>A step-free entrance is essential</strong><small>Keep this requirement when looking for a place.</small></span>
+              <input type="checkbox" checked={preferences.accessibility || false} onChange={(event) => update("accessibility", event.target.checked)} />
+            </label>
+            {!!preferences.dietary?.length && <details className={styles.legacyRequirements}>
+              <summary>Previously saved food requirements</summary>
+              <p>{preferences.dietary.join(", ")}</p>
+              <button type="button" className={styles.textButton} onClick={() => update("dietary", [])}>Remove saved food requirements</button>
+            </details>}
+          </fieldset>
+          {error && <p className="error-message" role="alert">{error}</p>}
+          <div className={styles.formFooter}>
+            <Button type="submit">Save preferences</Button>
+            <p>Saved on this device for the next date you plan.</p>
+          </div>
+          <details className={styles.reset}>
+            <summary>Clear saved preferences</summary>
+            <p>This removes your defaults from this device. Your saved dates stay as they are.</p>
+            <button type="button" className={styles.textButton} onClick={() => { onReset(); setPreferences({}); setError(""); }}>Clear preferences</button>
+          </details>
+        </form>
+      </div>
     </main>
   );
 }

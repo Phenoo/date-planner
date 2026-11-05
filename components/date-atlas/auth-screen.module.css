@@ -42,6 +42,12 @@
 .legal { margin: 22px auto 0; max-width: 330px; text-align: center; font-size: 10px; line-height: 1.8; color: #725d63; }
 .legal a { color: #6c4c56; text-decoration: underline; text-underline-offset: 3px; }
 .account > :global(.auth-message) { margin-top: 20px; font-size: 12px; line-height: 1.7; }
+.accountScreen:global(.dialog-content) { inset: 50% auto auto 50%; width: min(600px,calc(100% - 32px)); height: auto; max-height: calc(100dvh - 48px); transform: translate(-50%,-50%); border: 1px solid #eadfe3; border-radius: 18px; box-shadow: 0 20px 80px #29152120; }
+.accountScreen .layout { display: block; min-height: 0; }
+.accountScreen .panel { min-height: 0; padding: 38px 28px 28px; }
+.accountScreen .inner { width: 100%; }
+.accountScreen .mobileBrand { display: none; }
+.accountScreen > :global(.dialog-close) { position: absolute; top: 14px; right: 14px; }
 @media (max-height:780px) and (min-width:861px) {
   .illustration { width: 200px; height: 155px; margin-bottom: 26px; }
   .story { padding-block: 30px 25px; }
