@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { ArrowUpRight } from "lucide-react";
 import type { PlannerMode } from "@/lib/planner/intake";
 import styles from "./planner-chat.module.css";
 
@@ -37,7 +38,7 @@ export function PlannerModeChoice({ onChoose }: { onChoose: (mode: PlannerMode) 
         {mode.value === "chat" ? <div className={styles.chatPreview} aria-hidden="true"><span>A little romantic. A little unexpected.</span><span>I like where this is going.</span><i /></div>
           : <div className={styles.stepsPreview} aria-hidden="true"><span>What’s your kind of date?</span><span>Romantic</span><span>Something playful</span></div>}
         <h2>{mode.title}</h2><p>{mode.description}</p>
-        <button className={styles.modeAction} type="button" onClick={() => onChoose(mode.value)}>{mode.action}<span aria-hidden="true">↗</span></button>
+        <button className={styles.modeAction} type="button" onClick={() => onChoose(mode.value)}>{mode.action}<ArrowUpRight size={22} aria-hidden="true" /></button>
       </section>)}
     </div>
   </main>;
