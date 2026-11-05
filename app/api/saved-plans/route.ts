@@ -11,6 +11,7 @@ import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
 
 import { dateSelectionId } from "@/lib/server/date-invitations";
 import { recordFunnel } from "@/lib/server/funnel";
+import { queueDateCreatedEmail } from "@/lib/server/date-email-outbox";
 
 export async function GET(request: Request) {
   try {
@@ -56,20 +57,23 @@ export async function POST(request: Request) {
     const plan = experiences.every((item) => item !== undefined) ? recalculateExactPlan(recipe.data.request, experiences, undefined, catalog) : null;
     if (!plan || !await planHasQualifyingGoogleRatings(plan)) throw new RequestError("Only places with a confirmed Google rating above 3.75 can be saved. Reopen your plan or choose another recommendation.", 409);
     const user = auth.db.collection("users").doc(auth.user.uid);
-    const batch = auth.db.batch();
-    batch.set(
-      user,
-      { updatedAt: FieldValue.serverTimestamp() },
-      { merge: true },
-    );
-    batch.set(
-      user.collection("savedPlans").doc(savedDocumentId(recipe.data.id)),
-      {
-        recipe: encodeRecipe(savedRecipeSchema.parse(recipe.data)),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-    );
-    await batch.commit();
+    const savedPlan = user.collection("savedPlans").doc(savedDocumentId(recipe.data.id));
+    await auth.db.runTransaction(async (transaction) => {
+      const existing = await transaction.get(savedPlan);
+      if (!existing.exists) await queueDateCreatedEmail(transaction, user, { dateId: dateSelectionId("catalog", plan.id), source: "catalog", recipeId: recipe.data.id });
+      transaction.set(
+        user,
+        { updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+      transaction.set(
+        savedPlan,
+        {
+          recipe: encodeRecipe(savedRecipeSchema.parse(recipe.data)),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+      );
+    });
     await recordFunnel(auth.user.uid, "plan_saved", dateSelectionId("catalog", recipe.data.id), undefined, recipe.data.flowScope);
     return Response.json({ saved: true });
   } catch (error) {

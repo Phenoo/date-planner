@@ -23,6 +23,7 @@ import { venueControls } from "./venue-controls";
 import { deletionKey } from "./account-privacy";
 import { contextExpired } from "./context-retention";
 import { planHasQualifyingGoogleRatings } from "./plan-ratings";
+import { queueDateCreatedEmail } from "./date-email-outbox";
 
 const sessionSchema = datePreferencesSchema.extend({ candidates: z.array(z.object({ id: z.string().min(1).max(200), distanceKm: z.number().nonnegative().default(0), story: dateStorySchema })).min(1).max(3) });
 export const storedDateSchema = datePreferencesSchema.extend({
@@ -84,7 +85,9 @@ export async function createChosenDate(request: Request, sessionId: string, plac
     const current = storedDateSchema.safeParse((await tx.get(history)).data());
     if (current.success && (!publish || current.data.invitationPublished && !current.data.invitationRevoked)) return { token: current.data.token, id, response: current.data.response, message: current.data.message ?? "" };
     if (current.success && current.data.dateStatus === "completed") throw new RequestError("This date is already marked as done.", 409);
+    if (!current.success) await queueDateCreatedEmail(tx, user, { dateId: id, source: "google" });
     const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}) };
+    tx.set(user, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(history, nextRecord);
     if (publish) tx.create(auth.db.collection("dateInvitations").doc(invitationKey), { ...publicStoredDateSchema.parse(nextRecord), story: fallbackDateStory(details.place.category), publicStoryVersion: 1, ownerId: auth.user.uid, selectionId: id });
     return { token, id, response: nextRecord.response, message: nextRecord.message ?? "" };
@@ -117,8 +120,10 @@ export async function createCatalogInvitation(request: Request, recipe: SavedRec
     const current = storedDateSchema.safeParse((await tx.get(history)).data());
     if (current.success && !current.data.invitationRevoked) return { id, token: current.data.token, response: current.data.response, message: current.data.message ?? "" };
     if (current.success && current.data.dateStatus === "completed") throw new RequestError("This date is already marked as done.", 409);
+    if (!current.success) await queueDateCreatedEmail(tx, user, { dateId: id, source: "catalog", recipeId: plan.id });
     if (current.success) record.createdAt = current.data.createdAt;
     const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}) };
+    tx.set(user, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(history, nextRecord);
     tx.set(user.collection("savedPlans").doc(savedDocumentId(plan.id)), { recipe: encodeRecipe(toRecipe(plan)), updatedAt: FieldValue.serverTimestamp() });
     tx.create(auth.db.collection("dateInvitations").doc(invitationKey), { ...publicStoredDateSchema.parse(nextRecord), publicStoryVersion: 1, ownerId: auth.user.uid, selectionId: id });

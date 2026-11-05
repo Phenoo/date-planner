@@ -82,8 +82,35 @@ test("partnership emails go only to support, preserve reply-to and escape all ap
   assert.match(message.html, /Example &amp; Company/);
   assert.match(message.html, /Owner&#39;s representative/);
   assert.match(message.html, /one=1&amp;two=2/);
-  assert.match(message.html, /&lt;\/script&gt;<br>/);
+  assert.match(message.html, /&lt;\/script&gt;<br\s*\/?>/);
   assert.match(message.text, /Privacy notice acknowledged: Yes/);
+});
+
+test("partnership emails use the shared readable HTML while preserving every enquiry field and the existing plain text", () => {
+  const input = partnershipEnquirySchema.parse({ ...validInput, role: "Programme director", website: "https://example.com/partnerships" });
+  const message = partnershipEnquiryMessage(input);
+  assert.match(message.html, /<!doctype html>/i);
+  assert.match(message.html, /<html[^>]+lang="en"/);
+  assert.match(message.html, /role="presentation"/);
+  assert.match(message.html, /style="[^"]*background-color:#d91335/);
+  assert.match(message.html, /A new partnership enquiry\./);
+  for (const value of [input.contactName, input.workEmail, input.organization, input.role, input.cityCountry, input.website, input.proposal].filter((value): value is string => value !== undefined)) {
+    assert.ok(message.html.includes(value), `Enquiry field must be retained: ${value}`);
+  }
+  assert.match(message.html, /Reply to this email/);
+  assert.ok(!message.html.includes('href="https://example.com/partnerships"'));
+  assert.equal(message.text, `A Date At las — Venue partnership enquiry\n\nContact: Jamie Example\nWork email: jamie@example.com\nOrganization: Example Gallery\nRole: Programme director\nPartnership type: Venue partnership\nCity and country: London, United Kingdom\nWebsite: https://example.com/partnerships\n\nProposal:\n${validInput.proposal}\n\nPrivacy notice acknowledged: Yes\nSubmitted through https://adateatlas.com/partners`);
+});
+
+test("maximum partnership proposals remain complete, escaped and compact inside the shared template", () => {
+  const proposal = "'".repeat(5000);
+  const input = partnershipEnquirySchema.parse({ ...validInput, proposal, website: `https://example.com/${"x".repeat(2028)}` });
+  const message = partnershipEnquiryMessage(input);
+  assert.ok(message.text.includes(proposal));
+  assert.ok(message.html.includes("&#39;".repeat(5000)));
+  assert.ok(message.html.includes(input.website ?? ""));
+  assert.ok(Buffer.byteLength(message.html, "utf8") < 100000);
+  assert.equal(message.html, partnershipEnquiryMessage(input).html);
 });
 
 test("partnership idempotency keys are stable for retries and change with edited content or a new submission", () => {

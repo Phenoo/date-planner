@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { brandEmail } from "@/lib/email/brand-template";
 import { siteName, siteOrigin, supportEmail } from "@/lib/seo/site";
 
 const singleLine = (minimum: number, maximum: number) => z.string().trim().min(minimum).max(maximum).refine((value) => !/[\u0000-\u001f\u007f]/.test(value));
@@ -34,10 +35,6 @@ const partnershipLabels = {
   other: "Other partnership",
 } satisfies Record<PartnershipEnquiry["partnershipType"], string>;
 
-function escapeHtml(value: string) {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-}
-
 export function partnershipEnquiryMessage(input: PartnershipEnquiry) {
   const fields = [
     ["Contact", input.contactName],
@@ -49,13 +46,21 @@ export function partnershipEnquiryMessage(input: PartnershipEnquiry) {
     ["Website", input.website || "Not provided"],
   ];
   const subject = `${siteName} — ${partnershipLabels[input.partnershipType]} enquiry`;
+  const content = brandEmail({
+    preheader: `${input.organization} · ${partnershipLabels[input.partnershipType]}`,
+    eyebrow: "Partnership enquiry",
+    title: "A new partnership enquiry.",
+    paragraphs: ["A new proposal is ready for your review. Reply to this email to continue the conversation with the applicant."],
+    facts: [...fields.map(([label, value]) => ({ label, value })), { label: "Proposal", value: input.proposal }],
+    note: `Privacy notice acknowledged: Yes\nSubmitted through ${siteOrigin}/partners`,
+  });
   return {
     from: `${siteName} <noreply@adateatlas.com>`,
     to: [supportEmail],
     reply_to: input.workEmail,
     subject,
     text: `${subject}\n\n${fields.map(([label, value]) => `${label}: ${value}`).join("\n")}\n\nProposal:\n${input.proposal}\n\nPrivacy notice acknowledged: Yes\nSubmitted through ${siteOrigin}/partners`,
-    html: `<h1>${escapeHtml(subject)}</h1><dl>${fields.map(([label, value]) => `<dt><strong>${escapeHtml(label)}</strong></dt><dd>${escapeHtml(value)}</dd>`).join("")}</dl><h2>Proposal</h2><p>${escapeHtml(input.proposal).replaceAll("\n", "<br>")}</p><p>Privacy notice acknowledged: Yes</p><p>Submitted through ${escapeHtml(siteOrigin)}/partners</p>`,
+    html: content.html,
   };
 }
 

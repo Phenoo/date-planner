@@ -1,4 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { getAppCheck } from "firebase-admin/app-check";
 import { getFirebaseAdmin } from "../../lib/firebase/server";
@@ -14,9 +15,19 @@ import { invitations } from "../../lib/server/actions/invitations";
 import { dateHistory } from "../../lib/server/actions/date-history";
 import { conversation } from "../../lib/server/actions/conversation";
 import { intake } from "../../lib/server/actions/intake";
+import { sendDateCreatedEmail } from "../../lib/server/date-created-email";
 const deepseek = defineSecret("DEEPSEEK_API_KEY");
 const limiter = defineSecret("PLANNER_RATE_LIMIT_SECRET");
 const maps = defineSecret("GOOGLE_MAPS_SERVER_KEY");
+const resend = defineSecret("RESEND_API_KEY");
+export const dateCreatedEmail = onDocumentCreated({
+  document: "users/{ownerId}/emailNotifications/{dateId}",
+  region: "europe-west1", memory: "256MiB", timeoutSeconds: 60, maxInstances: 2, concurrency: 4,
+  serviceAccount: "date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com",
+  secrets: [resend, maps], retry: true,
+}, async event => {
+  if (event.data) await sendDateCreatedEmail(event.params.ownerId, event.params.dateId);
+});
 const actions = { generate, chat, customize, swap, restore, locate, places, discoverPlaces, invitations, dateHistory, conversation, intake };
 export const datePlanner = onRequest({ region: "europe-west1", invoker: ["date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com"], timeoutSeconds: 60, memory: "512MiB", maxInstances: 3,
   serviceAccount: "date-atlas-server@date-atlas-20261026.iam.gserviceaccount.com", secrets: [deepseek, limiter, maps],

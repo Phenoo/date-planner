@@ -5,7 +5,7 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { getFirebaseAdmin, getDatabase } from "../../lib/firebase/server";
-import { persistDiscoverySession, tokenKey } from "../../lib/server/date-invitations";
+import { dateSelectionId, persistDiscoverySession, tokenKey } from "../../lib/server/date-invitations";
 import { invitations } from "../../lib/server/actions/invitations";
 import { dateHistory } from "../../lib/server/actions/date-history";
 import { POST as mergeGuest } from "../../app/api/account/merge/route";
@@ -50,10 +50,12 @@ import { recordFunnel } from "../../lib/server/funnel";
 import { POST as restoreContext } from "../../app/api/plans/context/route";
 
 const originalFetch = globalThis.fetch;
+let outboundMailAttempts = 0;
 let interruptMerge = false;
 let heldMerge: { entered: () => void; released: Promise<void> } | null = null;
 globalThis.fetch = async (input, init) => {
   const url = String(input);
+  if (url.startsWith("https://api.resend.com/")) { outboundMailAttempts++; throw new Error("Outbound email is blocked in the emulator journey."); }
   if (url.startsWith("https://maps.googleapis.com/maps/api/geocode/json")) return Response.json({ status: "OK", results: [{ geometry: { location: { lat: 6.45, lng: 3.46 } }, address_components: [], formatted_address: "TEST FIXTURE AREA" }] });
   if (url === "/api/account/merge") { if (heldMerge) { heldMerge.entered(); await heldMerge.released; heldMerge = null; } if (interruptMerge) { interruptMerge = false; return Response.json({ error: "Test-only interrupted transfer" }, { status: 503 }); } return mergeGuest(new Request("http://test.local/api/account/merge", init)); }
   if (url.startsWith("https://places.googleapis.com/v1/places:")) return Response.json({ places: [{ id: "TEST_PLACE_0", displayName: { text: "TEST FIXTURE 0" }, formattedAddress: "TEST FIXTURE ADDRESS", primaryTypeDisplayName: { text: "Art gallery" }, businessStatus: "OPERATIONAL", location: { latitude: 6.45, longitude: 3.46 }, types: ["art_gallery"], rating: 4.5, attributions: [], photos: [] }] });
@@ -95,6 +97,14 @@ choices.places[0].story = { ...fallbackDateStory("Art gallery"), introduction: "
 const session = await persistDiscoverySession(req({}, guest.idToken), choices, preferences);
 assert.ok(session.sessionId);
 const db = getDatabase();
+const pendingEmailSchema = z.object({ source: z.enum(["google", "catalog"]), recipeId: z.string().max(500).optional(), status: z.literal("pending"), createdAt: z.instanceof(Timestamp) }).strict();
+async function pendingDateEmail(ownerId: string, dateId: string, source: "google" | "catalog", recipeId?: string) {
+  const record = pendingEmailSchema.parse((await db.collection("users").doc(ownerId).collection("emailNotifications").doc(dateId).get()).data());
+  assert.equal(record.source, source);
+  assert.equal(record.recipeId, recipeId);
+  return record;
+}
+const memberEmailJobs = db.collection("users").doc(member.localId).collection("emailNotifications");
 const templateExperience = demoCatalog.find((experience) => experience.category === "Food & dining");
 assert.ok(templateExperience);
 const reviewedToday = new Date().toISOString().slice(0, 10);
@@ -110,6 +120,11 @@ assert.equal((await savePlan(req({ ...recipe, experienceIds: [`UNTRUSTED_${rando
 await db.collection("experiences").doc(savedExperience.id).set({ record: encodeExperience(savedExperience), active: true, approved: true, demo: false });
 for (const response of await Promise.all([savePlan(req(recipe, member.idToken)), savePlan(req(recipe, member.idToken))])) assert.equal(response.status, 200);
 assert.equal((await db.collection("users").doc(member.localId).collection("savedPlans").get()).size, 1, "Repeated saves update one deterministic record");
+const savedPlanEmailId = dateSelectionId("catalog", savedPlan.id);
+const savedPlanEmail = await pendingDateEmail(member.localId, savedPlanEmailId, "catalog", recipe.id);
+assert.equal((await memberEmailJobs.get()).size, 1, "Concurrent saves queue exactly one metadata-only email job");
+assert.equal((await savePlan(req(recipe, member.idToken))).status, 200);
+assert.deepEqual(await pendingDateEmail(member.localId, savedPlanEmailId, "catalog", recipe.id), savedPlanEmail, "A later save cannot recreate or reset its pending email job");
 const saved = await (await getSaved(req({}, member.idToken))).json();
 assert.equal(saved.plans[0].request.timeZone, "Africa/Lagos");
 assert.equal(saved.plans[0].request.date, preferences.date);
@@ -142,6 +157,8 @@ const duplicate = createdInvitationSchema.parse(await created[1].json());
 assert.deepEqual(first, duplicate);
 assert.equal((await db.collection("users").doc(member.localId).collection("dateHistory").get()).size, 1);
 assert.equal((await db.collection("users").doc(guest.localId).collection("dateHistory").get()).size, 0);
+await pendingDateEmail(member.localId, first.id, "google");
+assert.equal((await memberEmailJobs.get()).size, 2, "Concurrent invitation creation adds one email job to the existing catalog-save job");
 
 const publicResponse = await invitations(req({ action: "read", token: first.token }));
 assert.equal(publicResponse.status, 200);
@@ -213,11 +230,18 @@ const lookup = { ...thirdPick, action: "selection" };
 const beforeSave = await (await invitations(req(lookup, member.idToken))).json();
 assert.deepEqual(beforeSave, { saved: false, selection: null }, "Reading a choice must never publish an invitation");
 assert.equal((await invitations(req({ ...thirdPick, action: "save" }, guest.idToken))).status, 401);
+const jobsBeforePrivateSave = (await memberEmailJobs.get()).size;
 const privatelySaved = createdInvitationSchema.parse(await (await invitations(req({ ...thirdPick, action: "save" }, member.idToken))).json());
+const privateSaveEmail = await pendingDateEmail(member.localId, privatelySaved.id, "google");
+assert.equal((await memberEmailJobs.get()).size, jobsBeforePrivateSave + 1);
+assert.equal((await invitations(req({ ...thirdPick, action: "save" }, member.idToken))).status, 200);
+assert.deepEqual(await pendingDateEmail(member.localId, privatelySaved.id, "google"), privateSaveEmail, "Repeated private saves retain the original email metadata");
 assert.equal((await invitations(req({ action: "message", id: privatelySaved.id, message: "Not published yet" }, member.idToken))).status, 409, "Adding a note cannot publish a privately saved plan");
 assert.equal((await invitations(req({ action: "read", token: privatelySaved.token }))).status, 404, "Saving privately must not create a public projection");
 assert.deepEqual(await (await invitations(req(lookup, member.idToken))).json(), { saved: true, selection: null });
 const published = createdInvitationSchema.parse(await (await invitations(req(thirdPick, member.idToken))).json());
+assert.deepEqual(await pendingDateEmail(member.localId, published.id, "google"), privateSaveEmail, "Publishing a private date must not enqueue another creation email");
+assert.equal((await memberEmailJobs.get()).size, jobsBeforePrivateSave + 1);
 const note = { action: "message", id: published.id, message: "I thought we'd love a little time together." };
 assert.equal((await invitations(req(note))).status, 401);
 assert.equal((await invitations(req(note, guest.idToken))).status, 401);
@@ -247,6 +271,7 @@ const replacement = createdInvitationSchema.parse(await replacements[0].json());
 assert.deepEqual(createdInvitationSchema.parse(await replacements[1].json()), replacement);
 assert.equal(replacement.id, published.id);
 assert.notEqual(replacement.token, published.token, "Recreating an invitation rotates the token");
+assert.deepEqual(await pendingDateEmail(member.localId, replacement.id, "google"), privateSaveEmail, "Token rotation preserves the one-per-date notification marker");
 assert.equal((await invitations(req({ action: "read", token: published.token }))).status, 404, "A revoked URL must never be resurrected");
 assert.equal((await invitations(req({ action: "read", token: replacement.token }))).status, 200);
 assert.equal(publicInvitationSchema.parse(await (await invitations(req({ action: "read", token: replacement.token }))).json()).message, note.message, "Token rotation preserves the deliberately public message");
@@ -271,10 +296,19 @@ assert.equal((await invitations(req(catalogCreate))).status, 401);
 assert.equal((await invitations(req(catalogCreate, guest.idToken))).status, 401);
 assert.equal((await invitations(req({ ...catalogCreate, recipe: { ...catalogCreate.recipe, experienceIds: ["UNKNOWN_EXPERIENCE"] } }, member.idToken))).status, 409);
 assert.equal((await invitations(req({ ...catalogCreate, recipe: { ...catalogCreate.recipe, request: { ...catalogCreate.recipe.request, budget: 1000 } } }, member.idToken))).status, 409);
+const jobsBeforeCatalogSave = (await memberEmailJobs.get()).size;
+const privateCatalogRecipe = { ...toRecipe(catalogPlan), id: "TEST_PRIVATE_CATALOG_ALIAS", title: "PRIVATE CATALOG TITLE" };
+assert.equal((await savePlan(req(privateCatalogRecipe, member.idToken))).status, 200);
+const catalogEmailId = dateSelectionId("catalog", catalogPlan.id);
+const catalogSaveEmail = await pendingDateEmail(member.localId, catalogEmailId, "catalog", privateCatalogRecipe.id);
+assert.equal((await memberEmailJobs.get()).size, jobsBeforeCatalogSave + 1);
 const catalogResponses = await Promise.all([invitations(req(catalogCreate, member.idToken)), invitations(req(catalogCreate, member.idToken))]);
 for (const response of catalogResponses) assert.equal(response.status, 200);
 const catalogInvite = createdInvitationSchema.parse(await catalogResponses[0].json());
 assert.deepEqual(createdInvitationSchema.parse(await catalogResponses[1].json()), catalogInvite);
+assert.equal(catalogInvite.id, catalogEmailId);
+assert.deepEqual(await pendingDateEmail(member.localId, catalogInvite.id, "catalog", privateCatalogRecipe.id), catalogSaveEmail, "Catalog sharing uses the existing canonical date job without replacing its actual saved-recipe pointer");
+assert.equal((await memberEmailJobs.get()).size, jobsBeforeCatalogSave + 1, "Private catalog save followed by repeated sharing queues only one email");
 const catalogPublicRaw = await (await invitations(req({ action: "read", token: catalogInvite.token }))).json();
 const catalogPublic = publicInvitationSchema.parse(catalogPublicRaw);
 assert.equal(catalogPublic.source, "catalog");
@@ -497,6 +531,7 @@ assert.equal((await db.collection("users").doc(member.localId).collection("userF
 const deletionTarget = await user(`privacy-${randomUUID()}@example.test`);
 const deletionSession = await persistDiscoverySession(req({}, deletionTarget.idToken), choices, preferences);
 const deletionInvite = createdInvitationSchema.parse(await (await invitations(req({ action: "create", sessionId: deletionSession.sessionId, placeId: choices.places[0].id }, deletionTarget.idToken))).json());
+await pendingDateEmail(deletionTarget.localId, deletionInvite.id, "google");
 assert.equal((await privacyRequest(req({ action: "request" }, guest.idToken))).status, 401);
 assert.equal((await privacyRequest(req({ action: "request" }, deletionTarget.idToken))).status, 200);
 assert.equal((await privacyRequest(req({ action: "cancel" }, deletionTarget.idToken))).status, 200);
@@ -519,9 +554,12 @@ for (let batch = 0; batch < 15; batch++) {
 }
 assert.equal(removalComplete, true);
 assert.equal((await db.collection("users").doc(deletionTarget.localId).collection("dateHistory").get()).empty, true);
+assert.equal((await db.collection("users").doc(deletionTarget.localId).collection("emailNotifications").get()).empty, true, "Account erasure drains pending email jobs with the owner's other private data");
 assert.equal((await db.collection("dateInvitations").where("ownerId", "==", deletionTarget.localId).get()).empty, true);
 assert.equal((await db.collection("accountDeletionRequests").doc(deletionId).get()).data()?.targetUid, undefined);
 await assert.rejects(getAuth(getFirebaseAdmin()).getUser(deletionTarget.localId));
+assert.equal(outboundMailAttempts, 0, "Creating dates only queues jobs; email delivery is never part of the save transaction");
+console.log("Date-created email outbox checks passed: metadata-only jobs, repeat-save/private-publish/catalog-share deduplication and account-erasure cleanup; no email worker or outbound email was run.");
 console.log("P1 and privacy emulator checks passed: owner-only edit/rename/delete, revalidated constraints, stale-link revocation and renewed sharing, deliberate alternate-time proposals, private attended-date feedback, resumable account erasure and disabled public access.");
 // Exercise the real client helper with Firebase's Node SDK against the Auth emulator.
 // This is SDK/service coverage; the separate browser walkthrough checks the actual UI.

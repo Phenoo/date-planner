@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { siteName, siteOrigin, supportEmail } from "@/lib/seo/site";
+import { brandEmail } from "@/lib/email/brand-template";
 
 export const accountEmailSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -16,12 +17,19 @@ export function accountEmailMessage(input: z.infer<typeof accountEmailSchema>, f
   const link = new URL("/auth/action", siteOrigin);
   link.search = new URLSearchParams({ mode: input.intent, oobCode: code, continueUrl: destination.href, lang: "en" }).toString();
   const action = input.intent === "signIn" ? `Sign in to ${siteName}` : `Reset your ${siteName} password`;
+  const content = brandEmail({
+    preheader: input.intent === "signIn" ? `Your secure sign-in link for ${siteName}.` : `Choose a new password for your ${siteName} account.`,
+    eyebrow: input.intent === "signIn" ? "Your secure sign-in link" : "Account security",
+    title: input.intent === "signIn" ? "Welcome back." : "Let’s get you back in.",
+    paragraphs: [input.intent === "signIn" ? `Your saved dates are waiting. Use the button below to sign in securely to ${siteName}.` : `Use the button below to choose a new password for your ${siteName} account.`],
+    primaryAction: { label: input.intent === "signIn" ? "Sign in securely" : "Reset my password", url: link.href },
+    note: "If you didn’t request this email, you can ignore it. Your account stays as it is. Don’t forward this personal link or share it with anyone.",
+  });
   return {
     from: `${siteName} <noreply@adateatlas.com>`,
     to: [input.email],
     reply_to: supportEmail,
     subject: input.intent === "signIn" ? `Your ${siteName} sign-in link` : action,
-    text: `${action}\n\nUse this secure link to continue:\n${link.href}\n\nIf you didn't request this email, you can ignore it.\n\n${siteName}\n${supportEmail}`,
-    html: `<p>${action}</p><p><a href="${link.href.replaceAll("&", "&amp;")}">${action}</a></p><p>If you didn't request this email, you can ignore it.</p><p>${siteName}<br>${supportEmail}</p>`,
+    ...content,
   };
 }

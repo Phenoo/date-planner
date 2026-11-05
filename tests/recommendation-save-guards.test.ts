@@ -22,6 +22,7 @@ type FixtureState = {
   detailCalls: number;
   qualityChecks: number;
   writes: number;
+  transactions: number;
 };
 type GuardHarness = {
   state: FixtureState;
@@ -51,10 +52,20 @@ test("saving and sharing revalidate Google quality without changing historical r
   services["./plan-ratings"] = services["@/lib/server/plan-ratings"];
   services["./funnel"] = services["@/lib/server/funnel"];
   services["guard-test-state"] = `
-    export const state = { rating: 4.5, records: new Map(), catalog: [], catalogQualifies: true, detailCalls: 0, qualityChecks: 0, writes: 0 };
+    export const state = { rating: 4.5, records: new Map(), catalog: [], catalogQualifies: true, detailCalls: 0, qualityChecks: 0, writes: 0, transactions: 0 };
     function ref(path) { return { path, collection(name) { return collection(path + "/" + name); }, async get() { return { exists: state.records.has(path), data: () => state.records.get(path), updateTime: { isEqual: () => true } }; } }; }
     function collection(path) { return { doc(id) { return ref(path + "/" + id); } }; }
-    const db = { collection, batch() { const pending = []; return { set(target, value) { pending.push([target.path, value]); }, async commit() { for (const [path, value] of pending) { state.records.set(path, value); state.writes++; } } }; }, async runTransaction() { throw new Error("Blocked mutation must not start a transaction"); } };
+    const db = { collection, async runTransaction(callback) {
+      state.transactions++;
+      const pending = [];
+      const result = await callback({
+        async get(target) { if (pending.length) throw new Error("Transaction read after write"); return target.get(); },
+        set(target, value) { pending.push({ target, value }); },
+        create(target, value) { if (state.records.has(target.path)) throw new Error("Duplicate creation"); pending.push({ target, value }); },
+      });
+      for (const { target, value } of pending) { state.records.set(target.path, value); state.writes++; }
+      return result;
+    } };
     export const getDatabase = () => db;
     export const authenticatedClient = async () => ({ db, user: { uid: "test-owner", firebase: { sign_in_provider: "password" } } });
   `;
@@ -85,7 +96,7 @@ test("saving and sharing revalidate Google quality without changing historical r
     const record = { ...datePreferencesSchema.parse(preferences), token: "a".repeat(32), invitationKey: "b".repeat(64), placeId, story, response: "pending", dateStatus: "planned", createdAt: Timestamp.now(), invitationRevoked: false, invitationPublished: true, source: "google", planningRequest: preferences };
     function reset() {
       state.records.clear(); state.rating = 4.5; state.catalog = [experience]; state.catalogQualifies = true;
-      state.detailCalls = 0; state.qualityChecks = 0; state.writes = 0;
+      state.detailCalls = 0; state.qualityChecks = 0; state.writes = 0; state.transactions = 0;
       state.records.set(`users/test-owner/discoverySessions/${sessionId}`, { ...datePreferencesSchema.parse(preferences), candidates: [{ id: placeId, distanceKm: 1, story }], createdAt: Timestamp.now() });
     }
     const request = (body: unknown = {}) => new Request("https://example.test/api", { method: "POST", body: JSON.stringify(body) });
@@ -95,7 +106,7 @@ test("saving and sharing revalidate Google quality without changing historical r
         for (const publish of [false, true]) {
           reset(); state.rating = rating;
           await assert.rejects(harness.createChosenDate(request(), sessionId, placeId, publish), { status: 409 });
-          assert.equal(state.detailCalls, 1); assert.equal(state.writes, 0);
+          assert.equal(state.detailCalls, 1); assert.equal(state.writes, 0); assert.equal(state.transactions, 0);
         }
       }
     });
@@ -112,7 +123,7 @@ test("saving and sharing revalidate Google quality without changing historical r
     await t.test("catalog sharing checks trusted plan quality before creating an invitation", async () => {
       reset(); state.catalogQualifies = false;
       await assert.rejects(harness.createCatalogInvitation(request(), recipe), { status: 409 });
-      assert.equal(state.qualityChecks, 1); assert.equal(state.writes, 0);
+      assert.equal(state.qualityChecks, 1); assert.equal(state.writes, 0); assert.equal(state.transactions, 0);
     });
     await t.test("updating and publishing cannot reuse a downgraded Google or catalog venue", async () => {
       for (const source of ["google", "catalog"]) {
@@ -121,7 +132,7 @@ test("saving and sharing revalidate Google quality without changing historical r
           const stored = { ...record, source, placeId: source === "catalog" ? experience.id : placeId };
           state.records.set(historyPath, stored);
           await assert.rejects(harness.manageDate(request(), { action, id: selection, ...(action === "update" ? { request: preferences } : {}) }), { status: 409 });
-          assert.equal(state.records.get(historyPath), stored); assert.equal(state.writes, 0);
+          assert.equal(state.records.get(historyPath), stored); assert.equal(state.writes, 0); assert.equal(state.transactions, 0);
           assert.equal(source === "catalog" ? state.qualityChecks : state.detailCalls, 1);
         }
       }
@@ -129,10 +140,10 @@ test("saving and sharing revalidate Google quality without changing historical r
     await t.test("saved recipe metadata and demo flags cannot bypass trusted catalog quality", async () => {
       reset();
       assert.equal((await harness.savePlan(request({ ...recipe, experienceIds: ["unknown"], demo: true }))).status, 409);
-      assert.equal(state.qualityChecks, 0); assert.equal(state.writes, 0);
+      assert.equal(state.qualityChecks, 0); assert.equal(state.writes, 0); assert.equal(state.transactions, 0);
       state.catalogQualifies = false;
       assert.equal((await harness.savePlan(request({ ...recipe, demo: true }))).status, 409);
-      assert.equal(state.qualityChecks, 1); assert.equal(state.writes, 0);
+      assert.equal(state.qualityChecks, 1); assert.equal(state.writes, 0); assert.equal(state.transactions, 0);
       state.catalogQualifies = true;
       const custom = { ...recipe, id: "existing-recipe-id", title: "My saved title" };
       assert.equal((await harness.savePlan(request(custom))).status, 200);
