@@ -327,7 +327,7 @@ export function ProfilePreferences({
               checked={preferences.quiet || false}
               onChange={(event) => update("quiet", event.target.checked)}
             />
-            Prefer quiet places
+            Would you prefer somewhere quiet enough to talk?
           </label>
           <label className="plain-toggle">
             <input
@@ -337,26 +337,25 @@ export function ProfilePreferences({
                 update("accessibility", event.target.checked)
               }
             />
-            Step-free access required
+            Is a step-free entrance essential?
           </label>
-          <Field label="Food preferences">
+          <Field label="Where would you prefer to spend the date?">
             <select
-              value={preferences.dietary?.[0] || ""}
-              onChange={(event) =>
-                update(
-                  "dietary",
-                  event.target.value
-                    ? [event.target.value as PlanRequest["dietary"][number]]
-                    : [],
-                )
-              }
+              value={preferences.environment ?? "any"}
+              onChange={(event) => update("environment", event.target.value === "indoor" ? "indoor" : event.target.value === "outdoor" ? "outdoor" : "any")}
             >
-              <option value="">No restriction</option>
-              {["vegetarian", "vegan", "halal", "gluten-free"].map((diet) => (
-                <option key={diet}>{diet}</option>
-              ))}
+              <option value="any">Either</option>
+              <option value="indoor">Indoors</option>
+              <option value="outdoor">Outdoors</option>
             </select>
           </Field>
+          {!!preferences.dietary?.length && <details className="flow-details">
+            <summary>Previously saved food requirements</summary>
+            <div className="form-stack">
+              <p>{preferences.dietary.join(", ")}</p>
+              <Button type="button" variant="outline" onClick={() => update("dietary", [])}>Remove saved food requirements</Button>
+            </div>
+          </details>}
         </section>
         {error && (
           <p className="error-message" role="alert">

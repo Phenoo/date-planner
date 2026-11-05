@@ -58,10 +58,10 @@ const originalQuestions = [
   },
   {
     id: "requirements",
-    title: "What would help you feel comfortable?",
+    title: "What should your place be like?",
     description:
-      "Food needs, step-free access, or a quieter spot. Tell us what matters so we can plan with it in mind.",
-    fields: ["dietary", "quiet", "accessibility", "dislikes", "environment", "flexible"],
+      "Choose the setting and noise level that work for you, and tell us about access needs or places to avoid. These preferences guide our search.",
+    fields: ["quiet", "accessibility", "dislikes", "environment", "dietary"],
   },
   {
     id: "date",

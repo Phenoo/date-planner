@@ -426,7 +426,7 @@ export function Results({
                 "Make this date cheaper",
                 "Somewhere closer",
                 "Make it more romantic",
-                "She's vegetarian",
+                "Choose somewhere quiet",
                 "Add more adventure",
                 "Surprise me",
               ].map((suggestion) => (

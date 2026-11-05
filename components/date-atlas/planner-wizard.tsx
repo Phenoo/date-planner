@@ -395,7 +395,7 @@ export function PlannerWizard({
     { id: "people", label: "Guests", value: `${request.guests} people` },
     { id: "vibes", label: "Vibe", value: request.vibes.join(", ") },
     { id: "interests", label: "Interests & preferences", value: [request.interests, request.notes, request.surprises ? "Surprises welcome" : "No surprises"].filter(Boolean).join(" · ") },
-    { id: "requirements", label: "Requirements", value: [...request.dietary, request.quiet ? "Quiet places" : "", request.accessibility ? "Step-free access" : "", request.dislikes ? `Avoid: ${request.dislikes}` : ""].filter(Boolean).join(" · ") || "None specified" },
+    { id: "requirements", label: "Place preferences", value: [request.environment === "indoor" ? "Indoors" : request.environment === "outdoor" ? "Outdoors" : "", request.quiet ? "Quiet enough to talk" : "", request.accessibility ? "Step-free entrance required" : "", request.dislikes ? `Avoid: ${request.dislikes}` : "", ...request.dietary].filter(Boolean).join(" · ") || "No additional preferences" },
     { id: "budget", label: "Spending limit", value: request.budget === null ? "No spending limit set" : `${money(request.budget, request.currency)} ${request.budgetType === "total" ? "total" : "per person"} · ${request.includeFood ? "Food included" : "Food excluded"} · ${request.includeTransport ? "Transport included" : "Transport excluded"}` },
     { id: "date", label: "Date", value: request.date ? calendarLabel(request.date) : "Choose a day" },
     { id: "time", label: "Starting time", value: request.startTime || "Choose a time" },
@@ -677,60 +677,30 @@ export function PlannerWizard({
           )}
           {stage.id === "requirements" && (
             <div className="form-stack">
-              <div className="pill-group" role="group" aria-label="Dietary requirements" aria-describedby="requirements-guidance">
-                {(["vegetarian", "vegan", "halal", "gluten-free"] as const).map(
-                  (diet) => (
-                    <button
-                      type="button"
-                      key={diet}
-                      className={`filter-pill ${request.dietary.includes(diet) ? "active" : ""}`}
-                      aria-pressed={request.dietary.includes(diet)}
-                      onClick={() =>
-                        update(
-                          "dietary",
-                          request.dietary.includes(diet)
-                            ? request.dietary.filter((item) => item !== diet)
-                            : [...request.dietary, diet],
-                        )
-                      }
-                    >
-                      {diet}
-                    </button>
-                  ),
-                )}
-              </div>
-              <label className="plain-toggle">
-                <input
-                  type="checkbox"
-                  checked={request.quiet}
-                  onChange={(event) => update("quiet", event.target.checked)}
-                />
-                Quiet, conversation-friendly places
-              </label>
-              <label className="plain-toggle">
-                <input
-                  type="checkbox"
-                  checked={request.accessibility}
-                  onChange={(event) =>
-                    update("accessibility", event.target.checked)
-                  }
-                />
-                Step-free access required
-              </label>
-              <Field label="Indoors or outdoors?"><select value={request.environment} onChange={(event) => update("environment", event.target.value === "indoor" ? "indoor" : event.target.value === "outdoor" ? "outdoor" : "any")}><option value="any">A little of either</option><option value="indoor">Indoors</option><option value="outdoor">Outdoors</option></select></Field>
-              <label className="plain-toggle"><input type="checkbox" checked={request.flexible} onChange={(event) => update("flexible", event.target.checked)} />We can be flexible with the time</label>
-              <p id="requirements-guidance" className="requirements-guidance" role="status">{requirementsGuidance(request)}</p>
-              <details className="flow-details">
-                <summary>Anything you&apos;d rather skip?</summary>
-                <Field label="Activities or settings to avoid">
-                  <input
-                    value={request.dislikes}
-                    maxLength={500}
-                    onChange={(event) => update("dislikes", event.target.value)}
-                    placeholder="e.g. crowded places or arcades"
-                  />
-                </Field>
-              </details>
+              <Field label="Where would you prefer to spend your date?">
+                <select value={request.environment} onChange={(event) => update("environment", event.target.value === "indoor" ? "indoor" : event.target.value === "outdoor" ? "outdoor" : "any")}>
+                  <option value="any">Either works for us</option><option value="indoor">Indoors</option><option value="outdoor">Outdoors</option>
+                </select>
+              </Field>
+              <Field label="Would you prefer somewhere quiet enough to talk?">
+                <select value={request.quiet ? "quiet" : "any"} onChange={(event) => update("quiet", event.target.value === "quiet")}>
+                  <option value="any">No noise preference</option><option value="quiet">Yes, prioritise a quieter place</option>
+                </select>
+              </Field>
+              <Field label="Is a step-free entrance essential for either of you?">
+                <select value={request.accessibility ? "required" : "not-required"} onChange={(event) => update("accessibility", event.target.value === "required")}>
+                  <option value="not-required">No step-free requirement</option><option value="required">Yes, a step-free entrance is essential</option>
+                </select>
+              </Field>
+              <Field label="Which places or activities should we avoid?">
+                <input value={request.dislikes} maxLength={500} onChange={(event) => update("dislikes", event.target.value)} placeholder="e.g. restaurants, cinemas or museums" />
+              </Field>
+              {request.dietary.length > 0 && <details className="flow-details">
+                <summary>Previously saved food requirements</summary>
+                <p>{request.dietary.join(", ")}</p>
+                <button type="button" className="text-link" onClick={() => update("dietary", [])}>Remove saved food requirements</button>
+              </details>}
+              {(request.dietary.length > 0 || request.accessibility) && <p className="requirements-guidance" role="status">{requirementsGuidance(request)}</p>}
             </div>
           )}
           {stage.id === "date" && (

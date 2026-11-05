@@ -66,7 +66,7 @@ export function localReaction(step: ConversationStep, request: PlanRequest): str
     budget: [request.budget === null ? "No spending limit set. We’ll show costs where available." : "That’s the spending limit we’ll work with.", "Got it. We’ll keep your budget choice in place."],
     vibes: ["I’m getting a feel for what you’d enjoy.", "We’ll use that to guide the search."],
     interests: ["Thanks. Those details help make this yours.", "Got it. We’ll keep those interests in mind."],
-    requirements: ["Noted. We’ll keep those needs in place.", "Your comfort matters. We’ll use what you’ve told us."],
+    requirements: ["Your place preferences are noted. We’ll use them to guide the search.", "Got it. We’ll consider the setting, noise level and needs you’ve shared."],
     date: ["That day is noted.", "Got it. Let’s work out the timing."],
     time: [request.startTime ? "That start time is noted." : "We’ll choose a time before searching.", "We’ll check the time against the venue’s hours."],
     review: ["Your details are here. We’re ready to look for a match."],
