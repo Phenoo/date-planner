@@ -34,10 +34,15 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 100px;
+  background: var(--page-surface-bg, #fff);
 }
+html[data-page-surface="home"] { --page-surface-bg: #d91335; }
+html[data-page-surface="planner"] { --page-surface-bg: #cd1234; color-scheme: dark; }
+html[data-page-surface="planner"][data-planner-appearance="white"] { --page-surface-bg: #fff; color-scheme: light; }
+html[data-page-surface="planner"][data-planner-appearance="dark"] { --page-surface-bg: #171417; }
 body {
   margin: 0;
-  background: var(--ivory);
+  background: var(--page-surface-bg, var(--ivory));
   color: var(--charcoal);
   font-family: var(--font-dm-sans), sans-serif;
   font-size: 15px;

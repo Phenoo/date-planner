@@ -26,6 +26,7 @@ import { RevokeInvitation } from "./revoke-invitation";
 import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
 import { requestGeneration } from "@/lib/planner/generation-client";
 import { pendingDateReminderKey } from "@/lib/planner/date-reminder-intent";
+import { applyPageSurface, readPlannerAppearance, savePlannerAppearance, type PlannerAppearance } from "@/lib/planner/page-surface";
 import { activePlanKey, clearPlanningContinuations, continuationPath, readPlanningContinuation, retainPlanningContinuation } from "@/lib/planner/planning-continuation";
 import { Homepage } from "./homepage";
 import { PlannerLoadingScreen } from "./planner-loading-screen";
@@ -96,8 +97,6 @@ import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 const draftKey = `date-atlas:planning-draft:v${plannerDraftVersion}`;
 const favoritesKey = "date-atlas:favorites:v1";
 const preferencesKey = "date-atlas:preferences:v1";
-const appearanceKey = "date-atlas:planner-appearance:v1";
-type PlannerAppearance = "white" | "red" | "dark";
 type View =
   | "home"
   | "planner"
@@ -245,10 +244,9 @@ export function DateAtlas({
         });
     Promise.resolve().then(() => {
       if (!active) return;
+      setPlannerAppearance(readPlannerAppearance());
       try {
         setPlannerMode(savedPlannerMode(localStorage.getItem(plannerModeKey)));
-        const appearance = localStorage.getItem(appearanceKey);
-        if (appearance === "white" || appearance === "red" || appearance === "dark") setPlannerAppearance(appearance);
         const stored: unknown = JSON.parse(
           localStorage.getItem(favoritesKey) || "[]",
         );
@@ -493,6 +491,15 @@ export function DateAtlas({
       window.removeEventListener("storage", syncStorage);
     };
   }, [initialView, hasInitialCatalog]);
+  useLayoutEffect(() => {
+    const pathname = window.location.pathname;
+    const root = document.documentElement;
+    if (pathname === "/" && view === "home") {
+      if (authReady && signedIn) root.setAttribute("data-home-account", "true");
+      else root.removeAttribute("data-home-account");
+      applyPageSurface(root, pathname, plannerAppearance);
+    } else if (preferencesReady) applyPageSurface(root, pathname, plannerAppearance);
+  }, [plannerAppearance, preferencesReady, authReady, signedIn, view]);
   useEffect(() => {
     if (view !== "home" || !authReady) return;
     let active = true;
@@ -537,8 +544,8 @@ export function DateAtlas({
   }, [toast, toastRevision]);
   function changePlannerAppearance(appearance: PlannerAppearance) {
     setPlannerAppearance(appearance);
-    try { localStorage.setItem(appearanceKey, appearance); }
-    catch { /* The selected appearance remains available for this visit. */ }
+    savePlannerAppearance(appearance);
+    applyPageSurface(document.documentElement, window.location.pathname, appearance);
   }
   function saveAndExit(event: MouseEvent<HTMLButtonElement>) {
     try {
@@ -1024,7 +1031,7 @@ export function DateAtlas({
   }
   const planning = view === "planner";
   const themedJourney = planning || view === "results";
-  if (!authReady) return <PlannerLoadingScreen theme={plannerAppearance} />;
+  if (!authReady) return <PlannerLoadingScreen theme={initialView === "planner" ? plannerAppearance : "red"} />;
   if (initialView === "planner" && !draftReady) return <PlannerInitializing theme={plannerAppearance} />;
   const authenticatedLayout = signedIn && !planning && view !== "results";
   return (

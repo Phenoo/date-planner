@@ -1,4 +1,5 @@
-.palette[data-planner-theme="white"] {
+.palette[data-planner-theme="white"],
+:global(html[data-page-surface="planner"][data-planner-appearance="white"]) .initialPalette {
   --planner-bg: #fff;
   --planner-text: #261014;
   --planner-muted: #725d63;
@@ -13,7 +14,8 @@
   --planner-art: #fff4f6;
   color-scheme: light;
 }
-.palette[data-planner-theme="red"] {
+.palette[data-planner-theme="red"],
+:global(html[data-page-surface="planner"][data-planner-appearance="red"]) .initialPalette {
   --planner-bg: #cd1234;
   --planner-text: #fff;
   --planner-muted: #fff0f4;
@@ -28,7 +30,8 @@
   --planner-art: #fff4f6;
   color-scheme: dark;
 }
-.palette[data-planner-theme="dark"] {
+.palette[data-planner-theme="dark"],
+:global(html[data-page-surface="planner"][data-planner-appearance="dark"]) .initialPalette {
   --planner-bg: #171417;
   --planner-text: #fcf7f9;
   --planner-muted: #c6b8c0;

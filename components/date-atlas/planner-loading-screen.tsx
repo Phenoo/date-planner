@@ -26,7 +26,7 @@ export function PlannerLoadingScreen({ theme = "red", mode = "opening", stage, o
   const generating = mode === "generating";
 
   return (
-    <main ref={screenRef} className={`${appearance.palette} ${styles.screen} ${overlay ? styles.overlay : ""}`} data-planner-theme={theme} aria-busy="true" aria-label={generating ? "Finding a date that suits you" : "Opening A Date At las"}>
+    <main ref={screenRef} className={`${appearance.palette} ${!generating ? appearance.initialPalette : ""} ${styles.screen} ${overlay ? styles.overlay : ""}`} data-planner-theme={theme} aria-busy="true" aria-label={generating ? "Finding a date that suits you" : "Opening A Date At las"}>
       <div className={styles.backdrop} aria-hidden="true"><span /><span /></div>
       <header className={styles.header}>
         <span className={styles.logo} aria-label="A Date At las">adal<span>.</span></span>

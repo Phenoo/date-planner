@@ -3,7 +3,9 @@ import { DM_Sans } from "next/font/google";
 import { Suspense } from "react";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { WebVitals } from "@/components/analytics/web-vitals";
+import { PageSurface } from "@/components/date-atlas/page-surface";
 import { analyticsMeasurementId } from "@/lib/analytics/policy";
+import { pageSurfaceBootstrap } from "@/lib/planner/page-surface";
 import { siteDescription, siteName, siteOrigin } from "@/lib/seo/site";
 import "./globals.css";
 
@@ -24,8 +26,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       data-scroll-behavior="smooth"
       className={`${dmSans.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body>{children}{measurementId && <Suspense fallback={null}><GoogleAnalytics measurementId={measurementId} /><WebVitals /></Suspense>}</body>
+      <head><script dangerouslySetInnerHTML={{ __html: pageSurfaceBootstrap }} /></head>
+      <body><Suspense fallback={null}><PageSurface /></Suspense>{children}{measurementId && <Suspense fallback={null}><GoogleAnalytics measurementId={measurementId} /><WebVitals /></Suspense>}</body>
     </html>
   );
 }
