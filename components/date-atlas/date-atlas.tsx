@@ -988,10 +988,11 @@ export function DateAtlas({
     setToast("You're signed in. Your current date is still here.");
   }
   const planning = view === "planner";
+  const themedJourney = planning || view === "results";
   return (
       <div
-        className={`atlas-app ${planning ? `is-planning ${plannerStyles.palette} ${plannerStyles.planner}` : ""} ${view === "home" ? "is-lover-intro" : ""} ${signedIn && !planning ? "has-mobile-nav" : ""} ${view === "results" ? "has-itinerary" : ""}`}
-        data-planner-theme={planning ? plannerAppearance : undefined}
+        className={`atlas-app ${themedJourney ? plannerStyles.palette : ""} ${planning ? `is-planning ${plannerStyles.planner}` : ""} ${view === "home" ? "is-lover-intro" : ""} ${signedIn && !planning ? "has-mobile-nav" : ""} ${view === "results" ? `has-itinerary ${plannerStyles.journey}` : ""}`}
+        data-planner-theme={themedJourney ? plannerAppearance : undefined}
         data-planner-mode={planning ? plannerMode ?? undefined : undefined}
       >
         <header className={`atlas-header ${compactHeader ? "compact" : ""}`}>
