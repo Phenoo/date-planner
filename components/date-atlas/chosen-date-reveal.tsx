@@ -125,7 +125,7 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     </ReadyForDate>
     <details><summary className={styles.textButton}>More venue information and reviews</summary><VenueDetails place={place} request={request} /></details>
     {sessionId && <ReportVenue placeId={place.id} sessionId={sessionId} />}
-    <DateStoryView story={story} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Revisit your recommendation</button>
+    <DateStoryView story={story} category={place.category} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Revisit your recommendation</button>
     <ChosenDatePrompt key={`${sessionId}:${place.id}:${signedIn}`} saved={signedIn && savedDate} saving={signedIn && saving} reminderSet={!!reminderSendAt} onSave={() => void prepareInvitation("save")} onRemind={() => setReminderOpen(true)} />
     <DateReminderDialog key={`reminder:${sessionId}:${place.id}:${signedIn}`} open={reminderOpen} onOpenChange={setReminderOpen} sessionId={sessionId} placeId={place.id} signedIn={signedIn} onSaved={setSavedDate} onScheduled={setReminderSendAt} />
   </main>;

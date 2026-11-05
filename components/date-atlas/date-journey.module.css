@@ -36,15 +36,21 @@
 .linkDetails summary { cursor: pointer; padding: 9px; }
 .linkDetails input { width: 100%; padding: 12px; border: 1px solid var(--planner-border,#eedee1); border-radius: 10px; font-size: 12px; margin-top: 6px; background: var(--planner-bg,#fff); color: var(--planner-text,#321b25); }
 .responseStatus { color: var(--planner-accent,#b4243b); font-size: 14px; line-height: 1.7; margin: 20px auto 0; }
-.story { position: relative; margin: 40px auto 12px; padding: 40px 0 25px; border-top: 1px solid var(--planner-border,#efdee2); text-align: center; }
+.story { position: relative; container-type: inline-size; margin: 40px auto 12px; padding: 40px 0 25px; border-top: 1px solid var(--planner-border,#efdee2); text-align: center; }
 .story > h2 { font-size: clamp(27px, 3.6vw, 42px); font-weight: 500; letter-spacing: -.045em; line-height: 1.12; margin: 14px auto 18px; max-width: 650px; }
 .storyIntro { max-width: 600px; margin: 0 auto; font-size: 14px; line-height: 1.85; color: var(--planner-muted,#79676a); }
 .moments { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 20px; margin: 32px 0 24px; }
-.moments > article { padding: 28px 22px; background: var(--planner-surface,#fff6f7); border: 1px solid var(--planner-border,#f4e3e7); border-radius: 20px; text-align: center; }
+.moments > article { min-width: 0; overflow: hidden; background: var(--planner-surface,#fff6f7); border: 1px solid var(--planner-border,#f4e3e7); border-radius: 20px; text-align: left; }
+.momentVisual { position: relative; aspect-ratio: 1.55; overflow: hidden; background: #fff; }
+.momentVisual > img { object-fit: cover; }
+.momentIllustration > img { object-fit: contain; padding: 12px; }
+.visualCaption { position: absolute; left: 12px; bottom: 12px; padding: 5px 8px; border-radius: 5px; background: #241316a6; color: white; font-size: 9px; letter-spacing: .06em; }
+.momentCopy { padding: 24px 22px 28px; }
 .chapter { display: block; color: var(--planner-accent,#bf2942); font-size: 11px; letter-spacing: .12em; margin-bottom: 17px; }
 .moments h3 { font-size: 21px; font-weight: 500; letter-spacing: -.035em; line-height: 1.2; margin-bottom: 14px; }
 .moments p, .ending { font-size: 13px; line-height: 1.9; color: var(--planner-muted,#79676a); }
 .ending { max-width: 580px; margin: 24px auto 0; }
+@container (max-width:760px) { .moments { grid-template-columns: 1fr; } .momentVisual { aspect-ratio: 1.75; } }
 .invitationPage { min-height: 100svh; color: #271f22; background: radial-gradient(ellipse at 10% 15%,#fff1f4 0,transparent 40%),#fff; font-family: inherit; }
 .header { display: flex; justify-content: space-between; align-items: center; gap: 20px; max-width: 1280px; margin: 0 auto; padding: 26px 40px; border-bottom: 1px solid #f2e4e7; }
 .header > a { color: #271f22; font-size: 29px; font-weight: 650; letter-spacing: -.07em; }
@@ -74,7 +80,7 @@
 .historyEmpty > p { margin-bottom: 20px; font-size: 14px; line-height: 1.8; }
 @keyframes chosenArrival { from { opacity: 0; transform: translateY(28px) rotateY(-14deg) rotate(-4deg) scale(.91); } to { opacity: 1; transform: translateY(0) rotateY(0) rotate(0) scale(1); } }
 @keyframes orbitBreathe { 0%,100% { transform: scale(.94); opacity: .45; } 50% { transform: scale(1.05); opacity: .9; } }
-@media (max-width:700px) { .reveal { padding: 24px 18px 45px; } .revealIntro > p { font-size: 13px; max-width: 320px; } .chosenStage { padding: 14px 0 20px; max-width: none; margin-inline: -18px; overflow: clip; } .chosenCard { padding: 17px; } .chosenCard h2 { overflow-wrap: anywhere; font-size: 29px; } .chosenCard > p { font-size: 11px; } .actions { flex-direction: column; align-items: stretch; max-width: 350px; } .actions > button { min-width: 0; width: 100%; } .moments { grid-template-columns: 1fr; gap: 12px; margin: 26px 0 20px; } .moments > article { padding: 24px 22px; } .storyIntro { font-size: 13px; } .story { padding-top: 30px; } .header { padding: 20px; } .header > a { font-size: 26px; } .header > span { font-size: 8px; max-width: 120px; text-align: right; line-height: 1.8; } .historyGrid { grid-template-columns: 1fr; } .historyCard .actions { flex-direction: row; justify-content: center; flex-wrap: wrap; } .timing { font-size: 11px; } }
+@media (max-width:700px) { .reveal { padding: 24px 18px 45px; } .revealIntro > p { font-size: 13px; max-width: 320px; } .chosenStage { padding: 14px 0 20px; max-width: none; margin-inline: -18px; overflow: clip; } .chosenCard { padding: 17px; } .chosenCard h2 { overflow-wrap: anywhere; font-size: 29px; } .chosenCard > p { font-size: 11px; } .actions { flex-direction: column; align-items: stretch; max-width: 350px; } .actions > button { min-width: 0; width: 100%; } .moments { grid-template-columns: 1fr; gap: 12px; margin: 26px 0 20px; } .momentCopy { padding: 22px; } .storyIntro { font-size: 13px; } .story { padding-top: 30px; } .header { padding: 20px; } .header > a { font-size: 26px; } .header > span { font-size: 8px; max-width: 120px; text-align: right; line-height: 1.8; } .historyGrid { grid-template-columns: 1fr; } .historyCard .actions { flex-direction: row; justify-content: center; flex-wrap: wrap; } .timing { font-size: 11px; } }
 @media (prefers-reduced-motion:reduce) { .chosenCardAnimated, .orbit { animation: none; } }
 
 .personalNote { max-width: 520px; margin: 0 auto 24px; padding: 22px 26px; border: 1px solid #eedee1; border-radius: 18px; background: #fff7f8; color: #5c303b; font-size: 17px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
