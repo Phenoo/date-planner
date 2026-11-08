@@ -19,7 +19,7 @@ const end = start + 30 * 86400000;
 const startedAt = new Date(start).toISOString();
 const endsAt = new Date(end).toISOString();
 const plan = { plan_code: "PLN_emulator_only", domain: "test", amount: 500000, currency: "NGN", interval: "monthly", id: 123 };
-const price = { id: "price_emulator_only", amount_type: "fixed", price_currency: "usd", price_amount: 500, is_archived: false };
+const price = { id: "price_emulator_only", amount_type: "fixed", price_currency: "usd", price_amount: 500, is_archived: false, tax_behavior: "exclusive" };
 const product = { id: "product_emulator_only", is_recurring: true, is_archived: false, recurring_interval: "month", recurring_interval_count: 1, prices: [price] };
 let badPlan = false;
 let transactionStatus = "success";
@@ -29,6 +29,7 @@ let paystackStatus = "active";
 let polarPaid = true;
 let polarRefunded = false;
 let polarOwner = "";
+let polarCheckoutFailure: "validation" | "ambiguous" | null = null;
 let initializeCalls = 0;
 let polarCreateCalls = 0;
 let providerCalls = 0;
@@ -91,11 +92,12 @@ globalThis.fetch = async (input, init) => {
     if (url.pathname === "/v1/products/product_emulator_only") return Response.json(product);
     if (url.pathname === "/v1/checkouts/" && init?.method === "POST") {
       polarCreateCalls++;
+      if (polarCheckoutFailure === "validation") return Response.json({ detail: [{ loc: ["body", "customer_email"], msg: "Invalid billing email", type: "value_error" }] }, { status: 422 });
       const input = z.object({ external_customer_id: z.string(), metadata: z.object({ uid: z.string(), checkoutId: z.string() }) }).parse(JSON.parse(String(init.body)));
       const id = randomUUID(), subscriptionId = randomUUID(), customerId = randomUUID();
       const checkout = { ...input.metadata, id, subscriptionId, customerId };
       polarCheckouts.set(id, checkout); subscriptionIds.add(subscriptionId);
-      return Response.json({ id, product_id: product.id, amount: 500, currency: "usd", url: `https://sandbox.polar.sh/checkout/${id}` });
+      return Response.json({ id, product_id: product.id, amount: 500, currency: "usd", url: polarCheckoutFailure === "ambiguous" ? `https://example.com/checkout/${id}` : `https://sandbox.polar.sh/checkout/${id}` });
     }
     if (url.pathname.startsWith("/v1/checkouts/")) {
       const checkout = polarCheckouts.get(url.pathname.split("/").at(-1)!);
@@ -112,8 +114,9 @@ globalThis.fetch = async (input, init) => {
       assert.ok(checkout);
       const id = `ORDER_${checkout.id}`; paymentIds.add(id);
       return Response.json({ items: [{ id, subscription_id: checkout.subscriptionId, customer_id: checkout.customerId, product_id: product.id, status: polarRefunded ? "refunded" : polarPaid ? "paid" : "pending", paid: polarPaid,
-        currency: "usd", subtotal_amount: 500, net_amount: 500, refunded_amount: polarRefunded ? 500 : 0, refunded_tax_amount: 0, billing_reason: "subscription_create",
-        items: [{ product_price_id: price.id, amount: 500, proration: false, start_timestamp: startedAt, end_timestamp: endsAt }] }] });
+        currency: "usd", subtotal_amount: 500, net_amount: 500, tax_amount: 0, total_amount: 500, discount_amount: 0, applied_balance_amount: 0,
+        refunded_amount: polarRefunded ? 500 : 0, refunded_tax_amount: 0, billing_reason: "subscription_create",
+        items: [{ product_price_id: price.id, amount: 500, tax_amount: 0, proration: false, start_timestamp: startedAt, end_timestamp: endsAt }] }] });
     }
     throw new Error(`Unexpected Polar fixture path: ${url.pathname}`);
   }
@@ -146,6 +149,15 @@ try {
   assert.equal((await membershipCheckout(req({ country: "NG" }, member.idToken))).status, 503);
   assert.equal((await checkoutRecord(member.localId).get()).exists, false, "A known bad provider price must not leave a stuck checkout lease");
   badPlan = false;
+  polarCheckoutFailure = "validation";
+  assert.equal((await membershipCheckout(req({ country: "GB" }, foreign.idToken))).status, 422);
+  assert.equal((await checkoutRecord(foreign.localId).get()).exists, false, "An explicit provider rejection leaves no checkout and releases the claim");
+  polarCheckoutFailure = "ambiguous";
+  assert.equal((await membershipCheckout(req({ country: "GB" }, foreign.idToken))).status, 503);
+  assert.equal((await checkoutRecord(foreign.localId).get()).data()?.state, "creating", "An unverified response after creation must preserve the claim against duplicate charges");
+  await checkoutRecord(foreign.localId).delete();
+  polarCheckoutFailure = null;
+  polarCreateCalls = 0;
   let entered!: () => void, release!: () => void;
   const initializing = new Promise<void>((resolve) => { entered = resolve; });
   holdInitialize = { entered, released: new Promise<void>((resolve) => { release = resolve; }) };
@@ -213,7 +225,7 @@ try {
   polarOwner = "";
   assert.equal((await membershipConfirm(req({ checkoutId: globalCheckout.id }, foreign.idToken))).status, 200);
   assert.equal(membershipSummarySchema.parse(await (await membershipSummary(req({}, foreign.idToken))).json()).provider, "polar");
-  const polarRow = [...polarCheckouts.values()][0];
+  const polarRow = [...polarCheckouts.values()].find((row) => row.checkoutId === globalCheckout.id);
   assert.ok(polarRow);
   polarRefunded = true;
   const polarBody = JSON.stringify({ type: "order.refunded", data: { subscription_id: polarRow.subscriptionId } });

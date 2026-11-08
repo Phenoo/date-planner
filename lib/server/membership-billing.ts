@@ -6,7 +6,7 @@ import { apiError, readJson, RequestError } from "@/lib/planner/http";
 import { membershipRecordSchema, membershipPeriod, type MembershipProvider, type MembershipRecord } from "@/lib/membership/schema";
 import { membershipCheckoutAvailability, requireMembershipTest } from "./membership-config";
 import { getMembershipUsageSnapshot } from "./membership-usage";
-import { initializeProviderCheckout, validateProviderConfig, providerPortal, cancelProviderSubscription, verifyProviderCheckout, type VerifiedMembership } from "./billing-providers";
+import { CheckoutValidationError, initializeProviderCheckout, validateProviderConfig, providerPortal, cancelProviderSubscription, verifyProviderCheckout, type VerifiedMembership } from "./billing-providers";
 import countries from "@/lib/planner/data/currencies.json";
 
 const checkoutSchema = z.object({
@@ -71,7 +71,16 @@ export async function membershipCheckout(request: Request) {
     });
     if (claim.url) return Response.json({ url: claim.url }, { headers: { "Cache-Control": "no-store" } });
     // Keep the pending reference on an ambiguous timeout, so retries cannot create a second subscription.
-    const hosted = await initializeProviderCheckout({ provider, uid: auth.user.uid, email: auth.user.email!, checkoutId: id, returnUrl: `${callback}?checkout=${id}` });
+    let hosted: { id: string; url: string };
+    try {
+      hosted = await initializeProviderCheckout({ provider, uid: auth.user.uid, email: auth.user.email!, checkoutId: id, returnUrl: `${callback}?checkout=${id}` });
+    } catch (error) {
+      if (error instanceof CheckoutValidationError) await auth.db.runTransaction(async (tx) => {
+        const current = checkoutSchema.safeParse((await tx.get(checkout)).data());
+        if (current.success && current.data.id === id && current.data.state === "creating" && !current.data.providerId) tx.delete(checkout);
+      });
+      throw error;
+    }
     await checkout.update({ providerId: hosted.id, url: hosted.url, state: "open" });
     return Response.json({ url: hosted.url }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return apiError(error); }

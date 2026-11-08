@@ -1,5 +1,5 @@
 import "server-only";
-import { createPolar, webhooks, type models } from "@polar-sh/sdk/2026-10";
+import { createPolar, errors, webhooks, type models } from "@polar-sh/sdk/2026-10";
 import { z } from "zod";
 import { RequestError } from "@/lib/planner/http";
 import type { MembershipProvider } from "@/lib/membership/schema";
@@ -21,6 +21,9 @@ export interface VerifiedMembership {
 }
 type CheckoutInput = { provider: MembershipProvider; uid: string; email: string; checkoutId: string; returnUrl: string };
 type SubscriptionInput = { provider: MembershipProvider; customerId: string; subscriptionId: string; returnUrl: string };
+export class CheckoutValidationError extends RequestError {
+  constructor() { super("Please check your billing email and details, then try again.", 422); }
+}
 const unavailable = () => new RequestError("Subscription services are temporarily unavailable. Please try again.", 503);
 const pending = () => new RequestError("Your payment is still being confirmed. Refresh your membership shortly.", 409);
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,200}$/);
@@ -113,8 +116,14 @@ export async function initializeProviderCheckout(input: CheckoutInput): Promise<
     return { id: checkout.reference, url: hostedUrl(checkout.authorization_url, "paystack") };
   }
   const product = await polarProduct();
-  const checkout = await polar().checkouts.create({ products: [product.id], external_customer_id: input.uid, customer_email: email,
-    metadata, success_url: callback, return_url: callback, allow_discount_codes: false, allow_trial: false, currency: "usd" });
+  let checkout: models.Checkout;
+  try {
+    checkout = await polar().checkouts.create({ products: [product.id], external_customer_id: input.uid, customer_email: email,
+      metadata, success_url: callback, return_url: callback, allow_discount_codes: false, allow_trial: false, currency: "usd" });
+  } catch (error) {
+    if (error instanceof errors.HTTPValidationError) throw new CheckoutValidationError();
+    throw error;
+  }
   if (checkout.product_id !== product.id || checkout.amount !== 500 || checkout.currency !== "usd") throw unavailable();
   return { id: checkout.id, url: hostedUrl(checkout.url, "polar") };
 }
@@ -188,14 +197,34 @@ function validatePolarSubscription(subscription: models.Subscription) {
     || subscription.recurring_interval !== "month" || subscription.recurring_interval_count !== 1
     || subscription.prices.length !== 1 || !validPolarPrice(subscription.prices[0])) throw unavailable();
 }
-function polarOrderPeriodMatches(order: models.Order, subscription: models.Subscription) {
+async function polarTaxBehavior(client: ReturnType<typeof polar>, subscription: models.Subscription): Promise<models.TaxBehavior | null> {
+  const stored = z.object({ tax_behavior: z.enum(["inclusive", "exclusive"]).nullable().optional() }).safeParse(subscription);
+  if (stored.success && stored.data.tax_behavior) return stored.data.tax_behavior;
+  const price = subscription.prices[0];
+  if (price.tax_behavior === "inclusive" || price.tax_behavior === "exclusive") return price.tax_behavior;
+  if (!subscription.checkout_id) return null;
+  const checkout = await client.checkouts.get(subscription.checkout_id);
+  if (checkout.subscription_id !== subscription.id || checkout.customer_id !== subscription.customer_id
+    || checkout.product_id !== subscription.product_id) throw unavailable();
+  return checkout.tax_behavior;
+}
+function polarOrderPeriodMatches(order: models.Order, subscription: models.Subscription, taxBehavior: models.TaxBehavior | null) {
   const priceIds = new Set(subscription.prices.map((price) => price.id));
+  if (![order.subtotal_amount, order.net_amount, order.tax_amount, order.total_amount, order.discount_amount, order.applied_balance_amount].every((amount) => Number.isSafeInteger(amount) && amount >= 0)
+    || order.discount_amount !== 0 || order.applied_balance_amount !== 0 || order.net_amount !== order.subtotal_amount
+    || order.total_amount !== order.net_amount + order.tax_amount || order.items.length !== 1) return false;
+  const item = order.items[0];
+  if (!Number.isSafeInteger(item.amount) || item.amount < 0 || !Number.isSafeInteger(item.tax_amount) || item.tax_amount < 0
+    || item.amount !== order.net_amount || item.tax_amount !== order.tax_amount) return false;
+  // The fixed catalogue price is gross when tax is included and net when tax is added.
+  const correctPrice = taxBehavior === "inclusive" ? order.total_amount === 500 : taxBehavior === "exclusive"
+    ? order.net_amount === 500 : order.tax_amount === 0 && order.net_amount === 500;
   return order.subscription_id === subscription.id && order.customer_id === subscription.customer_id && order.product_id === subscription.product_id
-    && order.currency === "usd" && order.subtotal_amount === 500 && order.net_amount === 500
+    && order.currency === "usd" && correctPrice
     && ["subscription_create", "subscription_cycle"].includes(order.billing_reason)
-    && order.items.some((item) => item.product_price_id !== null && priceIds.has(item.product_price_id) && !item.proration && item.amount === 500
-      && item.start_timestamp !== null && item.end_timestamp !== null
-      && timestamp(item.start_timestamp) === timestamp(subscription.current_period_start) && timestamp(item.end_timestamp) === timestamp(subscription.current_period_end));
+    && item.product_price_id !== null && priceIds.has(item.product_price_id) && !item.proration
+    && item.start_timestamp !== null && item.end_timestamp !== null
+    && timestamp(item.start_timestamp) === timestamp(subscription.current_period_start) && timestamp(item.end_timestamp) === timestamp(subscription.current_period_end);
 }
 async function polarSubscription(id: string): Promise<VerifiedMembership> {
   const client = polar();
@@ -205,7 +234,8 @@ async function polarSubscription(id: string): Promise<VerifiedMembership> {
   const start = timestamp(subscription.current_period_start), end = timestamp(subscription.current_period_end);
   monthlyPeriod(start, end);
   const orders = await client.orders.list({ subscription_id: id, limit: 10, sorting: ["-created_at"] });
-  const periodOrders = orders.items.filter((order) => polarOrderPeriodMatches(order, subscription));
+  const taxBehavior = await polarTaxBehavior(client, subscription);
+  const periodOrders = orders.items.filter((order) => polarOrderPeriodMatches(order, subscription, taxBehavior));
   const paidOrder = periodOrders.find((order) => order.paid && order.status === "paid" && order.refunded_amount === 0 && order.refunded_tax_amount === 0);
   const paid = !!paidOrder;
   const refunded = !paid && periodOrders.some((order) => order.status === "refunded" || order.refunded_amount >= order.net_amount);

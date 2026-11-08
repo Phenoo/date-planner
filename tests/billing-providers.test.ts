@@ -21,7 +21,7 @@ const subscription = {
   createdAt: periodStart, next_payment_date: periodEnd, email_token: "test-only-token", customer: { customer_code: "CUS_test" },
   authorization: { authorization_code: "AUTH_test" }, plan,
 };
-const price = { id: "price_test", amount_type: "fixed", price_currency: "usd", price_amount: 500, is_archived: false };
+const price = { id: "price_test", amount_type: "fixed", price_currency: "usd", price_amount: 500, is_archived: false, tax_behavior: "exclusive" };
 const product = { id: "product_test", is_recurring: true, is_archived: false, recurring_interval: "month", recurring_interval_count: 1, prices: [price] };
 const polarSubscription = {
   id: "subscription_test", product_id: product.id, customer_id: "customer_test", amount: 500, currency: "usd",
@@ -30,8 +30,9 @@ const polarSubscription = {
 };
 const polarOrder = {
   id: "order_test", subscription_id: polarSubscription.id, customer_id: "customer_test", product_id: product.id, status: "paid", paid: true,
-  currency: "usd", subtotal_amount: 500, net_amount: 500, refunded_amount: 0, refunded_tax_amount: 0, billing_reason: "subscription_create",
-  items: [{ product_price_id: price.id, amount: 500, proration: false, start_timestamp: periodStart, end_timestamp: periodEnd }],
+  currency: "usd", subtotal_amount: 500, net_amount: 500, tax_amount: 0, total_amount: 500, discount_amount: 0, applied_balance_amount: 0,
+  refunded_amount: 0, refunded_tax_amount: 0, billing_reason: "subscription_create",
+  items: [{ product_price_id: price.id, amount: 500, tax_amount: 0, proration: false, start_timestamp: periodStart, end_timestamp: periodEnd }],
 };
 
 test("billing adapters use validated sandbox prices and require paid, owner-bound provider evidence", async (context) => {
@@ -55,6 +56,8 @@ test("billing adapters use validated sandbox prices and require paid, owner-boun
     assert.ok(["api.paystack.co", "sandbox-api.polar.sh"].includes(url.hostname));
     const value = routes.get(url.pathname);
     assert.notEqual(value, undefined, `Unexpected provider request: ${url.pathname}`);
+    if (value instanceof Response) return value.clone();
+    if (value instanceof Error) throw value;
     return Response.json(url.hostname === "api.paystack.co" ? { status: true, data: value } : value);
   };
   const checkoutInput = { uid, email: "test@example.com", checkoutId, returnUrl: `http://localhost:3004/membership?checkout=${checkoutId}` };
@@ -131,6 +134,14 @@ test("billing adapters use validated sandbox prices and require paid, owner-boun
       await assert.rejects(api.initializeProviderCheckout({ ...checkoutInput, provider: "polar" }));
       assert.equal(calls.length, 1);
     });
+    await context.test("Only a definite Polar checkout validation rejection releases checkout creation", async () => {
+      routes = new Map<string, unknown>([["/v1/products/product_test", product], ["/v1/checkouts/", Response.json({ detail: [{ loc: ["body", "customer_email"], type: "value_error" }] }, { status: 422 })]]);
+      await assert.rejects(api.initializeProviderCheckout({ ...checkoutInput, provider: "polar" }), (error: unknown) => error instanceof api.CheckoutValidationError && error.status === 422);
+      routes.set("/v1/checkouts/", new Error("TEST_NETWORK_FAILURE"));
+      await assert.rejects(api.initializeProviderCheckout({ ...checkoutInput, provider: "polar" }), (error: unknown) => error instanceof Error && !(error instanceof api.CheckoutValidationError));
+      routes.set("/v1/checkouts/", { id: polarCheckoutId, product_id: product.id, amount: 100, currency: "usd", url: "https://sandbox.polar.sh/checkout/test" });
+      await assert.rejects(api.initializeProviderCheckout({ ...checkoutInput, provider: "polar" }), (error: unknown) => error instanceof Error && !(error instanceof api.CheckoutValidationError));
+    });
     await context.test("Polar active, refunded and older-period orders cannot grant this month's allowance", async () => {
       routes = new Map<string, unknown>([["/v1/subscriptions/subscription_test", polarSubscription], ["/v1/orders/", { items: [polarOrder] }]]);
       assert.equal((await api.fetchProviderSubscription("polar", "subscription_test")).paid, true);
@@ -141,6 +152,31 @@ test("billing adapters use validated sandbox prices and require paid, owner-boun
       }
       routes.set("/v1/orders/", { items: [{ ...polarOrder, status: "refunded", refunded_amount: 500 }] });
       assert.equal((await api.fetchProviderSubscription("polar", "subscription_test")).revoked, true);
+    });
+    await context.test("Polar validates tax-inclusive gross prices and tax-exclusive net prices without accepting discounts or unrelated charges", async () => {
+      const inclusive = { ...polarSubscription, prices: [{ ...price, tax_behavior: "inclusive" }] };
+      const includedOrder = { ...polarOrder, subtotal_amount: 417, net_amount: 417, tax_amount: 83, total_amount: 500,
+        items: [{ ...polarOrder.items[0], amount: 417, tax_amount: 83 }] };
+      routes = new Map<string, unknown>([["/v1/subscriptions/subscription_test", inclusive], ["/v1/orders/", { items: [includedOrder] }]]);
+      assert.equal((await api.fetchProviderSubscription("polar", "subscription_test")).paid, true, "UK-style inclusive tax preserves the fixed $5 gross price");
+      const exclusiveOrder = { ...polarOrder, tax_amount: 100, total_amount: 600, items: [{ ...polarOrder.items[0], tax_amount: 100 }] };
+      routes.set("/v1/subscriptions/subscription_test", polarSubscription);
+      routes.set("/v1/orders/", { items: [exclusiveOrder] });
+      assert.equal((await api.fetchProviderSubscription("polar", "subscription_test")).paid, true, "Exclusive tax is added to the fixed $5 net price");
+      for (const wrong of [includedOrder, { ...exclusiveOrder, discount_amount: 50 }, { ...exclusiveOrder, applied_balance_amount: 100 },
+        { ...exclusiveOrder, total_amount: 500 }, { ...exclusiveOrder, items: [{ ...exclusiveOrder.items[0], amount: 400 }] },
+        { ...exclusiveOrder, items: [...exclusiveOrder.items, exclusiveOrder.items[0]] }]) {
+        routes.set("/v1/orders/", { items: [wrong] });
+        assert.equal((await api.fetchProviderSubscription("polar", "subscription_test")).paid, false);
+      }
+      routes.set("/v1/subscriptions/subscription_test", inclusive);
+      routes.set("/v1/orders/", { items: [exclusiveOrder] });
+      assert.equal((await api.fetchProviderSubscription("polar", "subscription_test")).paid, false, "Inclusive pricing must not accept a $6 gross charge");
+      const inherited = { ...inclusive, checkout_id: polarCheckoutId, prices: [{ ...price, tax_behavior: "location" }] };
+      routes.set("/v1/subscriptions/subscription_test", inherited);
+      routes.set(`/v1/checkouts/${polarCheckoutId}`, { subscription_id: inclusive.id, customer_id: inclusive.customer_id, product_id: inclusive.product_id, tax_behavior: "inclusive" });
+      routes.set("/v1/orders/", { items: [includedOrder] });
+      assert.equal((await api.fetchProviderSubscription("polar", "subscription_test")).paid, true, "Location-based tax uses the checkout's resolved tax behavior");
     });
     await context.test("Polar callback requires a successful paid checkout and matching Firebase owner", async () => {
       const checkout = { id: polarCheckoutId, status: "succeeded", subscription_id: polarSubscription.id, product_id: product.id, amount: 500, currency: "usd",
