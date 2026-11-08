@@ -1,0 +1,105 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { Timestamp } from "firebase-admin/firestore";
+import { getDatabase } from "../../lib/firebase/server";
+import { savedDocumentId } from "../../lib/firebase/paths";
+import { getMembershipUsageSnapshot, reserveMembershipUsage, settleMembershipUsage, transferMembershipUsage, requireOwnedActivities, ownedMembershipContext } from "../../lib/server/membership-usage";
+import { coordinateGeneration } from "../../lib/server/generation-coordinator";
+import { generateSchema, type RecommendationResult } from "../../lib/planner/schema";
+
+if (process.env.FIREBASE_PROJECT_ID !== "demo-date-atlas" || process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080" || process.env.FIREBASE_AUTH_EMULATOR_HOST !== "127.0.0.1:9099") throw new Error("Membership checks only run against the local demo emulators.");
+process.env.DATE_ATLAS_BILLING_MODE = "test";
+const db = getDatabase();
+const uid = `membership-free-${randomUUID()}`;
+const reserve = (owner: string, key = randomUUID(), hash = "same-answers", kind: "plans" | "changes" = "plans", until = Date.now() + 90000) => db.runTransaction((tx) => reserveMembershipUsage(tx, db, owner, key, hash, randomUUID(), kind, until));
+const settle = (owner: string, reservation: Awaited<ReturnType<typeof reserve>>, success: boolean) => db.runTransaction((tx) => settleMembershipUsage(tx, db, owner, reservation, success));
+const isStatus = (status: number) => (error: unknown) => error instanceof Error && "status" in error && error.status === status;
+assert.equal((await getMembershipUsageSnapshot(db, uid)).plans.remaining, 1);
+
+const results = await Promise.allSettled([reserve(uid), reserve(uid)]);
+assert.equal(results.filter((result) => result.status === "fulfilled").length, 1, "Concurrent tabs cannot reserve the same free allowance twice");
+const reserved = results.find((result) => result.status === "fulfilled");
+assert.ok(reserved?.status === "fulfilled");
+assert.equal((await getMembershipUsageSnapshot(db, uid)).plans.remaining, 0);
+assert.equal((await getMembershipUsageSnapshot(db, uid)).plans.used, 0);
+await settle(uid, reserved.value, false);
+assert.equal((await getMembershipUsageSnapshot(db, uid)).plans.remaining, 1, "Empty results and provider failures release the allowance");
+
+const key = randomUUID();
+const failed = await reserve(uid, key);
+await settle(uid, failed, false);
+await assert.rejects(reserve(uid, key, "changed-answers"), isStatus(409));
+const retry = await reserve(uid, key);
+await settle(uid, retry, true);
+await settle(uid, retry, true);
+assert.equal((await getMembershipUsageSnapshot(db, uid)).plans.used, 1, "Repeated settlement cannot consume twice");
+await assert.rejects(reserve(uid, key), isStatus(409), "A consumed intent cannot rerun after its response cache expires");
+await assert.rejects(reserve(uid), isStatus(402));
+await assert.rejects(reserve(uid, randomUUID(), "same-answers", "changes"), isStatus(402));
+
+const expiredUid = `membership-expired-${randomUUID()}`;
+const expired = await reserve(expiredUid, randomUUID(), "same-answers", "plans", Date.now() - 1);
+const replacement = await reserve(expiredUid);
+await assert.rejects(settle(expiredUid, expired, true), isStatus(409), "An expired worker cannot finish after its allowance was reclaimed");
+await settle(expiredUid, expired, false);
+await settle(expiredUid, replacement, true);
+assert.equal((await getMembershipUsageSnapshot(db, expiredUid)).plans.used, 1);
+
+const plusUid = `membership-plus-${randomUUID()}`;
+await db.collection("users").doc(plusUid).collection("membership").doc("current").set({ provider: "polar", subscriptionId: "TEST_SUBSCRIPTION", customerId: "TEST_CUSTOMER", status: "active", paidPeriodStart: Date.now() - 1000, paidPeriodEnd: Date.now() + 86400000, cancelAtPeriodEnd: false, updatedAt: Date.now() });
+for (let index = 0; index < 4; index++) await settle(plusUid, await reserve(plusUid), true);
+for (let index = 0; index < 2; index++) await settle(plusUid, await reserve(plusUid, randomUUID(), "same-answers", "changes"), true);
+await assert.rejects(reserve(plusUid), isStatus(402));
+await assert.rejects(reserve(plusUid, randomUUID(), "same-answers", "changes"), isStatus(402));
+const full = await getMembershipUsageSnapshot(db, plusUid);
+assert.equal(full.plans.used, 4); assert.equal(full.changes.used, 2);
+await db.collection("users").doc(plusUid).collection("membership").doc("current").update({ cancelAtPeriodEnd: true });
+assert.equal((await getMembershipUsageSnapshot(db, plusUid)).tier, "plus", "Canceling renewal preserves already-paid access");
+
+const destination = `membership-destination-${randomUUID()}`;
+await db.runTransaction(async (tx) => {
+  await transferMembershipUsage(tx, db, uid, destination);
+  tx.set(db.collection("users").doc(uid), { transferredTo: destination }, { merge: true });
+});
+await db.runTransaction((tx) => transferMembershipUsage(tx, db, uid, destination));
+assert.equal((await getMembershipUsageSnapshot(db, destination)).plans.used, 1, "Guest-to-account transfer preserves usage exactly once");
+await assert.rejects(reserve(destination, key), isStatus(409));
+await assert.rejects(reserve(uid), isStatus(401));
+
+const signup = await fetch("http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=test-only-key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnSecureToken: true }) });
+const identity: unknown = await signup.json();
+assert.ok(identity && typeof identity === "object" && "idToken" in identity && typeof identity.idToken === "string" && "localId" in identity && typeof identity.localId === "string");
+const request = new Request("http://localhost/test", { headers: { Authorization: `Bearer ${identity.idToken}` } });
+const planId = "TEST_OWNED_PLAN";
+await db.collection("users").doc(identity.localId).collection("datePlans").doc(savedDocumentId(planId)).set({ record: { id: planId, activities: [{ experience: { id: "VENUE_ONE" } }, { experience: { id: "VENUE_TWO" } }] }, expiresAt: Timestamp.fromMillis(Date.now() + 3600000) });
+await requireOwnedActivities(request, planId, ["VENUE_TWO", "VENUE_ONE"]);
+await assert.rejects(requireOwnedActivities(request, planId, ["FORGED_VENUE", "VENUE_ONE"]), isStatus(403));
+await assert.rejects(requireOwnedActivities(request, undefined, ["VENUE_ONE"]), isStatus(409));
+await assert.rejects(ownedMembershipContext(request, { kind: "plan", id: "ANOTHER_USERS_PLAN" }), isStatus(409));
+await assert.rejects(ownedMembershipContext(request, { kind: "discovery", id: randomUUID() }), isStatus(409));
+
+const input = generateSchema.parse({ request: { city: "Lagos", area: "Lekki", country: "Nigeria", occasion: "Romantic date", budget: null, vibes: ["Romantic"], date: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), startTime: "18:00", timeZone: "Africa/Lagos", timeZoneConfirmed: true, durationMode: "estimated" } });
+const generationRequest = (key: string) => new Request("http://localhost/api/plans", { method: "POST", headers: { Authorization: `Bearer ${identity.idToken}`, "Idempotency-Key": key } });
+const empty: RecommendationResult = { plans: [], warnings: [], diagnostics: [], source: "firebase", ai: false };
+const emptyKey = randomUUID();
+await coordinateGeneration(generationRequest(emptyKey), input, async () => empty);
+assert.equal((await getMembershipUsageSnapshot(db, identity.localId)).plans.remaining, 1, "The coordinator does not consume an empty 200 result");
+const generationKey = randomUUID();
+await assert.rejects(coordinateGeneration(generationRequest(generationKey), input, async () => { throw new Error("TEST_PROVIDER_FAILURE"); }), /TEST_PROVIDER_FAILURE/);
+assert.equal((await getMembershipUsageSnapshot(db, identity.localId)).plans.remaining, 1);
+let start!: () => void; let release!: () => void;
+const started = new Promise<void>((resolve) => { start = resolve; });
+const barrier = new Promise<void>((resolve) => { release = resolve; });
+const complete: RecommendationResult = { ...empty, nearby: { city: "Lagos", area: "Lekki", country: "Nigeria", places: [{ id: "TEST_LIVE_VENUE", name: "TEST_VENUE", address: "TEST_ADDRESS", category: "Art gallery", distanceKm: 1, reason: "TEST_REASON", mapsUrl: "https://www.google.com/maps/search/TEST", attributions: [] }] } };
+const running = coordinateGeneration(generationRequest(generationKey), input, async () => { start(); await barrier; return complete; });
+await started;
+const pending = await coordinateGeneration(generationRequest(generationKey), input, async () => { throw new Error("DUPLICATE_GENERATION"); });
+assert.equal(pending.status, 202);
+release(); assert.equal((await running).status, 200);
+assert.equal((await getMembershipUsageSnapshot(db, identity.localId)).plans.used, 1);
+await db.collection("users").doc(identity.localId).collection("generationRequests").doc(savedDocumentId(generationKey)).update({ expiresAt: Timestamp.fromMillis(0) });
+await assert.rejects(coordinateGeneration(generationRequest(generationKey), input, async () => { throw new Error("CONSUMED_GENERATION_RERAN"); }), isStatus(409));
+assert.equal((await getMembershipUsageSnapshot(db, identity.localId)).plans.used, 1);
+process.env.DATE_ATLAS_BILLING_MODE = "off";
+await requireOwnedActivities(new Request("http://localhost/test"), undefined, ["LEGACY_PLAN"]);
+console.log("Membership transaction checks passed: concurrency, failure recovery, durable receipts, quota boundaries, cancellation, guest transfer, and owned edits.");

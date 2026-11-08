@@ -19,6 +19,8 @@ import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
 import { planHasQualifyingGoogleRatings } from "./plan-ratings";
 
 import { recordFunnel } from "./funnel";
+import { membershipTestEnabled } from "./membership-config";
+import { ownedMembershipContext, reserveMembershipUsage, settleMembershipUsage } from "./membership-usage";
 
 const lifetime = 10 * 60 * 1000;
 const leaseMs = 90000;
@@ -70,6 +72,8 @@ export async function coordinateGeneration(request: Request, input: GenerateInpu
   const key = suppliedKey ?? `automatic:${Math.floor(Date.now() / 60000)}:${payloadHash}`;
   const ref = auth.db.collection("users").doc(auth.user.uid).collection("generationRequests").doc(createHash("sha256").update(key).digest("hex"));
   const attempt = randomUUID();
+  const membershipEnabled = membershipTestEnabled();
+  if (membershipEnabled && input.replacementOf) await ownedMembershipContext(request, input.replacementOf);
   const claim = await auth.db.runTransaction(async (tx) => {
     const data = (await tx.get(ref)).data();
     const now = Date.now();
@@ -78,8 +82,9 @@ export async function coordinateGeneration(request: Request, input: GenerateInpu
     const cached = current && data.status === "complete" ? cachedSchema.safeParse(data.result) : null;
     if (cached?.success) return { state: "complete" as const, result: cached.data };
     if (current && data.status === "running" && data.leaseUntil instanceof Timestamp && data.leaseUntil.toMillis() > now) return { state: "pending" as const };
+    const reservation = membershipEnabled ? await reserveMembershipUsage(tx, auth.db, auth.user.uid, key, payloadHash, attempt, input.replacementOf ? "changes" : "plans", now + leaseMs, now) : undefined;
     tx.set(ref, { payloadHash, attempt, status: "running", leaseUntil: Timestamp.fromMillis(now + leaseMs), expiresAt: Timestamp.fromMillis(now + lifetime) });
-    return { state: "claimed" as const };
+    return { state: "claimed" as const, reservation };
   });
   if (claim.state === "pending") return Response.json({ pending: true }, { status: 202, headers: { "Cache-Control": "no-store", "Retry-After": "2" } });
   if (claim.state === "complete") return Response.json(await restoreResult(claim.result, input), { headers: { "Cache-Control": "no-store" } });
@@ -90,6 +95,7 @@ export async function coordinateGeneration(request: Request, input: GenerateInpu
     const cached = cacheResult(result);
     await auth.db.runTransaction(async (tx) => {
       if ((await tx.get(ref)).data()?.attempt !== attempt) throw new RequestError("This planning attempt expired. Please retry.", 409);
+      if (claim.reservation) await settleMembershipUsage(tx, auth.db, auth.user.uid, claim.reservation, !!(result.plans.length || result.nearby?.places.length));
       tx.update(ref, { status: "complete", result: cached, leaseUntil: Timestamp.fromMillis(0) });
     });
     await recordFunnel(auth.user.uid, result.plans.length || result.nearby?.places.length ? "recommendation_succeeded" : "recommendation_failed", key, undefined, input.flowId);
@@ -97,7 +103,10 @@ export async function coordinateGeneration(request: Request, input: GenerateInpu
   } catch (error) {
     await recordFunnel(auth.user.uid, "recommendation_failed", key, undefined, input.flowId);
     await auth.db.runTransaction(async (tx) => {
-      if ((await tx.get(ref)).data()?.attempt === attempt) tx.update(ref, { status: "failed", leaseUntil: Timestamp.fromMillis(0) });
+      if ((await tx.get(ref)).data()?.attempt === attempt) {
+        if (claim.reservation) await settleMembershipUsage(tx, auth.db, auth.user.uid, claim.reservation, false);
+        tx.update(ref, { status: "failed", leaseUntil: Timestamp.fromMillis(0) });
+      }
     }).catch(() => { console.warn("Planning lease cleanup failed; the lease will expire."); });
     throw error;
   }

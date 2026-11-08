@@ -2,6 +2,7 @@ import { getAuth } from "firebase-admin/auth";
 import { z } from "zod";
 import { authenticatedClient, getFirebaseAdmin } from "@/lib/firebase/server";
 import { apiError, readJson, RequestError } from "@/lib/planner/http";
+import { transferMembershipUsage } from "@/lib/server/membership-usage";
 export async function POST(request: Request) {
   try {
     const auth = await authenticatedClient(request);
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
     await auth.db.runTransaction(async (tx) => {
       const owner = (await tx.get(source)).data()?.transferredTo;
       if (owner && owner !== auth.user.uid) throw new RequestError("This guest session has already been transferred to another account.", 403);
+      await transferMembershipUsage(tx, auth.db, guest.uid, auth.user.uid);
       tx.set(source, { transferredTo: auth.user.uid }, { merge: true });
     });
     for (const collection of ["savedPlans", "datePlans", "discoverySessions", "dateHistory"]) {

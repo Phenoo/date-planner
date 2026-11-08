@@ -12,6 +12,7 @@ import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
 import { dateSelectionId } from "@/lib/server/date-invitations";
 import { recordFunnel } from "@/lib/server/funnel";
 import { queueDateCreatedEmail } from "@/lib/server/date-email-outbox";
+import { requireOwnedActivities } from "@/lib/server/membership-usage";
 
 export async function GET(request: Request) {
   try {
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
         { error: "Please save a valid plan." },
         { status: 400 },
       );
+    await requireOwnedActivities(request, recipe.data.id, recipe.data.experienceIds);
     const catalog = await getCatalog();
     const experiences = recipe.data.experienceIds.map((id) => catalog.find((item) => item.id === id));
     const plan = experiences.every((item) => item !== undefined) ? recalculateExactPlan(recipe.data.request, experiences, undefined, catalog) : null;

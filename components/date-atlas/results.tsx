@@ -97,6 +97,17 @@ export function Results({
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [locked, setLocked] = useState<string[]>([]);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
+  const modificationAttempts = useRef(new Map<string, string>());
+  async function modificationKey(body: string, kind: "swap" | "chat") {
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body))), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const storageKey = `date-atlas:${kind}-attempt:v1:${accountRevision}:${hash}`;
+    let attempt = modificationAttempts.current.get(storageKey);
+    try { attempt ??= sessionStorage.getItem(storageKey) ?? undefined; } catch { /* Keep this retry together in memory if storage is unavailable. */ }
+    attempt ??= crypto.randomUUID();
+    modificationAttempts.current.set(storageKey, attempt);
+    try { sessionStorage.setItem(storageKey, attempt); } catch { /* The in-memory key still protects repeat clicks. */ }
+    return attempt;
+  }
   const [alternatives, setAlternatives] = useState<DatePlan[]>([]);
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapError, setSwapError] = useState("");
@@ -200,7 +211,7 @@ export function Results({
       const response = await plannerFetch("/api/plans/customize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: plan.request, experienceIds: ids }),
+        body: JSON.stringify({ ...(plan.demo ? {} : { planId: plan.id }), request: plan.request, experienceIds: ids }),
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
       });
       const data = await response.json();
@@ -237,18 +248,19 @@ export function Results({
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      const body = JSON.stringify({
+        ...(plan.demo ? {} : { planId: plan.id }),
+        request: plan.request,
+        ...exclusions(),
+        experienceIds: plan.activities.map((activity) => activity.experience.id),
+        index,
+      });
+      const attempt = await modificationKey(body, "swap");
+      controller.signal.throwIfAborted();
       const response = await plannerFetch("/api/plans/swap", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(plan.demo ? {} : { planId: plan.id }),
-          request: plan.request,
-          ...exclusions(),
-          experienceIds: plan.activities.map(
-            (activity) => activity.experience.id,
-          ),
-          index,
-        }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt },
+        body,
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
       });
       const data = await response.json();
@@ -276,21 +288,25 @@ export function Results({
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      const body = JSON.stringify({
+        ...(plan.demo ? {} : { planId: plan.id }),
+        request: plan.request,
+        ...exclusions(),
+        message,
+        lockedIds: activeLocked,
+      });
+      const attempt = await modificationKey(body, "chat");
+      controller.signal.throwIfAborted();
       const response = await plannerFetch("/api/planner-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(plan.demo ? {} : { planId: plan.id }),
-          request: plan.request,
-          ...exclusions(),
-          message,
-          lockedIds: activeLocked,
-        }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt },
+        body,
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]),
       });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "We couldn't update your plan.");
+      if (controller.signal.aborted) return;
       if (data.plans.length) {
         setResult(data);
       }

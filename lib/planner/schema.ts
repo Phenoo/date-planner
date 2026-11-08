@@ -102,6 +102,7 @@ export const requestSchema = z.object({
 export type PlanRequest = z.infer<typeof requestSchema>;
 export const generateSchema = z.object({
   flowId: z.uuid().optional(),
+  replacementOf: z.object({ kind: z.enum(["plan", "discovery"]), id: z.string().min(1).max(500) }).optional(),
   request: requestSchema,
   lockedIds: z.array(z.string().max(100)).max(4).default([]),
   excludeIds: z.array(z.string().max(100)).max(30).default([]),

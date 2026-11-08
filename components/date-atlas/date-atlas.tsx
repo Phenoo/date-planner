@@ -25,6 +25,7 @@ import { createdInvitationSchema, pendingInvitationKey } from "@/lib/planner/inv
 import { RevokeInvitation } from "./revoke-invitation";
 import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
 import { requestGeneration } from "@/lib/planner/generation-client";
+import { retainedGenerationKey, replacementReferenceKey, replacementReferenceSchema } from "@/lib/membership/generation-attempt";
 import { pendingDateReminderKey } from "@/lib/planner/date-reminder-intent";
 import { applyPageSurface, readPlannerAppearance, savePlannerAppearance, type PlannerAppearance } from "@/lib/planner/page-surface";
 import { activePlanKey, clearPlanningContinuations, continuationPath, readPlanningContinuation, retainPlanningContinuation } from "@/lib/planner/planning-continuation";
@@ -187,7 +188,7 @@ export function DateAtlas({
   const abortRef = useRef<AbortController | null>(null);
   const generationId = useRef(0);
   const activeGeneration = useRef("");
-  const generationAttempt = useRef<{ body: string; key: string } | null>(null);
+  const generationAttempt = useRef<{ owner: string; body: string; key: string } | null>(null);
   const pendingSave = useRef<{ recipe: SavedRecipe; action: "save" | "share" } | null>(null);
   const shareController = useRef<AbortController | null>(null);
   const shareOwner = useRef<string | null>(null);
@@ -626,6 +627,9 @@ export function DateAtlas({
   function customize(questionId: PlannerQuestionId = "review") {
     const step = plannerQuestions.findIndex((question) => question.id === questionId);
     const flow = new URLSearchParams(window.location.search).get("flow") ?? "direct";
+    const previousPlace = result?.nearby?.sessionId ? { kind: "discovery" as const, id: result.nearby.sessionId } : result?.plans[0] ? { kind: "plan" as const, id: result.plans[0].id } : null;
+    const keepReplacement = (targetFlow: string) => { if (previousPlace) try { sessionStorage.setItem(replacementReferenceKey(targetFlow), JSON.stringify({ ...previousPlace, owner: getBrowserAuth()?.currentUser?.uid, expiresAt: Date.now() + 3600000 })); } catch { /* The current result still supplies its reference. */ } };
+    keepReplacement(flow);
     let exclusions = mergeRejectedPicks(rejectionMemory.current.flow === flow ? rejectionMemory.current.picks : null, recommendationExclusions(result));
     try { exclusions = mergeRejectedPicks(readRejectedPicks(sessionStorage.getItem(rejectedPicksKey(flow))), exclusions); } catch { /* The current replacement still excludes the previous recommendation. */ }
     rejectionMemory.current = { flow, picks: exclusions };
@@ -646,6 +650,7 @@ export function DateAtlas({
       setView("planner");
     } else {
       const nextFlow = crypto.randomUUID();
+      keepReplacement(nextFlow);
       try {
         sessionStorage.setItem(rejectedPicksKey(nextFlow), JSON.stringify(exclusions));
         sessionStorage.setItem(
@@ -723,12 +728,26 @@ export function DateAtlas({
       await planningToken(operationSignal);
       operationSignal.throwIfAborted();
       setLoadingStage("Preparing your recommendations");
-      const body = JSON.stringify({ request: preferences, flowId: funnelScope(), ...extra, ...exclusions, preferredIds: nextPreferredIds });
-      const attempt = generationAttempt.current?.body === body ? generationAttempt.current : { body, key: crypto.randomUUID() };
+      const generationOwner = getBrowserAuth()?.currentUser?.uid ?? "";
+      let replacementOf = extra.replacementOf;
+      if (!replacementOf && (editingPlan || extra.excludeIds?.length || extra.excludePlaceIds?.length)) {
+        replacementOf = result?.nearby?.sessionId ? { kind: "discovery", id: result.nearby.sessionId } : result?.plans[0] ? { kind: "plan", id: result.plans[0].id } : undefined;
+        if (!replacementOf) try { const ref = replacementReferenceSchema.safeParse(JSON.parse(sessionStorage.getItem(replacementReferenceKey(flow)) ?? "null")); if (ref.success && ref.data.owner === getBrowserAuth()?.currentUser?.uid && ref.data.expiresAt > Date.now()) replacementOf = { kind: ref.data.kind, id: ref.data.id }; } catch { /* Server validation protects missing context. */ }
+      }
+      if (replacementOf) try { sessionStorage.setItem(replacementReferenceKey(flow), JSON.stringify({ ...replacementOf, owner: generationOwner, expiresAt: Date.now() + 3600000 })); } catch { /* The current request retains its owned replacement reference. */ }
+      const body = JSON.stringify({ request: preferences, flowId: funnelScope(), ...extra, ...exclusions, preferredIds: nextPreferredIds, ...(replacementOf ? { replacementOf } : {}) });
+      let attempt = generationAttempt.current;
+      if (attempt?.body !== body || attempt.owner !== generationOwner) {
+        let key = crypto.randomUUID();
+        try { key = await retainedGenerationKey(sessionStorage, generationOwner, flow, body); } catch { /* A blocked store keeps retries in this page's memory. */ }
+        attempt = { owner: generationOwner, body, key };
+      }
+      operationSignal.throwIfAborted();
+      if ((getBrowserAuth()?.currentUser?.uid ?? "") !== generationOwner) throw new Error("Your account changed. Please retry to keep this date with your account.");
       generationAttempt.current = attempt;
       const data = recommendationResultSchema.parse(await requestGeneration(body, attempt.key, operationSignal, (stage) => { if (!operationSignal.aborted) setLoadingStage(stage); }));
       operationSignal.throwIfAborted();
-      if (id !== generationId.current) return;
+      if (id !== generationId.current || (getBrowserAuth()?.currentUser?.uid ?? "") !== generationOwner) return;
       if ((extra.excludePlaceIds?.length || extra.excludeIds?.length) && !data.plans.length && !data.nearby?.places.length)
         throw new Error("No new place matched these preferences. Try changing the location, time or vibe.");
       setRequest(data.request ?? data.plans[0]?.request ?? preferences);
@@ -1165,6 +1184,7 @@ export function DateAtlas({
         {view === "profile" && preferencesReady && (
           <ProfilePreferences
             key={accountId}
+            membershipEnabled={process.env.NEXT_PUBLIC_DATE_ATLAS_MEMBERSHIP_TEST === "1"}
             accountName={accountProfile.name}
             accountEmail={accountProfile.email}
             request={request}

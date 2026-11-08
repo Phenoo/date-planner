@@ -7,6 +7,7 @@ import { recalculateExactPlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
 import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
+import { requireOwnedActivities } from "@/lib/server/membership-usage";
 export async function restore(request: Request) {
   try {
     const parsed = savedRecipeSchema.safeParse(await readJson(request));
@@ -15,6 +16,7 @@ export async function restore(request: Request) {
         { error: "This saved plan is invalid or outdated." },
         { status: 400 },
       );
+    await requireOwnedActivities(request, parsed.data.id, parsed.data.experienceIds);
     if (await authenticatedClient(request)) {
       try { parsed.data.request = await ownedPlanRequest(request, parsed.data.id); }
       catch (error) { if (!(error instanceof RequestError) || error.status !== 404 && error.status !== 410) throw error; }

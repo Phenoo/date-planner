@@ -4,6 +4,7 @@ import { zonedNow } from "@/lib/planner/schedule";
 import { currencyDigits, currencyOptions, currencyForCountry } from "@/lib/planner/currency";
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowRight, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -163,6 +164,7 @@ export function ProfilePreferences({
   onAuth,
   onSave,
   onReset,
+  membershipEnabled = false,
 }: {
   request: PlanRequest;
   signedIn: boolean;
@@ -171,6 +173,7 @@ export function ProfilePreferences({
   onAuth: () => void;
   onSave: (preferences: StoredPreferences) => void;
   onReset: () => void;
+  membershipEnabled?: boolean;
 }) {
   const [preferences, setPreferences] = useState(() =>
     preferenceSchema.parse(request),
@@ -202,6 +205,7 @@ export function ProfilePreferences({
           <div className={styles.profileMark} aria-hidden="true"><UserRound size={24} strokeWidth={1.6} /></div>
           <h2 id="profile-summary-heading">{accountName || "Your planning defaults"}</h2>
           <p>{signedIn ? accountEmail || "Signed in" : "Not signed in"}</p>
+          {membershipEnabled && <p><Link href="/membership">Your membership<ArrowRight size={14} aria-hidden="true" /></Link></p>}
           <dl>
             <div><dt>Starting point</dt><dd>{location || "Choose your usual city"}</dd></div>
             <div><dt>Budget</dt><dd>{preferences.budget == null ? "Open to suggestions" : `${money(preferences.budget, currency)}${preferences.budgetType === "per-person" ? " per person" : " total"}`}</dd></div>

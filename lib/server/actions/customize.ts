@@ -6,7 +6,11 @@ import { recalculateExactPlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { apiError, readJson } from "@/lib/planner/http";
 import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
+import { requireOwnedActivities } from "@/lib/server/membership-usage";
+import { persistPlans } from "@/lib/server/plan-persistence";
+import { membershipTestEnabled } from "@/lib/server/membership-config";
 const editSchema = z.object({
+  planId: z.string().min(1).max(500).optional(),
   request: requestSchema,
   experienceIds: z
     .array(z.string().min(1).max(100))
@@ -26,6 +30,7 @@ export async function customize(request: Request) {
       );
     const invalidSchedule = scheduleError(parsed.data.request);
     if (invalidSchedule) return Response.json({ error: invalidSchedule }, { status: 400 });
+    await requireOwnedActivities(request, parsed.data.planId, parsed.data.experienceIds);
     const catalog = await getCatalog();
     const origin = await planningOrigin(parsed.data.request);
     const experiences = parsed.data.experienceIds.map((id) =>
@@ -58,6 +63,7 @@ export async function customize(request: Request) {
       );
     if (!await planHasQualifyingGoogleRatings(plan))
       return Response.json({ error: "This plan no longer has a confirmed Google average rating above 3.75 stars. Please find another recommendation." }, { status: 409 });
+    if (membershipTestEnabled()) await persistPlans(request, [plan]);
     return Response.json({ plan });
   } catch (error) {
     return apiError(error);

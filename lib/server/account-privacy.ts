@@ -4,6 +4,9 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getFirebaseAdmin, getDatabase } from "@/lib/firebase/server";
 import { RequestError } from "@/lib/planner/http";
+import { membershipTestEnabled } from "./membership-config";
+import { membershipRecordSchema } from "@/lib/membership/schema";
+import { cancelProviderSubscription } from "./billing-providers";
 export const deletionKey = (uid: string) => createHash("sha256").update(uid).digest("hex");
 export const deletionDrainMs = 10 * 60 * 1000;
 
@@ -16,6 +19,16 @@ export async function processDeletion(id: string, operatorId: string) {
   }
   if (data.targetUid === operatorId) throw new RequestError("Another administrator must process this request so you can still monitor the deletion if it is interrupted.", 409);
   if (data.status !== "requested" && data.status !== "processing") throw new RequestError("This request isn't ready for processing.", 409);
+  if (membershipTestEnabled()) {
+    const user = db.collection("users").doc(data.targetUid);
+    const member = membershipRecordSchema.safeParse((await user.collection("membership").doc("current").get()).data());
+    if (member.success) await cancelProviderSubscription({ provider: member.data.provider, subscriptionId: member.data.subscriptionId, customerId: member.data.customerId, returnUrl: "http://localhost:3005/membership" });
+    else if ((await user.collection("billingCheckout").doc("current").get()).exists) throw new RequestError("Review this account’s pending test checkout before removing it.", 409);
+    for (const name of ["billingSubscriptions", "billingPayments"]) {
+      const mappings = await db.collection(name).where("uid", "==", data.targetUid).limit(100).get();
+      if (!mappings.empty) { const batch = db.batch(); mappings.docs.forEach((row) => batch.delete(row.ref)); await batch.commit(); return { complete: false }; }
+    }
+  }
   await db.runTransaction(async (tx) => {
     const current = (await tx.get(job)).data();
     if (!current || current.status !== "requested" && current.status !== "processing") throw new RequestError("This request has changed. Refresh the queue.", 409);

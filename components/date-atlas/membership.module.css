@@ -1,0 +1,78 @@
+.shell { min-height: 100svh; background: #fcf9f8; color: #261014; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 24px; max-width: 1180px; margin: auto; padding: 28px 32px; border-bottom: 1px solid #eadde1; }
+.back { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; font-size: 14px; }
+.main { max-width: 1000px; margin: auto; padding: 58px 32px 80px; }
+.intro { max-width: 720px; margin-bottom: 40px; }
+.test { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; margin-bottom: 28px; background: #f4e8ec; border-radius: 6px; color: #8a2340; font-size: 12px; }
+.eyebrow { margin-bottom: 14px; color: #b11737; font-size: 11px; letter-spacing: .14em; font-weight: 650; }
+.intro h1 { max-width: 650px; font-size: clamp(38px,5vw,58px); font-weight: 550; line-height: 1.08; letter-spacing: -.055em; }
+.lead { max-width: 540px; margin-top: 20px; color: #725d63; font-size: 17px; line-height: 1.7; }
+.current { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 24px; padding: 26px 0; margin-bottom: 32px; border-top: 1px solid #eadde1; border-bottom: 1px solid #eadde1; }
+.current > div:first-child { flex: 1; min-width: min(100%,260px); }
+.label { display: block; margin-bottom: 5px; color: #725d63; font-size: 12px; }
+.current h2 { font-size: 22px; font-weight: 600; letter-spacing: -.03em; }
+.current p { margin-top: 9px; color: #725d63; font-size: 14px; }
+.current > button { flex-shrink: 0; color: #a91a37; font-size: 12px; }
+.usage { display: flex; flex-wrap: wrap; gap: 16px 36px; width: 100%; margin: 0; }
+.usage dt { color: #725d63; font-size: 12px; }
+.usage dd { margin: 3px 0 0; font-size: 14px; }
+.usage strong { color: #a91a37; font-weight: 650; }
+.manage { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; width: 100%; border-top: 1px solid #eadde1; padding-top: 20px; }
+.manage > span { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; color: #725d63; font-size: 13px; }
+.manage :global(.button) { min-height: 44px; border-color: #dbbfc8; font-size: 13px; }
+.textButton { min-height: 44px; border: 0; padding: 5px 0; background: transparent; color: #a91a37; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.notice { margin-bottom: 24px; padding: 15px 18px; border: 1px solid #e9cdd5; background: #fff3f6; color: #a91a37; border-radius: 8px; font-size: 14px; }
+.plans { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.plan { min-width: 0; padding: 30px; border: 1px solid #eadde1; background: #fff; border-radius: 18px; }
+.plus { border-color: #d91335; box-shadow: inset 0 3px 0 #d91335; background: #fffaf9; }
+.planMark { display: flex; justify-content: center; align-items: center; width: 42px; height: 42px; margin-bottom: 24px; background: #fff0f3; border-radius: 50%; color: #b11737; }
+.plan h2 { font-size: 25px; font-weight: 600; letter-spacing: -.04em; }
+.plan > p { margin-top: 9px; color: #725d63; font-size: 14px; }
+.price { margin: 30px 0 24px; font-size: 34px; line-height: 1.2; letter-spacing: -.05em; font-weight: 600; }
+.price > span { display: block; margin-top: 7px; color: #725d63; font-size: 12px; letter-spacing: 0; font-weight: 400; }
+.plan ul { display: grid; gap: 14px; padding: 0; margin: 0 0 30px; list-style: none; }
+.plan li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; }
+.plan li svg { flex-shrink: 0; margin-top: 3px; color: #b11737; }
+.freeLink { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 50px; width: 100%; border: 1px solid #dbc2c9; border-radius: 12px; color: #a91a37; font-size: 14px; }
+.country { display: grid; gap: 8px; margin-top: 32px; font-size: 13px; font-weight: 550; }
+.country select { min-height: 50px; width: 100%; min-width: 0; padding: 10px 35px 10px 13px; background: #fff; border: 1px solid #dbc2c9; border-radius: 9px; color: #261014; font-size: 16px; font-weight: 400; }
+.country small { color: #725d63; font-size: 12px; font-weight: 400; }
+.plan .billingNote { margin-top: 14px; color: #725d63; font-size: 12px; line-height: 1.65; }
+.checkout:global(.button) { width: 100%; min-height: 52px; margin-top: 20px; padding: 13px 16px; border-radius: 12px; font-size: 14px; white-space: normal; }
+.plan .unavailable { margin-top: 12px; color: #725d63; font-size: 12px; }
+.details { max-width: 760px; margin: 56px auto 0; }
+.details h2 { font-size: 27px; font-weight: 550; margin-bottom: 26px; }
+.details > div { display: flex; gap: 18px; align-items: flex-start; margin-top: 22px; }
+.details svg { flex-shrink: 0; margin-top: 2px; color: #a91a37; }
+.details p { color: #725d63; font-size: 14px; line-height: 1.8; }
+.details strong { color: #261014; font-weight: 550; }
+.details .cancelNote { margin-top: 28px; padding-top: 24px; border-top: 1px solid #eadde1; font-size: 12px; }
+.footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; padding: 26px 32px; margin: auto; border-top: 1px solid #eadde1; }
+.footer > span { font-size: 13px; font-weight: 600; }
+.footer > div { display: flex; flex-wrap: wrap; gap: 24px; }
+.footer a { display: flex; align-items: center; min-height: 44px; color: #725d63; font-size: 14px; }
+.authDialog:global(.dialog-content) { max-width: 480px; background: #fff; padding: 40px 32px; }
+.cancelDialog:global(.dialog-content) { max-width: 500px; background: #fff; padding: 40px 32px 30px; }
+.cancelDialog h2 { font-size: 30px; }
+.cancelDialog p { margin-top: 18px; font-size: 14px; line-height: 1.8; }
+.cancelActions { display: flex; gap: 12px; margin-top: 28px; }
+.cancelActions > button { flex: 1; padding: 12px; font-size: 13px; }
+.shell :is(a,button,select):focus-visible { outline: 3px solid #bb1b42; outline-offset: 4px; }
+.shell button:disabled { cursor: default; }
+@media (max-width:700px) {
+  .header { min-height: 76px; padding: 18px 22px; }
+  .back { font-size: 13px; }
+  .main { padding: 34px 22px 50px; }
+  .intro { margin-bottom: 30px; }
+  .intro h1 { font-size: 42px; }
+  .lead { font-size: 15px; }
+  .current { padding-block: 22px; }
+  .current > button { padding-inline: 0; }
+  .plans { grid-template-columns: 1fr; gap: 20px; }
+  .plan { padding: 26px; }
+  .details { margin-top: 38px; }
+  .details h2 { font-size: 25px; }
+  .footer { padding: 20px 22px; }
+  .footer > div { gap: 20px; }
+  .cancelActions { flex-direction: column; }
+}

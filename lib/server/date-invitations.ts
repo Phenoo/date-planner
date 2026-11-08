@@ -24,6 +24,7 @@ import { deletionKey } from "./account-privacy";
 import { contextExpired } from "./context-retention";
 import { planHasQualifyingGoogleRatings } from "./plan-ratings";
 import { queueDateCreatedEmail } from "./date-email-outbox";
+import { requireOwnedActivities } from "./membership-usage";
 
 const sessionSchema = datePreferencesSchema.extend({ candidates: z.array(z.object({ id: z.string().min(1).max(200), distanceKm: z.number().nonnegative().default(0), story: dateStorySchema })).min(1).max(3) });
 export const storedDateSchema = datePreferencesSchema.extend({
@@ -97,6 +98,7 @@ export async function createChosenDate(request: Request, sessionId: string, plac
 export async function createCatalogInvitation(request: Request, recipe: SavedRecipe) {
   const auth = await authenticatedClient(request);
   if (!auth || auth.user.firebase.sign_in_provider === "anonymous") throw new RequestError("Create an account or sign in to share your date.", 401);
+  await requireOwnedActivities(request, recipe.id, recipe.experienceIds);
   const issue = scheduleError(recipe.request);
   if (issue) throw new RequestError(issue, 400);
   const catalog = await getCatalog();
