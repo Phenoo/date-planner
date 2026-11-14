@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { nearbyPlaceSchema } from "@/lib/maps/schema";
 import { dateStorySchema } from "./date-story";
-import { requestSchema } from "./schema";
+import { requestSchema, vibes } from "./schema";
 import { savedRecipeSchema } from "./saved";
 
 export const invitationTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{32}$/);
@@ -15,6 +15,8 @@ export function readPendingInvitation(raw: string | null, sessionId: string | un
   } catch { return null; }
 }
 export const invitationPlaceSchema = nearbyPlaceSchema.omit({ distanceKm: true, reason: true, story: true });
+const backupPlaceIdSchema = nearbyPlaceSchema.shape.id;
+export const backupPlaceSchema = invitationPlaceSchema.pick({ id: true, name: true, address: true, category: true, mapsUrl: true, attributions: true });
 export const datePreferencesSchema = z.object({
   timeZone: requestSchema.shape.timeZone,
   date: z.union([z.literal(""), z.iso.date()]).default(""), duration: z.number().int().min(60).max(720).default(180),
@@ -25,14 +27,22 @@ export const datePreferencesSchema = z.object({
 export const invitationResponseSchema = z.enum(["pending", "accepted", "declined"]);
 export const invitationMessageSchema = z.string().trim().max(240);
 export const suggestedTimeSchema = z.object({ date: z.iso.date(), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), timeZone: requestSchema.shape.timeZone });
+export const suggestedVibeSchema = z.enum(vibes);
+const finalResponseSchema = z.enum(["accepted", "declined"]);
+export const invitationReplyResultSchema = z.union([
+  z.object({ response: finalResponseSchema }),
+  z.object({ suggestedTime: suggestedTimeSchema }),
+  z.object({ suggestedVibe: suggestedVibeSchema }),
+]);
+export type InvitationReplyResult = z.infer<typeof invitationReplyResultSchema>;
 export const publicInvitationSchema = datePreferencesSchema.extend({
   source: z.enum(["google", "catalog"]).default("google"),
   place: invitationPlaceSchema.nullable(), placeId: z.string().min(1).max(200),
   story: dateStorySchema, response: invitationResponseSchema,
   message: invitationMessageSchema.optional(),
-  dateStatus: z.enum(["planned", "completed"]), createdAt: z.iso.datetime(), suggestedTime: suggestedTimeSchema.optional(),
+  dateStatus: z.enum(["planned", "completed"]), createdAt: z.iso.datetime(), suggestedTime: suggestedTimeSchema.optional(), suggestedVibe: suggestedVibeSchema.optional(),
 });
-export const chosenDateSchema = publicInvitationSchema.extend({ id: selectionIdSchema, token: invitationTokenSchema, invitationRevoked: z.boolean().default(false), invitationPublished: z.boolean().default(true), title: z.string().max(100).optional(), canEdit: z.boolean().default(false) });
+export const chosenDateSchema = publicInvitationSchema.extend({ id: selectionIdSchema, token: invitationTokenSchema, invitationRevoked: z.boolean().default(false), invitationPublished: z.boolean().default(true), title: z.string().max(100).optional(), canEdit: z.boolean().default(false), backupPlaceId: backupPlaceIdSchema.optional() });
 export const createdInvitationSchema = z.object({ id: selectionIdSchema, token: invitationTokenSchema, response: invitationResponseSchema.default("pending"), message: invitationMessageSchema.optional() });
 export const dateHistoryResponseSchema = z.object({ dates: z.array(chosenDateSchema).max(10), nextCursor: selectionIdSchema.nullable() });
 export type PublicInvitation = z.infer<typeof publicInvitationSchema>;
@@ -45,8 +55,9 @@ export const invitationInputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("revoke"), id: selectionIdSchema }),
   z.object({ action: z.literal("message"), id: selectionIdSchema, message: invitationMessageSchema }),
   z.object({ action: z.literal("read"), token: invitationTokenSchema }),
-  z.object({ action: z.literal("reply"), token: invitationTokenSchema, response: z.enum(["accepted", "declined"]) }),
+  z.object({ action: z.literal("reply"), token: invitationTokenSchema, response: finalResponseSchema }),
   z.object({ action: z.literal("suggest"), token: invitationTokenSchema, ...suggestedTimeSchema.shape }),
+  z.object({ action: z.literal("suggest-vibe"), token: invitationTokenSchema, vibe: suggestedVibeSchema }),
 ]);
 export const historyInputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list"), cursor: selectionIdSchema.optional(), status: z.enum(["planned", "completed"]).optional() }),
@@ -56,6 +67,11 @@ export const historyInputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("context"), id: selectionIdSchema }),
   z.object({ action: z.literal("update"), id: selectionIdSchema, request: requestSchema }),
   z.object({ action: z.literal("publish"), id: selectionIdSchema }),
+  z.object({ action: z.literal("revise-invitation"), id: selectionIdSchema, token: invitationTokenSchema, date: suggestedTimeSchema.shape.date, startTime: suggestedTimeSchema.shape.startTime }),
+  z.object({ action: z.literal("read-backup"), id: selectionIdSchema }),
+  z.object({ action: z.literal("suggest-backup"), id: selectionIdSchema }),
+  z.object({ action: z.literal("save-backup"), id: selectionIdSchema, placeId: backupPlaceIdSchema, previousPlaceId: backupPlaceIdSchema.nullable() }),
+  z.object({ action: z.literal("remove-backup"), id: selectionIdSchema, previousPlaceId: backupPlaceIdSchema }),
 ]);
 
 export function nextInvitationResponse(current: PublicInvitation["response"], requested: "accepted" | "declined") {

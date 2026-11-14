@@ -131,7 +131,8 @@ test("saving and sharing revalidate Google quality without changing historical r
           reset(); state.rating = 3.75; state.catalogQualifies = false;
           const stored = { ...record, source, placeId: source === "catalog" ? experience.id : placeId };
           state.records.set(historyPath, stored);
-          await assert.rejects(harness.manageDate(request(), { action, id: selection, ...(action === "update" ? { request: preferences } : {}) }), { status: 409 });
+          const input = action === "update" ? { action, id: selection, request: preferences } : { action, id: selection };
+          await assert.rejects(harness.manageDate(request(), input), { status: 409 });
           assert.equal(state.records.get(historyPath), stored); assert.equal(state.writes, 0); assert.equal(state.transactions, 0);
           assert.equal(source === "catalog" ? state.qualityChecks : state.detailCalls, 1);
         }

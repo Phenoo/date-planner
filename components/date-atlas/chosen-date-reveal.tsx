@@ -103,7 +103,10 @@ export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange
     setChecking(true); setError("");
     try {
       const data = publicInvitationSchema.parse(await readPlanningResponse(await fetch(`/api/invitations/${selection.token}`, { cache: "no-store", signal: controller.signal }), () => {}));
-      if (!controller.signal.aborted) { setResponse(data.response); setNotice(data.response === "pending" ? "Your date hasn't responded yet." : ""); }
+      if (!controller.signal.aborted) {
+        setResponse(data.response);
+        setNotice(data.suggestedTime || data.suggestedVibe ? "They suggested a change. Review their reply in My dates." : data.response === "pending" ? "Your date hasn't responded yet." : "");
+      }
     } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Please try again."); }
     finally { if (!controller.signal.aborted) setChecking(false); }
   }

@@ -149,6 +149,34 @@ test("date-created email outbox preserves saves, privacy and provider idempotenc
       await harness.sendDateCreatedEmail(owner, dateId); await harness.queue(owner, dateId, "google"); await harness.sendDateCreatedEmail(owner, dateId);
       assert.equal(requests.length, 1, "Retry, publish and requeue cannot resend a completed notification");
     });
+    await t.test("invitation reply alerts reach only the verified owner of the current link", async () => {
+      const invitationKey = "b".repeat(64);
+      const replyId = createHash("sha256").update(`invitation-reply:${invitationKey}`).digest("hex");
+      const replyPath = `${userPath}/emailNotifications/${replyId}`;
+      await reset();
+      harness.put(historyPath, { ...source, invitationKey, suggestedVibe: "Creative" });
+      const pending = { kind: "invitation-reply", sourceDateId: dateId, source: "google", status: "pending", createdAt: Timestamp.now() };
+      harness.put(replyPath, pending);
+      await harness.sendDateCreatedEmail(owner, replyId);
+      await harness.sendDateCreatedEmail(owner, replyId);
+      assert.equal(requests.length, 1);
+      assert.equal(job(replyPath).status, "sent");
+      assert.match(requests[0].key ?? "", /^invitation-reply\//);
+      assert.match(requests[0].body, /Your date invitation has a reply/);
+      assert.match(requests[0].body, /https:\/\/adateatlas\.com\/saved/);
+      assert.doesNotMatch(requests[0].body, /Creative|PRIVATE_|\/invite\//);
+      assert.equal(state.detailCalls, 0);
+
+      for (const verified of [true, false]) {
+        await reset();
+        state.user.emailVerified = verified;
+        harness.put(historyPath, { ...source, invitationKey: verified ? "c".repeat(64) : invitationKey });
+        harness.put(replyPath, pending);
+        await harness.sendDateCreatedEmail(owner, replyId);
+        assert.equal(requests.length, 0);
+        assert.equal(job(replyPath).status, "skipped");
+      }
+    });
     await t.test("concurrent workers use one lease and only one provider request", async () => {
       await reset();
       let entered = () => {}; let release = () => {};

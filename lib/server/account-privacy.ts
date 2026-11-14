@@ -40,6 +40,7 @@ export async function processDeletion(id: string, operatorId: string) {
   const disabledAt = data.disabledAt instanceof Timestamp ? data.disabledAt : Timestamp.now();
   if (!(data.disabledAt instanceof Timestamp)) await job.update({ disabledAt });
   if (disabledAt.toMillis() + deletionDrainMs > Date.now()) return { complete: false, retryAt: disabledAt.toMillis() + deletionDrainMs, message: "Account access is disabled. Allow existing requests to finish before removing records." };
+  await db.collection("sharedWishlists").doc(id).delete();
   const invitations = await db.collection("dateInvitations").where("ownerId", "==", data.targetUid).limit(100).get();
   if (!invitations.empty) { const batch = db.batch(); invitations.docs.forEach((row) => batch.delete(row.ref)); await batch.commit(); return { complete: false }; }
   const user = db.collection("users").doc(data.targetUid);

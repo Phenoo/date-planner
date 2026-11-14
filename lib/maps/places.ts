@@ -8,7 +8,7 @@ import { RequestError } from "@/lib/planner/http";
 import { venueControls } from "@/lib/server/venue-controls";
 
 type PlaceRecord = ReturnType<typeof placesResponseSchema.parse>["places"][number];
-type SearchOptions = { excludeCategories?: readonly string[]; queries?: string[] | Promise<string[] | undefined>; excludeIds?: readonly string[]; signal?: AbortSignal; limit?: number };
+type SearchOptions = { excludeCategories?: readonly string[]; queries?: string[] | Promise<string[] | undefined>; excludeIds?: readonly string[]; signal?: AbortSignal; limit?: number; textOnly?: boolean };
 const fields = "places.id,places.displayName,places.formattedAddress,places.primaryTypeDisplayName,places.location,places.types,places.businessStatus,places.attributions,places.photos,places.regularOpeningHours,places.currentOpeningHours,places.timeZone,places.priceRange,places.rating,places.userRatingCount,places.accessibilityOptions,places.servesVegetarianFood";
 
 export async function loadPlaceCandidates(request: NearbySearch, center?: Coordinates, options: SearchOptions = {}) {
@@ -27,7 +27,7 @@ export async function loadPlaceCandidates(request: NearbySearch, center?: Coordi
     : groups;
   const searches = [
     ...(queries ?? []).slice(0, 2).map((query) => ({ method: "searchText", body: { textQuery: `${query} in ${discoveryQuery(request)}`, pageSize: 10, languageCode: "en", locationBias: { circle }, includePureServiceAreaBusinesses: false } })),
-    ...nearbyGroups.map((includedTypes) => ({ method: "searchNearby", body: { includedTypes, maxResultCount: 10, rankPreference: request.locationScope === "city" ? "POPULARITY" : "DISTANCE", languageCode: "en", locationRestriction: { circle } } })),
+    ...(options.textOnly ? [] : nearbyGroups).map((includedTypes) => ({ method: "searchNearby", body: { includedTypes, maxResultCount: 10, rankPreference: request.locationScope === "city" ? "POPULARITY" : "DISTANCE", languageCode: "en", locationRestriction: { circle } } })),
   ];
   if (!searches.length) return { result: mapNearbyPlaces({ places: [] }, origin, request, options.limit ?? 8), records: [] };
   const results = await Promise.allSettled(searches.map(async (search) => {

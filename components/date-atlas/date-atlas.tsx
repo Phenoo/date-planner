@@ -23,7 +23,8 @@ import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession, rejec
 import { recommendationExclusions, replacementPreferredIds } from "@/lib/planner/recommendation-replacement";
 import { createdInvitationSchema, pendingInvitationKey } from "@/lib/planner/invitations";
 import { RevokeInvitation } from "./revoke-invitation";
-import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
+import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerDraftKey as draftKey, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
+import { selectedWishlistPlaceSchema } from "@/lib/planner/shared-wishlist";
 import { requestGeneration } from "@/lib/planner/generation-client";
 import { retainedGenerationKey, replacementReferenceKey, replacementReferenceSchema } from "@/lib/membership/generation-attempt";
 import { pendingDateReminderKey } from "@/lib/planner/date-reminder-intent";
@@ -95,7 +96,6 @@ const Results = dynamic(() =>
 import { PlanningRequestError } from "@/lib/firebase/planner-client";
 import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 
-const draftKey = `date-atlas:planning-draft:v${plannerDraftVersion}`;
 const favoritesKey = "date-atlas:favorites:v1";
 const preferencesKey = "date-atlas:preferences:v1";
 type View =
@@ -151,6 +151,7 @@ export function DateAtlas({
 
   const [infoPage, setInfoPage] = useState("");
   const [preferredIds, setPreferredIds] = useState<string[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<z.infer<typeof selectedWishlistPlaceSchema> | undefined>();
   const [compactHeader, setCompactHeader] = useState(false);
   const [request, setRequest] = useState<PlanRequest>(defaultRequest);
   const restoredDiscovery = useRef(false);
@@ -342,6 +343,7 @@ export function DateAtlas({
             const parsed = requestSchema.safeParse(draft.request);
             if (parsed.success) {
               setRequest({ ...parsed.data, durationMode: "estimated", endTime: "" });
+              setSelectedPlace("selectedPlace" in draft ? selectedWishlistPlaceSchema.safeParse(draft.selectedPlace).data : undefined);
               if ("needsPreferenceReview" in draft && draft.needsPreferenceReview === true) setToast("Your core answers are restored. Personal notes and chat messages stay out of browser drafts; please review your preferences.");
               setEditingPlan("editingPlan" in draft && draft.editingPlan === true);
               if ("plannerMode" in draft && savedPlannerMode(draft.plannerMode)) setPlannerMode(savedPlannerMode(draft.plannerMode));
@@ -383,7 +385,7 @@ export function DateAtlas({
           if (previous && !previous.anonymous && previous.uid !== user?.uid) {
             setAuthReady(false);
             abortRef.current?.abort(); generationId.current++; setBusy(false);
-            setResult(null); setResumePath(null); setRequest(defaultRequest()); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
+            setResult(null); setResumePath(null); setRequest(defaultRequest()); setSelectedPlace(undefined); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
             pendingSave.current = null; setSaved([]); setSignedIn(false); setAccountId(""); setDraftReady(true);
             shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
             setShareOpen(false); setShareSelection(null);
@@ -528,6 +530,7 @@ export function DateAtlas({
           request,
           step: plannerStep,
           preferredIds,
+          selectedPlace,
           editingPlan,
           plannerMode,
           chatSession,
@@ -537,7 +540,7 @@ export function DateAtlas({
     } catch {
       /* The current session still works when storage is unavailable. */
     }
-  }, [request, plannerStep, view, draftReady, preferredIds, editingPlan, plannerMode, chatSession, accountId, authReady]);
+  }, [request, plannerStep, view, draftReady, preferredIds, selectedPlace, editingPlan, plannerMode, chatSession, accountId, authReady]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => { setToast(""); setFeedbackState(null); }, 6000);
@@ -550,7 +553,7 @@ export function DateAtlas({
   }
   function saveAndExit(event: MouseEvent<HTMLButtonElement>) {
     try {
-      sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + draftLifetimeMs, request, step: plannerStep, preferredIds, editingPlan, plannerMode, chatSession }));
+      sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + draftLifetimeMs, request, step: plannerStep, preferredIds, selectedPlace, editingPlan, plannerMode, chatSession }));
     } catch {
       event.preventDefault();
       setExitError("We couldn't save your answers. Keep this tab open and try again.");
@@ -591,7 +594,7 @@ export function DateAtlas({
       localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey); localStorage.removeItem(pendingDateReminderKey);
     } catch { setExitError("Your browser couldn't clear the draft. Please try again before starting over."); return; }
     pendingSave.current = null; rejectionMemory.current = { flow: "", picks: mergeRejectedPicks() };
-    setRequest(defaultRequest()); setPlannerStep(0); setEditingPlan(false); setPlannerMode(null); setChatSession(emptyChatSession()); setPreferredIds([]); setResult(null); setError(""); setExitOpen(false);
+    setRequest(defaultRequest()); setPlannerStep(0); setEditingPlan(false); setPlannerMode(null); setChatSession(emptyChatSession()); setPreferredIds([]); setSelectedPlace(undefined); setResult(null); setError(""); setExitOpen(false);
   }
   function favorite(experience: Experience) {
     const next = favorites.includes(experience.id)
@@ -634,6 +637,7 @@ export function DateAtlas({
     try { exclusions = mergeRejectedPicks(readRejectedPicks(sessionStorage.getItem(rejectedPicksKey(flow))), exclusions); } catch { /* The current replacement still excludes the previous recommendation. */ }
     rejectionMemory.current = { flow, picks: exclusions };
     const nextPreferredIds = replacementPreferredIds(preferredIds, exclusions.excludeIds);
+    if (selectedPlace && exclusions.excludePlaceIds.includes(selectedPlace.id)) setSelectedPlace(undefined);
     setError("");
     setEditingPlan(true);
     setPlannerMode("steps");
@@ -698,7 +702,7 @@ export function DateAtlas({
     extra: Partial<GenerateInput> = {},
   ) {
     preferences = { ...preferences, durationMode: "estimated", endTime: "" };
-    const signature = JSON.stringify({ preferences, extra, preferredIds });
+    const signature = JSON.stringify({ preferences, extra, preferredIds, selectedPlace });
     if (activeGeneration.current === signature && abortRef.current && !abortRef.current.signal.aborted) return;
     activeGeneration.current = signature;
     abortRef.current?.abort();
@@ -716,10 +720,12 @@ export function DateAtlas({
       rejectionMemory.current = { flow, picks: exclusions };
       const nextPreferredIds = replacementPreferredIds(extra.preferredIds ?? preferredIds, exclusions.excludeIds);
       if (nextPreferredIds.length !== preferredIds.length) setPreferredIds(nextPreferredIds);
+      const nextSelectedPlace = selectedPlace && !exclusions.excludePlaceIds.includes(selectedPlace.id) ? selectedPlace : undefined;
+      if (selectedPlace && !nextSelectedPlace) setSelectedPlace(undefined);
       try {
         sessionStorage.setItem(rejectedPicksKey(flow), JSON.stringify(exclusions));
         if (extra.excludeIds?.length || extra.excludePlaceIds?.length) {
-          sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, editingPlan: true, plannerMode, chatSession }));
+          sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, selectedPlace: nextSelectedPlace, editingPlan: true, plannerMode, chatSession }));
           sessionStorage.removeItem(activeDiscoveryKey);
           sessionStorage.removeItem(activePlanKey);
         }
@@ -735,7 +741,7 @@ export function DateAtlas({
         if (!replacementOf) try { const ref = replacementReferenceSchema.safeParse(JSON.parse(sessionStorage.getItem(replacementReferenceKey(flow)) ?? "null")); if (ref.success && ref.data.owner === getBrowserAuth()?.currentUser?.uid && ref.data.expiresAt > Date.now()) replacementOf = { kind: ref.data.kind, id: ref.data.id }; } catch { /* Server validation protects missing context. */ }
       }
       if (replacementOf) try { sessionStorage.setItem(replacementReferenceKey(flow), JSON.stringify({ ...replacementOf, owner: generationOwner, expiresAt: Date.now() + 3600000 })); } catch { /* The current request retains its owned replacement reference. */ }
-      const body = JSON.stringify({ request: preferences, flowId: funnelScope(), ...extra, ...exclusions, preferredIds: nextPreferredIds, ...(replacementOf ? { replacementOf } : {}) });
+      const body = JSON.stringify({ request: preferences, flowId: funnelScope(), ...extra, ...exclusions, preferredIds: nextPreferredIds, selectedPlaceId: nextSelectedPlace?.id, ...(replacementOf ? { replacementOf } : {}) });
       let attempt = generationAttempt.current;
       if (attempt?.body !== body || attempt.owner !== generationOwner) {
         let key = crypto.randomUUID();
@@ -758,7 +764,7 @@ export function DateAtlas({
         if (data.nearby?.places.length) sessionStorage.setItem(activeDiscoveryKey, JSON.stringify(data.nearby.sessionId ? { flow, ownerId: getBrowserAuth()?.currentUser?.uid ?? null, sessionId: data.nearby.sessionId, placeId: data.nearby.places[0].id, expiresAt: Date.now() + 3600000, accepted: false } : { flow, request: draftRequest(data.request ?? preferences), result: { ...data, request: undefined }, expiresAt: Date.now() + 3600000, accepted: false }));
         else sessionStorage.removeItem(activeDiscoveryKey);
         if (data.plans[0]) rememberPlan(data.plans[0]);
-        sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: data.request ?? data.plans[0]?.request ?? preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, editingPlan: true, plannerMode: plannerMode ?? "steps", chatSession }));
+        sessionStorage.setItem(draftKey, draftJSON({ ownerId: getBrowserAuth()?.currentUser?.uid ?? null, version: plannerDraftVersion, flow, expiresAt: Date.now() + draftLifetimeMs, request: data.request ?? data.plans[0]?.request ?? preferences, step: plannerQuestions.length - 1, preferredIds: nextPreferredIds, selectedPlace: nextSelectedPlace, editingPlan: true, plannerMode: plannerMode ?? "steps", chatSession }));
         sessionStorage.removeItem("date-atlas:planning-draft:v12");
         sessionStorage.removeItem("date-atlas:planning-draft:v11");
         sessionStorage.removeItem("date-atlas:planning-draft:v10");
@@ -1215,6 +1221,12 @@ export function DateAtlas({
             }}
           />
         )}
+        {planning && !busy && selectedPlace && (
+          <div className="planner-included content-width">
+            <span className="mini-label">FROM YOUR SHARED WISHLIST</span>
+            <div><strong>{selectedPlace.name}</strong><button type="button" onClick={() => { setSelectedPlace(undefined); setError(""); }} aria-label="Remove wishlist venue">Remove</button></div>
+          </div>
+        )}
         {planning && !busy && preferredIds.length > 0 && (
           <div className="planner-included content-width">
             <span className="mini-label">ADDED TO YOUR DATE</span>
@@ -1314,6 +1326,7 @@ export function DateAtlas({
             signedIn={signedIn}
             busy={busy}
             onPlan={() => planDate()}
+            onReplan={planDate}
             onOpen={(item) => void restore(item)}
             onRemove={(id) => void removeSaved(id)}
             onFavorites={() => router.push("/favorites")}

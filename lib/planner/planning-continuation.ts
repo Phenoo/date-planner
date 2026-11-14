@@ -5,6 +5,7 @@ import { chatSessionSchema } from "./intake";
 import { plannerDraftVersion, plannerQuestions } from "./questions";
 import { requestSchema } from "./schema";
 import { savedRecipeSchema, type SavedRecipe } from "./saved";
+import { selectedWishlistPlaceSchema } from "./shared-wishlist";
 
 export const activePlanKey = "date-atlas:active-plan:v1";
 export const planningContinuationsKey = "date-atlas:planning-continuations:v1";
@@ -21,6 +22,7 @@ const draftSchema = commonSchema.extend({
   step: z.number().int().min(0).max(1000).optional(),
   questionId: z.string().max(100).optional(),
   preferredIds: z.array(z.string().max(100)).max(4).optional(),
+  selectedPlace: selectedWishlistPlaceSchema.optional(),
   editingPlan: z.boolean().optional(),
   plannerMode: z.enum(["chat", "steps"]).nullable().optional(),
   chatSession: chatSessionSchema.optional(),
@@ -61,7 +63,7 @@ function draft(value: unknown, owner: PlanningContinuationOwner, now: number): P
   if (!parsed.success || !current(parsed.data, owner, now)) return null;
   const data = parsed.data;
   const stepProgress = !!data.step && data.step > 0 && (plannerQuestions[data.step]?.id !== "city" || !!data.request.currentCity);
-  if (!stepProgress && !data.chatSession?.answered.length && !data.editingPlan) return null;
+  if (!stepProgress && !data.chatSession?.answered.length && !data.editingPlan && !data.selectedPlace) return null;
   const minimized: unknown = JSON.parse(draftJSON(data));
   if (!minimized || typeof minimized !== "object" || Array.isArray(minimized)) return null;
   const safeDraft = { ...minimized, flow: data.flow, ownerId: data.ownerId ?? null, expiresAt: data.expiresAt, needsPreferenceReview: data.needsPreferenceReview === true || "needsPreferenceReview" in minimized && minimized.needsPreferenceReview === true };

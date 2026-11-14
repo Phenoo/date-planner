@@ -1,10 +1,11 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { Query } from "firebase-admin/firestore";
 import { z } from "zod";
 import { authenticatedClient, getDatabase } from "@/lib/firebase/server";
-import { datePreferencesSchema, invitationPlaceSchema, invitationResponseSchema, invitationTokenSchema, invitationMessageSchema, selectionIdSchema, suggestedTimeSchema, type ChosenDate, type PublicInvitation } from "@/lib/planner/invitations";
+import { datePreferencesSchema, invitationPlaceSchema, invitationResponseSchema, invitationTokenSchema, invitationMessageSchema, selectionIdSchema, suggestedTimeSchema, suggestedVibeSchema, type ChosenDate, type PublicInvitation } from "@/lib/planner/invitations";
 import { dateStorySchema, fallbackDateStory } from "@/lib/planner/date-story";
 import { loadPlaceDetails } from "@/lib/maps/place-details";
 import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
@@ -37,11 +38,18 @@ export const storedDateSchema = datePreferencesSchema.extend({
   publicStoryVersion: z.literal(1).optional(),
   planningRequest: requestSchema.optional(), customTitle: z.string().max(100).optional(), savedRecipeId: z.string().max(500).optional(),
   suggestedTime: suggestedTimeSchema.optional(),
+  suggestedVibe: suggestedVibeSchema.optional(),
+  revisedFromInvitationKey: selectionIdSchema.optional(),
+  backupPlaceId: invitationPlaceSchema.shape.id.optional(),
 });
 export type StoredDate = z.infer<typeof storedDateSchema>;
-export const publicStoredDateSchema = storedDateSchema.omit({ planningRequest: true, customTitle: true, savedRecipeId: true });
+export const publicStoredDateSchema = storedDateSchema.omit({ planningRequest: true, customTitle: true, savedRecipeId: true, suggestedTime: true, suggestedVibe: true, revisedFromInvitationKey: true, backupPlaceId: true });
 export const tokenKey = (token: string) => createHash("sha256").update(token).digest("hex");
 export const dateSelectionId = (sessionId: string, placeId: string) => createHash("sha256").update(`${sessionId}:${placeId}`).digest("hex");
+
+function carryBackup(current: StoredDate, next: StoredDate) {
+  return current.backupPlaceId && isDeepStrictEqual(current.planningRequest, next.planningRequest) ? { backupPlaceId: current.backupPlaceId } : {};
+}
 
 export async function persistDiscoverySession(request: Request, result: NearbyResult, preferences: PlanRequest) {
   if (!result.places.length || process.env.DATE_ATLAS_CATALOG_MODE === "demo") return result;
@@ -87,7 +95,7 @@ export async function createChosenDate(request: Request, sessionId: string, plac
     if (current.success && (!publish || current.data.invitationPublished && !current.data.invitationRevoked)) return { token: current.data.token, id, response: current.data.response, message: current.data.message ?? "" };
     if (current.success && current.data.dateStatus === "completed") throw new RequestError("This date is already marked as done.", 409);
     if (!current.success) await queueDateCreatedEmail(tx, user, { dateId: id, source: "google" });
-    const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}) };
+    const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}), ...(current.success ? carryBackup(current.data, record) : {}) };
     tx.set(user, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(history, nextRecord);
     if (publish) tx.create(auth.db.collection("dateInvitations").doc(invitationKey), { ...publicStoredDateSchema.parse(nextRecord), story: fallbackDateStory(details.place.category), publicStoryVersion: 1, ownerId: auth.user.uid, selectionId: id });
@@ -124,7 +132,7 @@ export async function createCatalogInvitation(request: Request, recipe: SavedRec
     if (current.success && current.data.dateStatus === "completed") throw new RequestError("This date is already marked as done.", 409);
     if (!current.success) await queueDateCreatedEmail(tx, user, { dateId: id, source: "catalog", recipeId: plan.id });
     if (current.success) record.createdAt = current.data.createdAt;
-    const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}) };
+    const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}), ...(current.success ? carryBackup(current.data, record) : {}) };
     tx.set(user, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(history, nextRecord);
     tx.set(user.collection("savedPlans").doc(savedDocumentId(plan.id)), { recipe: encodeRecipe(toRecipe(plan)), updatedAt: FieldValue.serverTimestamp() });
@@ -187,6 +195,7 @@ export async function hydrateDate(record: StoredDate, withPhoto: boolean | "hero
     placeId: record.placeId, place, source: record.source, story: record.story, response: record.response,
     ...(record.message ? { message: record.message } : {}),
     dateStatus: record.dateStatus, createdAt: record.createdAt.toDate().toISOString(), ...(record.suggestedTime ? { suggestedTime: record.suggestedTime } : {}),
+    ...(record.suggestedVibe ? { suggestedVibe: record.suggestedVibe } : {}),
   };
 }
 
@@ -220,7 +229,7 @@ export async function listChosenDates(request: Request, cursor?: string, status?
   const dates = await Promise.all(rows.docs.slice(0, 10).map(async (row): Promise<ChosenDate | null> => {
     const record = storedDateSchema.safeParse(row.data());
     if (!record.success) return null;
-    return { ...await hydrateDate(record.data, "hero"), id: row.id, token: record.data.token, invitationRevoked: record.data.invitationRevoked, invitationPublished: record.data.invitationPublished, ...(record.data.customTitle ? { title: record.data.customTitle } : {}), canEdit: Boolean(record.data.planningRequest) };
+    return { ...await hydrateDate(record.data, "hero"), id: row.id, token: record.data.token, invitationRevoked: record.data.invitationRevoked, invitationPublished: record.data.invitationPublished, ...(record.data.customTitle ? { title: record.data.customTitle } : {}), canEdit: Boolean(record.data.planningRequest), ...(record.data.backupPlaceId ? { backupPlaceId: record.data.backupPlaceId } : {}) };
   }));
   return { dates: dates.filter((date) => date !== null), nextCursor: rows.docs.length > 10 ? rows.docs[9].id : null };
 }

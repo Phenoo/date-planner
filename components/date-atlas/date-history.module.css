@@ -18,6 +18,9 @@
 .attributions a { text-decoration: underline; text-underline-offset: 3px; }
 .cardActions { margin-top: 24px; }
 .cardActions .open { width: 100%; min-height: 48px; padding: 12px 20px; border-radius: 0; font-size: 15px; }
+.backupButton { width: 100%; min-height: 44px; margin-top: 8px; }
+.backupVenue { display: grid; gap: 6px; border: 1px solid #ecdde2; padding: 14px; overflow-wrap: anywhere; }
+.backupVenue a { text-decoration: underline; text-underline-offset: 3px; }
 .options { margin-top: 10px; }
 .options > summary { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; color: #725d63; font-size: 13px; cursor: pointer; list-style: none; }
 .options > summary::-webkit-details-marker { display: none; }
@@ -27,6 +30,7 @@
 .optionList > :is(button,a):hover:not(:disabled) { background: #fff1f3; color: #9c1631; transform: none; box-shadow: none; }
 .optionList > a[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .optionsNotice { padding: 12px; color: #725d63; font-size: 13px; line-height: 1.8; }
+.optionsNotice button { margin-top: 8px; min-height: 44px; }
 .empty { padding: 40px 24px; border: 1px solid #ecdde2; text-align: center; font-size: 15px; }
 .empty > p { margin-bottom: 20px; }
 .pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 26px; }

@@ -26,6 +26,9 @@
 .sharePanel { position: relative; margin: 25px auto 35px; max-width: 620px; text-align: center; }
 .sharePanel h2 { font-size: clamp(26px,4vw,35px); line-height: 1.15; font-weight: 500; letter-spacing: -.04em; margin-bottom: 12px; }
 .sharePanel > p { font-size: 13px; line-height: 1.8; margin: 0 auto 18px; color: var(--planner-muted,#79676a); max-width: 440px; }
+.suggestion { max-width: 350px; margin: 0 auto; }
+.suggestion summary { min-height: 44px; padding: 12px; cursor: pointer; }
+.suggestion form { text-align: left; margin: 0 auto 12px; }
 .actions { display: flex; justify-content: center; align-items: stretch; flex-wrap: wrap; gap: 12px; margin: 22px auto 12px; }
 .actions > button { min-height: 52px; min-width: 200px; border-radius: 30px; font-size: 14px; justify-content: center; }
 .textButton { display: inline-block; min-height: 44px; padding: 10px 12px; font-size: 12px; color: var(--planner-accent,#9e3043); text-decoration: underline; text-underline-offset: 4px; }

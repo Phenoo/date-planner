@@ -25,6 +25,7 @@ export function Dashboard({
   signedIn,
   busy,
   onPlan,
+  onReplan,
   onOpen,
   onRemove,
   onHistoryChanged,
@@ -36,6 +37,7 @@ export function Dashboard({
   signedIn: boolean;
   busy: boolean;
   onPlan: () => void;
+  onReplan: (request: PlanRequest) => void;
   onOpen: (recipe: SavedRecipe) => void;
   onRemove: (id: string) => void;
   onFavorites: () => void;
@@ -60,9 +62,12 @@ export function Dashboard({
           <h1>My dates</h1>
           <p>{signedIn ? "Your saved places, plans and invitations." : "Sign in to keep your plans together across devices."}</p>
         </div>
-        <Button onClick={onPlan}>Plan a date<ArrowRight size={16} aria-hidden="true" /></Button>
+        <div className="saved-actions">
+          {signedIn && <Button asChild variant="outline"><Link href="/wishlist">Shared wishlist</Link></Button>}
+          <Button onClick={onPlan}>Plan a date<ArrowRight size={16} aria-hidden="true" /></Button>
+        </div>
       </header>
-      {signedIn && <DateHistory key={historyRevision} onPlan={onPlan} onChanged={onHistoryChanged} />}
+      {signedIn && <DateHistory key={historyRevision} onPlan={onPlan} onChanged={onHistoryChanged} onReplan={onReplan} />}
       {(saved.length > 0 || !signedIn) && <>
       <div className={styles.collectionHeader}>
         <h2>Saved plans</h2>

@@ -12,12 +12,12 @@ import { loadPlaceDetails } from "@/lib/maps/place-details";
 import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
 import { getCatalog } from "@/lib/planner/catalog";
 import { recalculateExactPlan } from "@/lib/planner/engine";
-import { datePreferencesSchema } from "@/lib/planner/invitations";
+import { datePreferencesSchema, selectionIdSchema } from "@/lib/planner/invitations";
 import { decodeRecipe } from "@/lib/planner/money";
 import { calendarLabel } from "@/lib/planner/schedule";
 import { siteName, siteOrigin, supportEmail } from "@/lib/seo/site";
 import { deletionKey } from "./account-privacy";
-import { dateEmailJobSchema, dateEmailPayloadSchema, type DateEmailJob, type DateEmailPayload } from "./date-email-outbox";
+import { dateEmailJobSchema, dateEmailPayloadSchema, invitationReplyEmailId, type DateEmailJob, type DateEmailPayload } from "./date-email-outbox";
 import { dateReminderSchema, reminderCanSend, reminderSourceSchema } from "./date-reminder-state";
 
 export { queueDateCreatedEmail } from "./date-email-outbox";
@@ -27,6 +27,11 @@ const leaseMs = 60000;
 const retryWindowMs = 24 * 3600000 - 60000;
 const terminal = new Set<DateEmailJob["status"]>(["sent", "skipped", "failed", "needs-review"]);
 const scheduleSchema = datePreferencesSchema.extend({ source: z.enum(["google", "catalog"]).default("google"), placeId: z.string().min(1).max(200) });
+const invitationReplySourceSchema = z.object({
+  invitationKey: selectionIdSchema,
+  invitationPublished: z.boolean().default(true),
+  invitationRevoked: z.boolean().default(false),
+});
 const providerResultSchema = z.object({ id: z.string().min(1).max(200).optional(), name: z.string().max(100).optional() });
 
 type Source = { ref: DocumentReference; snapshot: DocumentSnapshot; payload?: DateEmailPayload; reminder?: DocumentReference };
@@ -59,8 +64,27 @@ function scheduleLabel(date: z.infer<typeof datePreferencesSchema>) {
 
 async function sourceFor(user: DocumentReference, dateId: string, job: DateEmailJob, recipient: string, personalized: boolean): Promise<Source | null> {
   if (job.kind === "reminder" && (!job.sourceDateId || !job.reminderOccurrenceId || job.source !== "google" || !personalized)) return null;
-  const historyRef = user.collection("dateHistory").doc(job.kind === "reminder" ? job.sourceDateId ?? dateId : dateId);
+  if (job.kind === "invitation-reply" && !job.sourceDateId) return null;
+  const historyRef = user.collection("dateHistory").doc(job.kind === "date-created" ? dateId : job.sourceDateId ?? dateId);
   const history = await historyRef.get();
+  if (job.kind === "invitation-reply") {
+    const invitation = invitationReplySourceSchema.safeParse(history.data());
+    if (!invitation.success || !invitation.data.invitationPublished || invitation.data.invitationRevoked || invitationReplyEmailId(invitation.data.invitationKey) !== dateId) return null;
+    if (job.payload) return { ref: historyRef, snapshot: history };
+    return { ref: historyRef, snapshot: history, payload: {
+      from: `${siteName} <noreply@adateatlas.com>`,
+      to: [recipient],
+      reply_to: supportEmail,
+      subject: `Your date invitation has a reply | ${siteName}`,
+      ...brandEmail({
+        preheader: "Open My dates to see their reply.",
+        eyebrow: "Plan together",
+        title: "Your date invitation has a reply.",
+        paragraphs: ["Someone replied to your invitation. Open My dates to see their response and review any suggested changes."],
+        primaryAction: { label: "Open My dates", url: `${siteOrigin}/saved` },
+      }),
+    } };
+  }
   if (history.exists) {
     const parsed = scheduleSchema.safeParse(history.data());
     if (!parsed.success || parsed.data.source !== job.source) return null;
@@ -143,6 +167,7 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
     return;
   }
   if (initial.data.payload && initial.data.payload.to[0].toLowerCase() !== recipient.email.toLowerCase()) { await finish("skipped", "recipient-changed"); return; }
+  if (initial.data.kind === "invitation-reply" && !recipient.verified) { await finish("skipped", "recipient-unverified"); return; }
   if (initial.data.payload && initial.data.personalized !== false && !recipient.verified) { await finish("skipped", "verification-changed"); return; }
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("Date email delivery is not configured.");
@@ -205,7 +230,8 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
     }
     if (!latest.data.leaseUntil || latest.data.leaseUntil.toMillis() <= Date.now()) throw new Error("Date email lease expired before delivery.");
     if (!currentSource.updateTime || !source.snapshot.updateTime || !currentSource.updateTime.isEqual(source.snapshot.updateTime)) throw new Error("Date details changed before delivery.");
-    const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `${latest.data.kind === "reminder" ? "date-reminder" : "date-created"}/${createHash("sha256").update(ownerId).digest("hex")}/${dateId}` }, body: JSON.stringify(claim.payload), signal: AbortSignal.timeout(15000) });
+    const emailKind = latest.data.kind === "reminder" ? "date-reminder" : latest.data.kind;
+    const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `${emailKind}/${createHash("sha256").update(ownerId).digest("hex")}/${dateId}` }, body: JSON.stringify(claim.payload), signal: AbortSignal.timeout(15000) });
     const result = providerResultSchema.safeParse(await response.json().catch(() => null));
     if (response.ok && result.success && result.data.id) { await finish("sent", "provider-accepted", claim.leaseId, result.data.id); return; }
     if (response.status === 409 && (!result.success || result.data.name !== "concurrent_idempotent_requests")) { await finish("needs-review", "idempotency-conflict", claim.leaseId); return; }

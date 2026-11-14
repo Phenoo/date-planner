@@ -10,8 +10,8 @@ export async function dateHistory(request: Request) {
   try {
     const parsed = historyInputSchema.safeParse(await readJson(request));
     if (!parsed.success) throw new RequestError("Please check this date and try again.", 400);
-    await enforcePlannerLimit(request);
     const input = parsed.data;
+    await enforcePlannerLimit(request, input.action.endsWith("-backup") ? "backup" : "planning");
     if (input.action === "list") return Response.json(await listChosenDates(request, input.cursor, input.status), { headers: { "Cache-Control": "no-store" } });
     if (input.action !== "complete") return Response.json(await manageDate(request, input), { headers: { "Cache-Control": "no-store" } });
     const auth = await authenticatedClient(request);
