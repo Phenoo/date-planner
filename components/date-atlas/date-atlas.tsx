@@ -42,6 +42,7 @@ import { LegacyPlans } from "./legacy-plans";
 import { preferenceSchema } from "@/lib/planner/preferences-storage";
 import { chatSessionSchema, emptyChatSession, intakeFields, intakeNextField, intakeFieldForQuestion, stepForIntake, type PlannerMode } from "@/lib/planner/intake";
 import { PlannerModeChoice } from "./planner-mode-choice";
+import { PlannerMusic } from "./planner-music";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
@@ -1054,6 +1055,7 @@ export function DateAtlas({
               <div className={plannerStyles.switch} role="group" aria-label="Planner appearance">
                 {(["white", "red", "dark"] as const).map((appearance) => <button type="button" key={appearance} aria-pressed={plannerAppearance === appearance} onClick={() => changePlannerAppearance(appearance)}>{appearance === "white" ? "White" : appearance === "red" ? "Red" : "Dark"}</button>)}
               </div>
+              {draftReady && plannerMode === "steps" && !busy && <PlannerMusic theme={plannerAppearance} />}
               <AlertDialog open={exitOpen} onOpenChange={(open) => { setExitOpen(open); if (open) setExitError(""); }}>
                 <AlertDialogTrigger asChild>
                   <button type="button" className={plannerStyles.close} aria-label="Close planner" disabled={!draftReady}><X size={20} aria-hidden="true" /></button>
