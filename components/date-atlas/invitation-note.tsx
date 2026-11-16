@@ -36,6 +36,5 @@ export function InvitationNote({ selection, onSaved, onDirtyChange }: {
       {dirty && <p>Save or discard your message before sharing.</p>}
       {error && <p role="alert" className="error-message">{error}</p>}{notice && <p role="status">{notice}</p>}
     </details>
-    <a href={`/invite/${selection.token}`} target="_blank" rel="noopener noreferrer" aria-disabled={dirty} onClick={(event) => { if (dirty) event.preventDefault(); }}>Preview invitation ↗</a>
   </div>;
 }

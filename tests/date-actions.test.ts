@@ -25,7 +25,9 @@ test("saved date cards disclose management actions without exposing private invi
     assert.ok(disclosure);
     assert.doesNotMatch(disclosure, /<details\b[^>]*\bopen(?:=|[\s>])/);
     assert.match(disclosure, /More options for Gallery together/);
-    for (const action of ["Rename", "Edit or reschedule", "Mark as done", "Add to calendar", "Leave feedback", "View invitation", "Revoke invitation link", "Share invitation", "Copy link", "WhatsApp", "Delete date"]) assert.ok(disclosure.includes(action), `${action} remains available in More options`);
+    for (const action of ["Rename", "Edit or reschedule", "Mark as done", "Add to calendar", "Leave feedback", "Revoke invitation link", "Share invitation", "Delete date"]) assert.ok(disclosure.includes(action), `${action} remains available in More options`);
+    assert.doesNotMatch(disclosure, /View invitation|Copy link|WhatsApp/);
+    assert.ok(!published.includes(date.token), "The invitation URL is shared through the Share invitation action");
     const outside = published.replace(disclosure, "");
     assert.equal((outside.match(/<button\b/g) ?? []).length, 1);
     assert.match(outside, /Open date/);

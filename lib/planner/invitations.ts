@@ -26,6 +26,7 @@ export const datePreferencesSchema = z.object({
 });
 export const invitationResponseSchema = z.enum(["pending", "accepted", "declined"]);
 export const invitationMessageSchema = z.string().trim().max(240);
+export const inviterNameSchema = z.string().trim().min(1).max(100);
 export const suggestedTimeSchema = z.object({ date: z.iso.date(), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), timeZone: requestSchema.shape.timeZone });
 export const suggestedVibeSchema = z.enum(vibes);
 const finalResponseSchema = z.enum(["accepted", "declined"]);
@@ -39,17 +40,17 @@ export const publicInvitationSchema = datePreferencesSchema.extend({
   source: z.enum(["google", "catalog"]).default("google"),
   place: invitationPlaceSchema.nullable(), placeId: z.string().min(1).max(200),
   story: dateStorySchema, response: invitationResponseSchema,
-  message: invitationMessageSchema.optional(),
+  message: invitationMessageSchema.optional(), inviterName: inviterNameSchema.optional(),
   dateStatus: z.enum(["planned", "completed"]), createdAt: z.iso.datetime(), suggestedTime: suggestedTimeSchema.optional(), suggestedVibe: suggestedVibeSchema.optional(),
 });
 export const chosenDateSchema = publicInvitationSchema.extend({ id: selectionIdSchema, token: invitationTokenSchema, invitationRevoked: z.boolean().default(false), invitationPublished: z.boolean().default(true), title: z.string().max(100).optional(), canEdit: z.boolean().default(false), backupPlaceId: backupPlaceIdSchema.optional() });
-export const createdInvitationSchema = z.object({ id: selectionIdSchema, token: invitationTokenSchema, response: invitationResponseSchema.default("pending"), message: invitationMessageSchema.optional() });
+export const createdInvitationSchema = z.object({ id: selectionIdSchema, token: invitationTokenSchema, response: invitationResponseSchema.default("pending"), message: invitationMessageSchema.optional(), inviterName: inviterNameSchema.optional() });
 export const dateHistoryResponseSchema = z.object({ dates: z.array(chosenDateSchema).max(10), nextCursor: selectionIdSchema.nullable() });
 export type PublicInvitation = z.infer<typeof publicInvitationSchema>;
 export type ChosenDate = z.infer<typeof chosenDateSchema>;
 export const invitationInputSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("catalog"), recipe: savedRecipeSchema, flowScope: z.uuid().optional() }),
-  z.object({ action: z.literal("create"), sessionId: z.uuid(), placeId: z.string().min(1).max(200), flowScope: z.uuid().optional() }),
+  z.object({ action: z.literal("catalog"), recipe: savedRecipeSchema, flowScope: z.uuid().optional(), inviterName: inviterNameSchema.optional() }),
+  z.object({ action: z.literal("create"), sessionId: z.uuid(), placeId: z.string().min(1).max(200), flowScope: z.uuid().optional(), inviterName: inviterNameSchema.optional() }),
   z.object({ action: z.literal("save"), sessionId: z.uuid(), placeId: z.string().min(1).max(200), flowScope: z.uuid().optional() }),
   z.object({ action: z.literal("selection"), sessionId: z.uuid(), placeId: z.string().min(1).max(200) }),
   z.object({ action: z.literal("revoke"), id: selectionIdSchema }),
@@ -66,8 +67,8 @@ export const historyInputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delete"), id: selectionIdSchema }),
   z.object({ action: z.literal("context"), id: selectionIdSchema }),
   z.object({ action: z.literal("update"), id: selectionIdSchema, request: requestSchema }),
-  z.object({ action: z.literal("publish"), id: selectionIdSchema }),
-  z.object({ action: z.literal("revise-invitation"), id: selectionIdSchema, token: invitationTokenSchema, date: suggestedTimeSchema.shape.date, startTime: suggestedTimeSchema.shape.startTime }),
+  z.object({ action: z.literal("publish"), id: selectionIdSchema, inviterName: inviterNameSchema.optional() }),
+  z.object({ action: z.literal("revise-invitation"), id: selectionIdSchema, token: invitationTokenSchema, date: suggestedTimeSchema.shape.date, startTime: suggestedTimeSchema.shape.startTime, inviterName: inviterNameSchema.optional() }),
   z.object({ action: z.literal("read-backup"), id: selectionIdSchema }),
   z.object({ action: z.literal("suggest-backup"), id: selectionIdSchema }),
   z.object({ action: z.literal("save-backup"), id: selectionIdSchema, placeId: backupPlaceIdSchema, previousPlaceId: backupPlaceIdSchema.nullable() }),

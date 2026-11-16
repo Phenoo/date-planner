@@ -19,7 +19,9 @@ export async function invitations(request: Request) {
     await enforcePlannerLimit(request);
     const input = parsed.data;
     if (input.action === "catalog" || input.action === "create" || input.action === "save") {
-      const result = input.action === "catalog" ? await createCatalogInvitation(request, input.recipe) : await createChosenDate(request, input.sessionId, input.placeId, input.action === "create");
+      const result = input.action === "catalog"
+        ? await createCatalogInvitation(request, input.recipe, input.inviterName)
+        : await createChosenDate(request, input.sessionId, input.placeId, input.action === "create", input.action === "create" ? input.inviterName : undefined);
       const auth = await authenticatedClient(request);
       if (auth) {
         await recordFunnel(auth.user.uid, "plan_saved", result.id, undefined, input.flowScope);

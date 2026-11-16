@@ -1,9 +1,10 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
-import { createdInvitationSchema, publicInvitationSchema, pendingInvitationKey, readPendingInvitation } from "@/lib/planner/invitations";
 import { z } from "zod";
+import { plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
+import { createdInvitationSchema, pendingInvitationKey, readPendingInvitation } from "@/lib/planner/invitations";
 import { dateTimingLabel, fallbackDateStory } from "@/lib/planner/date-story";
 import type { NearbyResult } from "@/lib/maps/schema";
 import type { PlanRequest } from "@/lib/planner/schema";
@@ -13,123 +14,115 @@ import { DateStoryView } from "./date-story-view";
 import { VenueDetails } from "./venue-details";
 import { VenuePhotos } from "./venue-photos";
 import { ReportVenue } from "./report-venue";
-import { RevokeInvitation } from "./revoke-invitation";
-import { InvitationNote } from "./invitation-note";
 import { ReadyForDate } from "./ready-for-date";
-import { ChosenDatePrompt } from "./chosen-date-prompt";
+import { VenueDecisionFacts } from "./venue-decision-facts";
 import { DateReminderDialog } from "./date-reminder-dialog";
+import { InvitationComposer } from "./invitation-composer";
 import { funnelScope } from "@/lib/planner/funnel-client";
-import { calendarLabel, clockLabel, timeMinutes } from "@/lib/planner/schedule";
 import styles from "./date-journey.module.css";
 
+const selectionStatusSchema = z.object({ saved: z.boolean(), selection: createdInvitationSchema.nullable() });
+
+async function invitationRequest(body: object, signal: AbortSignal) {
+  const result = await plannerFetch("/api/invitations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]),
+  });
+  return readPlanningResponse(result, () => {});
+}
+
 export function ChosenDateReveal({ place, sessionId, request, signedIn, onChange, onSignIn }: {
-  place: NearbyResult["places"][number]; sessionId?: string; request: PlanRequest; signedIn: boolean; onChange: () => void; onSignIn: () => void;
+  place: NearbyResult["places"][number]; sessionId?: string; request: PlanRequest; signedIn: boolean; onChange: () => void;
+  onSignIn: (action: "save" | "invite", prepare: () => void) => void;
 }) {
-  const [selection, setSelection] = useState<{ id: string; token: string; message?: string } | null>(null);
-  const [invitationDirty, setInvitationDirty] = useState(false);
   const [savedDate, setSavedDate] = useState(false);
-  const [saving, setSaving] = useState(true);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [response, setResponse] = useState<"pending" | "accepted" | "declined">("pending");
-  const [checking, setChecking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviterName, setInviterName] = useState("");
   const [reminderOpen, setReminderOpen] = useState(false);
   const [reminderSendAt, setReminderSendAt] = useState("");
-  const responseController = useRef<AbortController | null>(null);
   const title = useRef<HTMLHeadingElement>(null);
-  const mounted = useRef(false);
-  const actionController = useRef<AbortController | null>(null);
-  const actionBusy = useRef(false);
-  useEffect(() => { mounted.current = true; title.current?.focus({ preventScroll: true }); return () => { mounted.current = false; responseController.current?.abort(); actionController.current?.abort(); }; }, []);
+
+  useEffect(() => { title.current?.focus({ preventScroll: true }); }, []);
   useEffect(() => {
+    if (!signedIn || !sessionId) return;
     const controller = new AbortController();
-    if (!signedIn) { void Promise.resolve().then(() => { if (!controller.signal.aborted) setSaving(false); }); return () => controller.abort(); }
-    async function save() {
-      actionBusy.current = true;
+    const { signal } = controller;
+    const choice = { sessionId, placeId: place.id };
+    async function keepDate() {
       try {
-        if (!sessionId) throw new Error("Please refresh your ideas before creating an invitation.");
-        let resume: "create" | "save" | null = null;
-        try { resume = readPendingInvitation(localStorage.getItem(pendingInvitationKey), sessionId, place.id); } catch { /* Existing invitations still load without browser storage. */ }
-        const result = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: resume ?? "selection", sessionId, placeId: place.id, flowScope: funnelScope() }), signal: controller.signal });
-        const raw = await readPlanningResponse(result, () => {});
-        const existing = resume ? null : z.object({ saved: z.boolean(), selection: createdInvitationSchema.nullable() }).parse(raw);
-        const data = resume === "create" ? createdInvitationSchema.parse(raw) : existing?.selection ?? null;
-        if (resume === "save") createdInvitationSchema.parse(raw);
-        if (!controller.signal.aborted) {
-          setSelection(data); if (data) setResponse(data.response);
-          setSavedDate(resume !== null || existing?.saved === true);
-          if (resume) { try { localStorage.removeItem(pendingInvitationKey); } catch { /* The action is idempotent. */ } setNotice(resume === "save" ? "Saved privately to your account." : "Your invitation is ready. Choose how to send it below."); }
+        try {
+          const resume = readPendingInvitation(sessionStorage.getItem(pendingInvitationKey), sessionId, place.id);
+          if (resume === "create") setInviteOpen(true);
+          if (resume) sessionStorage.removeItem(pendingInvitationKey);
+        } catch { /* The date can still be kept in this tab. */ }
+        const existing = selectionStatusSchema.parse(await invitationRequest({ action: "selection", ...choice }, signal));
+        if (!existing.saved) {
+          createdInvitationSchema.parse(await invitationRequest({ action: "save", ...choice, flowScope: funnelScope() }, signal));
         }
-      } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Your invitation couldn't be prepared. Please try again."); }
-      finally { if (!controller.signal.aborted) { actionBusy.current = false; setSaving(false); } }
-    }
-    void save();
-    return () => controller.abort();
-  }, [signedIn, sessionId, place.id]);
-  async function prepareInvitation(action: "create" | "save" = "create") {
-    if (!signedIn) {
-      if (sessionId) { try { localStorage.setItem(pendingInvitationKey, JSON.stringify({ sessionId, placeId: place.id, action, expiresAt: Date.now() + 3600000 })); } catch { /* The accepted date still returns after sign-in. */ } }
-      onSignIn(); return;
-    }
-    if (actionBusy.current || saving) return;
-    actionBusy.current = true;
-    const controller = new AbortController(); actionController.current = controller;
-    setSaving(true); setError(""); setNotice("");
-    try {
-      if (!sessionId) throw new Error("Please refresh your ideas before creating an invitation.");
-      await planningToken();
-      const result = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, sessionId, placeId: place.id, flowScope: funnelScope() }), signal: controller.signal });
-      const data = createdInvitationSchema.parse(await readPlanningResponse(result, () => {}));
-      if (!controller.signal.aborted) { setSavedDate(true); if (action === "create") { setSelection(data); setResponse(data.response); } setNotice(action === "save" ? "Saved privately to your account." : "Your invitation is ready. Choose how to send it below."); }
-    } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Your invitation couldn't be prepared. Please try again."); }
-    finally { actionBusy.current = false; if (!controller.signal.aborted) setSaving(false); }
-  }
-  const story = place.story ?? fallbackDateStory(place.category);
-  const inviteUrl = () => signedIn && selection ? `${window.location.origin}/invite/${selection.token}` : "";
-  async function share(copy = false) {
-    if (invitationDirty) return;
-    if (!signedIn) { onSignIn(); return; }
-    const url = inviteUrl();
-    if (!url) return;
-    setError(""); setNotice("");
-    try {
-      if (!copy && navigator.share) await navigator.share({ title: "A date, just us two.", text: "I've planned a little something for us. Will you come?", url });
-      else { await navigator.clipboard.writeText(url); if (mounted.current) setNotice("Invitation link copied. Send it to your date."); }
-    } catch (failure) { if (mounted.current && !(failure instanceof Error && failure.name === "AbortError")) setError("Sharing didn't open. Copy the invitation link below instead."); }
-  }
-  async function checkResponse() {
-    if (!signedIn || !selection || checking) return;
-    const controller = new AbortController(); responseController.current?.abort(); responseController.current = controller;
-    setChecking(true); setError("");
-    try {
-      const data = publicInvitationSchema.parse(await readPlanningResponse(await fetch(`/api/invitations/${selection.token}`, { cache: "no-store", signal: controller.signal }), () => {}));
-      if (!controller.signal.aborted) {
-        setResponse(data.response);
-        setNotice(data.suggestedTime || data.suggestedVibe ? "They suggested a change. Review their reply in My dates." : data.response === "pending" ? "Your date hasn't responded yet." : "");
+        if (signal.aborted) return;
+        setSavedDate(true);
+        if (existing.selection?.inviterName) setInviterName(existing.selection.inviterName);
+      } catch (failure) {
+        if (!signal.aborted) setSaveError(failure instanceof Error ? failure.message : "Your date couldn’t be saved. Try again.");
+      } finally {
+        if (!signal.aborted) setSaving(false);
       }
-    } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Please try again."); }
-    finally { if (!controller.signal.aborted) setChecking(false); }
+    }
+    void Promise.resolve().then(() => {
+      if (signal.aborted) return;
+      setSaving(true);
+      setSaveError("");
+      void keepDate();
+    });
+    return () => controller.abort();
+  }, [signedIn, sessionId, place.id, retry]);
+
+  function requestAccess(action: "save" | "invite") {
+    if (!sessionId) return;
+    onSignIn(action, () => {
+      try {
+        localStorage.setItem(pendingInvitationKey, JSON.stringify({ sessionId, placeId: place.id, action: action === "invite" ? "create" : "save", expiresAt: Date.now() + 3600000 }));
+      } catch { /* The current tab can still verify the email. */ }
+    });
   }
-  return <main className={`${styles.reveal} ${styles.keepSpace}`}>
-    <div className={styles.revealIntro}><span className={styles.eyebrow}>YOUR DATE, THOUGHTFULLY PLANNED</span><h1 ref={title} tabIndex={-1}>It feels like a date.</h1><p>{request.date ? `${calendarLabel(request.date)} · ${clockLabel(timeMinutes(request.startTime))}` : dateTimingLabel(request.datePreference, request.startTime)}</p></div>
-    <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} request={request} animated showMapLink={false} /></div>
-    <VenuePhotos key={place.id} place={place} />
-    <ReadyForDate place={place} request={request} showFacts={false}>
-    <section className={styles.sharePanel} aria-label="Invite your date"><h2>Now, make their day.</h2><p>{signedIn ? "Send a little invitation. They can say yes right from the link." : "Create an account or sign in to share this invitation and keep your dates together."}</p>
-      <Button variant="outline" disabled={signedIn && (saving || savedDate)} onClick={() => void prepareInvitation("save")}>{savedDate && signedIn ? "Saved to My dates" : "Save this date"}</Button>
-      <p>Anyone with the link can see the chosen venue, day, time and date story, and respond. Your private preferences and account details stay private. You can revoke the link at any time.</p>
-      {signedIn && selection && <InvitationNote key={selection.token} selection={selection} onDirtyChange={setInvitationDirty} onSaved={(message) => setSelection((previous) => previous ? { ...previous, message } : previous)} />}
-      {!signedIn ? <Button onClick={() => void prepareInvitation()}>Sign in to create invitation</Button> : saving ? <p role="status">Checking your invitation…</p> : selection ? <><div className={styles.actions}><Button disabled={invitationDirty} onClick={() => void share()}>Share with your date</Button><Button variant="outline" disabled={invitationDirty} onClick={() => void share(true)}>Copy invitation link</Button></div><details className={styles.linkDetails}><summary>Show invitation link</summary><input aria-label="Your invitation link" readOnly value={inviteUrl()} onFocus={(event) => event.currentTarget.select()} /></details><div className={styles.responseStatus} role="status">{response === "accepted" ? "They said yes. It's a date." : response === "declined" ? "They'd prefer another time." : "Your invitation is ready."}</div>{response === "pending" && <button type="button" className={styles.textButton} disabled={checking} onClick={() => void checkResponse()}>{checking ? "Checking…" : "Check their response"}</button>}</> : <Button onClick={() => void prepareInvitation()}>Create invitation</Button>}
-      {signedIn && error && <p className="error-message" role="alert">{error}</p>}{signedIn && notice && <p className={styles.notice} role="status">{notice}</p>}
-      {signedIn && selection && <a className={styles.textButton} aria-disabled={invitationDirty} onClick={(event) => { if (invitationDirty) event.preventDefault(); }} href={`https://wa.me/?text=${encodeURIComponent(`I've planned a little something for us. Will you come? ${inviteUrl()}`)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>}
-      {signedIn && selection && <RevokeInvitation id={selection.id} onRevoked={() => { responseController.current?.abort(); setChecking(false); setSelection(null); setNotice("Invitation revoked. The old link no longer works."); }} />}
-      {signedIn && savedDate && <Link className={styles.historyLink} href="/saved">Your dates are kept in My dates ↗</Link>}
+
+  const story = place.story ?? fallbackDateStory(place.category);
+  return <main className={styles.reveal} data-chosen-date>
+    <div className={styles.revealIntro}><h1 ref={title} tabIndex={-1}>It feels like a date.</h1><p>{dateTimingLabel(request.datePreference, request.startTime, false, request.date)}</p></div>
+    <div className={styles.chosenStage}><span className={styles.orbit} aria-hidden="true" /><ChosenPlaceCard place={place} placeId={place.id} animated showMapLink={false} /></div>
+    <section className={styles.sharePanel} aria-label="Keep or share your date">
+      <div className={styles.actions}>
+        <Button disabled={!sessionId} onClick={() => signedIn ? setInviteOpen(true) : requestAccess("invite")}>Invite your date</Button>
+        {!signedIn && <Button variant="outline" disabled={!sessionId} onClick={() => requestAccess("save")}>Save this date</Button>}
+      </div>
+      {signedIn && savedDate && <Link className={styles.historyLink} href="/saved">Saved in My dates ↗</Link>}
+      {signedIn && saving && !savedDate && <p role="status">Saving to My dates…</p>}
+      {signedIn && saveError && !savedDate && <p role="alert" className="error-message">{saveError} <button type="button" className={styles.textButton} onClick={() => setRetry((attempt) => attempt + 1)}>Try again</button></p>}
     </section>
-    </ReadyForDate>
-    <details><summary className={styles.textButton}>More venue information and reviews</summary><VenueDetails place={place} request={request} /></details>
-    {sessionId && <ReportVenue placeId={place.id} sessionId={sessionId} />}
-    <DateStoryView story={story} category={place.category} label="HERE'S HOW YOUR DATE COULD UNFOLD" /><button type="button" className={styles.textButton} onClick={onChange}>Revisit your recommendation</button>
-    <ChosenDatePrompt key={`${sessionId}:${place.id}:${signedIn}`} saved={signedIn && savedDate} saving={signedIn && saving} reminderSet={!!reminderSendAt} onSave={() => void prepareInvitation("save")} onRemind={() => setReminderOpen(true)} />
+    <ReadyForDate place={place} request={request} compact />
+    {sessionId && <Button variant="ghost" className={styles.reminderAction} onClick={() => setReminderOpen(true)}>{reminderSendAt ? "Manage email reminder" : "Set an email reminder"}</Button>}
+    <div className={styles.venueFacts}><VenueDecisionFacts place={place} request={request} /></div>
+    <details className={styles.venueDisclosure}>
+      <summary className={styles.textButton}>Venue photos and reviews</summary>
+      <VenuePhotos key={place.id} place={place} />
+      <VenueDetails place={place} request={request} />
+      {sessionId && <ReportVenue placeId={place.id} sessionId={sessionId} />}
+    </details>
+    <DateStoryView story={story} category={place.category} label="HERE'S HOW YOUR DATE COULD UNFOLD" />
+    <button type="button" className={styles.textButton} onClick={onChange}>Revisit your recommendation</button>
+    {signedIn && inviteOpen && sessionId && <InvitationComposer initialName={inviterName} onClose={() => setInviteOpen(false)} onCreate={async (name, signal) => {
+      const selection = createdInvitationSchema.parse(await invitationRequest({ action: "create", sessionId, placeId: place.id, inviterName: name, flowScope: funnelScope() }, signal));
+      if (!signal.aborted) {
+        setInviterName(selection.inviterName ?? name);
+        setSavedDate(true);
+      }
+      return selection;
+    }} />}
     <DateReminderDialog key={`reminder:${sessionId}:${place.id}:${signedIn}`} open={reminderOpen} onOpenChange={setReminderOpen} sessionId={sessionId} placeId={place.id} signedIn={signedIn} onSaved={setSavedDate} onScheduled={setReminderSendAt} />
   </main>;
 }

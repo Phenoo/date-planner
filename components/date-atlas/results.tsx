@@ -8,10 +8,8 @@ import {
   Sparkles,
   ArrowLeft,
   ArrowRight,
-  Bookmark,
   Check,
   ChevronDown,
-  Copy,
   ExternalLink,
   Info,
   LoaderCircle,
@@ -59,6 +57,7 @@ export function Results({
   onChangeTiming,
   onBack,
   onSave,
+  onKeepAcceptedPlan,
   onShare,
   onRegenerate,
   onCancelGeneration,
@@ -70,7 +69,7 @@ export function Results({
   planningRequest: PlanRequest;
   signedIn: boolean;
   accountRevision: string;
-  onSignIn: () => void;
+  onSignIn: (action: "save" | "invite", prepare: () => void) => void;
   onActivePlan: (plan: DatePlan) => void;
   setResult: (result: RecommendationResult) => void;
   onCustomize: () => void;
@@ -78,6 +77,7 @@ export function Results({
   onChangeTiming: () => void;
   onBack: () => void;
   onSave: (plan: DatePlan) => void;
+  onKeepAcceptedPlan: (plan: DatePlan) => void;
   onShare: (plan: DatePlan) => void;
   onRegenerate: (
     request: PlanRequest,
@@ -135,6 +135,12 @@ export function Results({
   useEffect(() => () => abortRef.current?.abort(), []);
   const plan = result.plans[0];
   const rememberPlan = useEffectEvent(onActivePlan);
+  const keepPlan = useEffectEvent(() => { if (plan) onKeepAcceptedPlan(plan); });
+  const accepted = Boolean(plan && acceptedCatalog === plan.id);
+  const planId = plan?.id;
+  useEffect(() => {
+    if (accepted && signedIn && !busy) keepPlan();
+  }, [accepted, signedIn, busy, planId]);
   useEffect(() => {
     if (plan) rememberPlan(plan);
     let active = true;
@@ -350,7 +356,7 @@ export function Results({
     timeZone: "Africa/Lagos",
   });
   return (
-    <main className="results-page page-container">
+    <main className="results-page page-container" data-chosen-date>
       <button className="text-link back-link" onClick={onBack}>
         <ArrowLeft size={15} />
         Back to inspiration
@@ -373,7 +379,7 @@ export function Results({
           <ChevronDown size={15} />
         </Button>
       </div>
-      <ReadyForDate place={catalogPlace(plan)} request={plan.request} plan={plan}><div className="share-actions"><Button disabled={changing} onClick={() => onSave(plan)}>Save this date</Button><Button variant="outline" disabled={changing} onClick={() => onShare(plan)}>Invite your date</Button><Button variant="outline" disabled={changing} onClick={() => void onRegenerate(plan.request, { excludeIds: plan.activities.map((activity) => activity.experience.id) })}>Show another option</Button></div></ReadyForDate>
+      <ReadyForDate place={catalogPlace(plan)} request={plan.request} plan={plan}><div className="share-actions"><Button disabled={changing} onClick={() => onShare(plan)}>Invite your date</Button>{!signedIn && <Button variant="outline" disabled={changing} onClick={() => onSave(plan)}>Save this date</Button>}<Button variant="outline" disabled={changing} onClick={() => void onRegenerate(plan.request, { excludeIds: plan.activities.map((activity) => activity.experience.id) })}>Show another option</Button></div></ReadyForDate>
       <div className={`data-notice ${plan.demo ? "demo-notice" : ""}`}>
         <Info size={17} />
         <span>{result.warnings[0]}</span>
@@ -817,21 +823,6 @@ export function Results({
                 <strong>{money(plan.total, plan.request.currency)}</strong>
               </div>
             </div>
-            <Button disabled={changing} onClick={() => onSave(plan)}>
-              <Bookmark size={16} />
-              Save this plan
-            </Button>
-            <div className="share-actions">
-              <Button
-                variant="outline"
-                size="small"
-                onClick={() => onShare(plan)}
-              >
-                <Copy size={14} />
-                Create invitation
-              </Button>
-            </div>
-            <p className="private-note">Creating an invitation makes the chosen venue, day, time and date story viewable to anyone with its link. Your private preferences stay private. You can revoke the link.</p>
             <p className="private-note">
               <ShieldCheck size={12} />
               No reservation or payment has been made.
@@ -993,10 +984,6 @@ export function Results({
           <Sparkles size={16} />
           Ask your planner
         </button>
-        <Button disabled={changing} onClick={() => onSave(plan)}>
-          <Bookmark size={16} />
-          Save Plan
-        </Button>
       </div>
       <Dialog
         open={mapOpen}

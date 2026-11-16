@@ -21,7 +21,7 @@ import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
 import { planningOrigin } from "@/lib/maps/google";
 import { mapNearbyPlaces } from "@/lib/maps/nearby";
 import { fallbackDateStory } from "@/lib/planner/date-story";
-import { storedDateSchema, publicStoredDateSchema, tokenKey, type StoredDate } from "./date-invitations";
+import { invitationSelection, publicStoredDateSchema, sharePublishedDate, storedDateSchema, tokenKey, type StoredDate } from "./date-invitations";
 import { planHasQualifyingGoogleRatings } from "./plan-ratings";
 import { manageDateBackup } from "./date-backup";
 
@@ -67,12 +67,21 @@ export async function manageDate(request: Request, input: DateManagementInput) {
   }
   const revision = input.action === "revise-invitation" ? input : null;
   const revisedFromInvitationKey = revision ? tokenKey(revision.token) : null;
+  const published = record.invitationPublished && !record.invitationRevoked;
+  const repeatedRevision = revision && published && record.revisedFromInvitationKey === revisedFromInvitationKey && record.date === revision.date && record.startTime === revision.startTime;
   if (revision) {
     if (record.dateStatus !== "planned") throw new RequestError("This date has already been marked as done.", 409);
-    if (record.revisedFromInvitationKey === revisedFromInvitationKey && record.invitationPublished && !record.invitationRevoked && record.date === revision.date && record.startTime === revision.startTime) {
-      return { id: input.id, token: record.token, response: record.response };
-    }
-    if (record.token !== revision.token || !record.suggestedTime) throw new RequestError("This invitation changed. Refresh My dates to open the latest invitation.", 409);
+    if (!repeatedRevision && (record.token !== revision.token || !record.suggestedTime)) throw new RequestError("This invitation changed. Refresh My dates to open the latest invitation.", 409);
+  }
+  const inviterName = input.action === "publish" || input.action === "revise-invitation" ? input.inviterName : undefined;
+  const namingLegacyInvitation = input.action === "publish" && published && inviterName && (!record.planningRequest || record.dateStatus === "completed");
+  if (namingLegacyInvitation || repeatedRevision) {
+    if (!inviterName || inviterName === record.inviterName) return invitationSelection(input.id, record);
+    return auth.db.runTransaction(async (tx) => {
+      const current = await tx.get(ref);
+      if (!snapshot.updateTime || !current.updateTime?.isEqual(snapshot.updateTime)) throw new RequestError("This date changed while you were editing. Refresh it and try again.", 409);
+      return sharePublishedDate(tx, ref, auth.user.uid, record, inviterName);
+    });
   }
   const inputRequest = input.action === "revise-invitation"
     ? record.planningRequest && { ...record.planningRequest, date: input.date, startTime: input.startTime, endTime: "", timeZone: record.timeZone, timeZoneConfirmed: true }
@@ -102,7 +111,7 @@ export async function manageDate(request: Request, input: DateManagementInput) {
     if (record.dateStatus === "completed") throw new RequestError("Keep completed dates as memories. Plan a new date to change the schedule.", 409);
     if ((input.action === "update" || revision) && preferences && changes) {
       if (record.invitationPublished && !record.invitationRevoked) tx.delete(auth.db.collection("dateInvitations").doc(record.invitationKey));
-      const updated = { ...datePreferencesSchema.parse(preferences), story: changes.story, response: "pending" as const, invitationPublished: !!revision, invitationRevoked: !revision };
+      const updated = { ...datePreferencesSchema.parse(preferences), story: changes.story, response: "pending" as const, invitationPublished: !!revision, invitationRevoked: !revision, ...(inviterName ? { inviterName } : {}) };
       const replacement = revision ? { token, invitationKey: tokenKey(token) } : null;
       tx.update(ref, {
         ...updated, ...replacement, planningRequest: preferences, updatedAt: Timestamp.now(),
@@ -116,18 +125,19 @@ export async function manageDate(request: Request, input: DateManagementInput) {
         tx.set(user.collection("savedPlans").doc(savedDocumentId(changes.recipe.id)), { recipe: encodeRecipe(changes.recipe), updatedAt: Timestamp.now() });
       }
       if (!replacement) return { saved: true, invitationRevoked: record.invitationPublished };
+      const next = { ...record, ...updated, ...replacement };
       tx.create(auth.db.collection("dateInvitations").doc(replacement.invitationKey), {
-        ...publicStoredDateSchema.parse({ ...record, ...updated, ...replacement }),
+        ...publicStoredDateSchema.parse(next),
         publicStoryVersion: 1, ownerId: auth.user.uid, selectionId: input.id,
       });
-      return { id: input.id, token, response: updated.response };
+      return invitationSelection(input.id, next);
     }
     if (input.action === "publish" && changes) {
-      if (record.invitationPublished && !record.invitationRevoked) return { id: input.id, token: record.token, response: record.response };
-      const next = { ...record, token, invitationKey: tokenKey(token), invitationPublished: true, invitationRevoked: false, response: "pending" as const };
-      tx.update(ref, { token: next.token, invitationKey: next.invitationKey, invitationPublished: true, invitationRevoked: false, response: next.response, suggestedTime: FieldValue.delete(), suggestedVibe: FieldValue.delete(), revisedFromInvitationKey: FieldValue.delete(), updatedAt: Timestamp.now() });
+      if (published) return sharePublishedDate(tx, ref, auth.user.uid, record, inviterName);
+      const next = { ...record, token, invitationKey: tokenKey(token), invitationPublished: true, invitationRevoked: false, response: "pending" as const, ...(inviterName ? { inviterName } : {}) };
+      tx.update(ref, { token: next.token, invitationKey: next.invitationKey, invitationPublished: true, invitationRevoked: false, response: next.response, ...(inviterName ? { inviterName } : {}), suggestedTime: FieldValue.delete(), suggestedVibe: FieldValue.delete(), revisedFromInvitationKey: FieldValue.delete(), updatedAt: Timestamp.now() });
       tx.create(auth.db.collection("dateInvitations").doc(next.invitationKey), { ...publicStoredDateSchema.parse(next), story: changes.story, publicStoryVersion: 1, ownerId: auth.user.uid, selectionId: input.id });
-      return { id: input.id, token, response: next.response };
+      return invitationSelection(input.id, next);
     }
     throw new RequestError("Choose a supported date action.", 400);
   });

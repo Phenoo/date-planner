@@ -16,13 +16,13 @@ import {
 import { AccountPrivacy } from "./account-privacy";
 import { AccountAccess } from "./account-access";
 import { AuthScreen } from "./auth-screen";
+import { DateEmailDialog, type DateEmailAction } from "./date-email-dialog";
 import { planningToken, plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { AnimatedFeedback } from "@/components/animations/feedback";
 import { recommendationResultSchema } from "@/lib/planner/response-schema";
 import { activeDiscoveryKey, invitationReturnKey, restoreDiscoverySession, rejectedPicksKey, readRejectedPicks, mergeRejectedPicks } from "@/lib/planner/discovery-session";
 import { recommendationExclusions, replacementPreferredIds } from "@/lib/planner/recommendation-replacement";
-import { createdInvitationSchema, pendingInvitationKey } from "@/lib/planner/invitations";
-import { RevokeInvitation } from "./revoke-invitation";
+import { createdInvitationSchema, pendingInvitationKey, readPendingInvitation } from "@/lib/planner/invitations";
 import { draftJSON, draftRequest, clearPlannerDrafts, draftIsCurrent, draftMatchesFlow, draftLifetimeMs, plannerDraftKey as draftKey, plannerModeKey, savedPlannerMode } from "@/lib/planner/draft-retention";
 import { selectedWishlistPlaceSchema } from "@/lib/planner/shared-wishlist";
 import { requestGeneration } from "@/lib/planner/generation-client";
@@ -36,7 +36,7 @@ import { GeneratingScreen } from "./generating-screen";
 import { PlaceDiscovery } from "./place-discovery";
 import { currencyForCountry } from "@/lib/planner/currency";
 import authenticatedStyles from "./authenticated-shell.module.css";
-import { InvitationNote } from "./invitation-note";
+import { InvitationComposer } from "./invitation-composer";
 import { Explore, ExperienceCard } from "./explore";
 import { ExperiencePage } from "./experience-page";
 import { Dashboard, ProfilePreferences } from "./dashboard";
@@ -174,11 +174,10 @@ export function DateAtlas({
   const [authAccountView, setAuthAccountView] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  const [dateEmailAction, setDateEmailAction] = useState<DateEmailAction | null>(null);
+  const prepareEmailAction = useRef<(() => void) | null>(null);
   const authTransferPending = useSyncExternalStore(subscribeAccountTransfer, hasPendingAccountTransfer, () => false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [shareSelection, setShareSelection] = useState<{ id: string; token: string; message?: string } | null>(null);
-  const [invitationDirty, setInvitationDirty] = useState(false);
-  const [shareError, setShareError] = useState("");
+  const [invitationRecipe, setInvitationRecipe] = useState<SavedRecipe | null>(null);
   const [loadingStage, setLoadingStage] = useState("Checking your preferences");
   const [feedbackState, setFeedbackState] = useState<"success" | "error" | null>(null);
   const [signedIn, setSignedIn] = useState(false);
@@ -191,7 +190,6 @@ export function DateAtlas({
   const activeGeneration = useRef("");
   const generationAttempt = useRef<{ owner: string; body: string; key: string } | null>(null);
   const pendingSave = useRef<{ recipe: SavedRecipe; action: "save" | "share" } | null>(null);
-  const shareController = useRef<AbortController | null>(null);
   const shareOwner = useRef<string | null>(null);
   const mounted = useRef(false);
   const savingPlans = useRef(new Set<string>());
@@ -387,15 +385,15 @@ export function DateAtlas({
             abortRef.current?.abort(); generationId.current++; setBusy(false);
             setResult(null); setResumePath(null); setRequest(defaultRequest()); setSelectedPlace(undefined); setChatSession(emptyChatSession()); setPlannerStep(0); setEditingPlan(false);
             pendingSave.current = null; setSaved([]); setSignedIn(false); setAccountId(""); setDraftReady(true);
-            shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
-            setShareOpen(false); setShareSelection(null);
+            shareOwner.current = null;
+            setInvitationRecipe(null);
             try {
               clearPlannerDrafts(sessionStorage, plannerDraftVersion);
               clearPlanningContinuations(sessionStorage);
               sessionStorage.removeItem(activeDiscoveryKey); sessionStorage.removeItem(activePlanKey);
               sessionStorage.removeItem("date-atlas:accepted-catalog:v1");
               sessionStorage.removeItem(pendingSaveKey); localStorage.removeItem(pendingSaveKey);
-              localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey); localStorage.removeItem(pendingDateReminderKey);
+              localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey); sessionStorage.removeItem(pendingInvitationKey); localStorage.removeItem(pendingDateReminderKey);
             } catch { /* Server ownership checks remain authoritative. */ }
             setView(initialView === "planner" ? "planner" : initialView);
           }
@@ -403,8 +401,8 @@ export function DateAtlas({
           if (!active || !mounted.current || revision !== sessionRevision || auth.currentUser?.uid !== user?.uid) return;
           const saveRevision = ++savedRevision.current;
           if (shareOwner.current && shareOwner.current !== user?.uid) {
-            shareController.current?.abort(); shareController.current = null; shareOwner.current = null;
-            setShareOpen(false); setShareSelection(null);
+            shareOwner.current = null;
+            setInvitationRecipe(null);
           }
           setSignedIn(!!user && !user.isAnonymous);
           setAuthReady(true);
@@ -446,6 +444,7 @@ export function DateAtlas({
       if (!active || !hasEmailSignInLink()) return;
       const email = storedSignInEmail();
       setAuthAccountView(false); setAuthOpen(true);
+      if (initialView === "planner") setDateEmailAction("verify");
       if (!email) {
         setAuthMessage(
           "Enter the email that received this link to finish signing in.",
@@ -489,7 +488,6 @@ export function DateAtlas({
       catalogController.abort();
       window.removeEventListener("scroll", onScroll);
       abortRef.current?.abort();
-      shareController.current?.abort();
       unsubscribe?.();
       window.removeEventListener("storage", syncStorage);
     };
@@ -590,7 +588,7 @@ export function DateAtlas({
     try {
       clearPlannerDrafts(sessionStorage, plannerDraftVersion);
       clearPlanningContinuations(sessionStorage);
-      for (const key of [activePlanKey, activeDiscoveryKey, pendingSaveKey, "date-atlas:accepted-catalog:v1", rejectedPicksKey(new URLSearchParams(window.location.search).get("flow") ?? "direct")]) sessionStorage.removeItem(key);
+      for (const key of [activePlanKey, activeDiscoveryKey, pendingSaveKey, pendingInvitationKey, "date-atlas:accepted-catalog:v1", rejectedPicksKey(new URLSearchParams(window.location.search).get("flow") ?? "direct")]) sessionStorage.removeItem(key);
       localStorage.removeItem(invitationReturnKey); localStorage.removeItem(pendingInvitationKey); localStorage.removeItem(pendingDateReminderKey);
     } catch { setExitError("Your browser couldn't clear the draft. Please try again before starting over."); return; }
     pendingSave.current = null; rejectionMemory.current = { flow: "", picks: mergeRejectedPicks() };
@@ -847,13 +845,17 @@ export function DateAtlas({
     const recipe = toRecipe(plan);
     const user = getBrowserAuth()?.currentUser;
     if (!user || user.isAnonymous) {
-      rememberPlan(plan);
-      pendingSave.current = { recipe, action: "save" };
-      try { localStorage.removeItem(invitationReturnKey); localStorage.setItem(pendingSaveKey, JSON.stringify({ recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) }, flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + 3600000 })); } catch { /* The current tab retains the action in memory. */ }
-      openAuthentication();
+      openDateEmail("save", () => retainCatalogAction(plan, "save"));
       return;
     }
     await saveRecipe(recipe);
+  }
+  function keepAcceptedPlan(plan: DatePlan) {
+    if (resumingAuth.current || pendingSave.current || saved.some((recipe) => recipe.id === plan.id)) return;
+    try {
+      if (readPendingPlanAction(sessionStorage.getItem(pendingSaveKey) ?? localStorage.getItem(pendingSaveKey), Date.now(), new URLSearchParams(window.location.search).get("flow") ?? "direct")) return;
+    } catch { /* Saving can proceed if browser storage is unavailable. */ }
+    void saveRecipe(toRecipe(plan));
   }
   async function saveRecipe(recipe: SavedRecipe) {
     const user = getBrowserAuth()?.currentUser;
@@ -904,6 +906,12 @@ export function DateAtlas({
       const raw: unknown = JSON.parse(invitationReturn ?? sessionStorage.getItem(activeDiscoveryKey) ?? "null");
       const context = z.object({ flow: z.string(), sessionId: z.uuid(), placeId: z.string(), expiresAt: z.number(), accepted: z.boolean().default(false) }).safeParse(raw);
       if (context.success && context.data.flow === (new URLSearchParams(window.location.search).get("flow") ?? "direct") && context.data.expiresAt > Date.now() && context.data.expiresAt <= Date.now() + 3600000) {
+        const pendingInvitation = localStorage.getItem(pendingInvitationKey);
+        if (pendingInvitation && readPendingInvitation(pendingInvitation, context.data.sessionId, context.data.placeId)) {
+          // Firebase can sign in the original tab too. Resume the invite where the link was verified.
+          sessionStorage.setItem(pendingInvitationKey, pendingInvitation);
+          localStorage.removeItem(pendingInvitationKey);
+        }
         const response = await plannerFetch("/api/plans/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(context.data), signal: AbortSignal.timeout(30000) });
         const data = z.object({ request: requestSchema, result: recommendationResultSchema }).parse(await readPlanningResponse(response, () => {}));
         if (!stillCurrent()) return;
@@ -938,7 +946,7 @@ export function DateAtlas({
       action = { ...action, recipe: toRecipe(plan) };
       try { sessionStorage.setItem("date-atlas:accepted-catalog:v1", plan.id); } catch { /* The pending action still resumes. */ }
       setRequest(plan.request); setResult(restored); setView("results");
-      if (action.action === "share") await shareRecipe(action.recipe);
+      if (action.action === "share") openCatalogInvitation(action.recipe);
       else await saveRecipe(action.recipe);
     }
     else {
@@ -1001,36 +1009,51 @@ export function DateAtlas({
     const recipe = toRecipe(plan);
     const user = getBrowserAuth()?.currentUser;
     if (!user || user.isAnonymous) {
-      rememberPlan(plan);
-      pendingSave.current = { recipe, action: "share" };
-      try { localStorage.removeItem(invitationReturnKey); localStorage.setItem(pendingSaveKey, JSON.stringify({ recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) }, action: "share", flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", expiresAt: Date.now() + 3600000 })); } catch { /* The current tab retains the action in memory. */ }
-      openAuthentication();
+      openDateEmail("invite", () => retainCatalogAction(plan, "share"));
       return;
     }
-    await shareRecipe(recipe);
+    openCatalogInvitation(recipe);
   }
-  async function shareRecipe(recipe: SavedRecipe) {
+  function retainCatalogAction(plan: DatePlan, action: "save" | "share") {
+    const recipe = toRecipe(plan);
+    rememberPlan(plan);
+    pendingSave.current = { recipe, action };
+    try {
+      localStorage.removeItem(invitationReturnKey);
+      localStorage.setItem(pendingSaveKey, JSON.stringify({
+        recipe: { ...recipe, title: "Your chosen date", request: draftRequest(recipe.request) },
+        action,
+        flow: new URLSearchParams(window.location.search).get("flow") ?? "direct",
+        expiresAt: Date.now() + 3600000,
+      }));
+    } catch { /* The current tab retains the action in memory. */ }
+  }
+  function openCatalogInvitation(recipe: SavedRecipe) {
     const user = getBrowserAuth()?.currentUser;
-    if (!user || user.isAnonymous || shareController.current) return;
-    const controller = new AbortController(); shareController.current = controller;
+    if (!user || user.isAnonymous) return;
     shareOwner.current = user.uid;
     pendingSave.current = null;
     try { sessionStorage.removeItem(pendingSaveKey); localStorage.removeItem(pendingSaveKey); } catch { /* The plan remains available for a retry. */ }
-    setShareOpen(true); setShareSelection(null); setShareError("");
-    try {
-      const response = await plannerFetch("/api/invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "catalog", recipe, flowScope: funnelScope() }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]) });
-      const selection = createdInvitationSchema.parse(await readPlanningResponse(response, () => {}));
-      if (!controller.signal.aborted && mounted.current && getBrowserAuth()?.currentUser?.uid === user.uid) setShareSelection(selection);
-    } catch (failure) { if (!controller.signal.aborted && mounted.current && getBrowserAuth()?.currentUser?.uid === user.uid) setShareError(failure instanceof Error ? failure.message : "Your invitation couldn't be created. Your plan is still here; try again."); }
-    finally { if (shareController.current === controller) shareController.current = null; }
+    setInvitationRecipe(recipe);
   }
-  async function sendCatalogInvitation(copy = false) {
-    if (!shareSelection) return;
-    const url = `${window.location.origin}/invite/${shareSelection.token}`;
+  function openDateEmail(action: "save" | "invite", prepare: () => void) {
+    prepareEmailAction.current = prepare;
+    setAuthMessage("");
+    setDateEmailAction(action);
+    setAuthOpen(true);
+  }
+  function closeAuthentication(keepPending = false) {
+    setAuthOpen(false);
+    setDateEmailAction(null);
+    prepareEmailAction.current = null;
+    setAuthMessage("");
+    if (keepPending) return;
+    pendingSave.current = null;
     try {
-      if (!copy && navigator.share) await navigator.share({ title: "A date, just us two.", text: "I've planned a little something for us. Will you come?", url });
-      else { await navigator.clipboard.writeText(url); setToast("Invitation link copied. Send it to your date."); }
-    } catch (failure) { if (!(failure instanceof Error && failure.name === "AbortError")) setShareError("Sharing didn't open. Try copying the link or sending it on WhatsApp."); }
+      sessionStorage.removeItem(pendingSaveKey);
+      localStorage.removeItem(pendingSaveKey);
+      localStorage.removeItem(pendingInvitationKey);
+    } catch { /* The current plan remains available. */ }
   }
   function openAuthentication() {
     const user = getBrowserAuth()?.currentUser;
@@ -1042,12 +1065,14 @@ export function DateAtlas({
       } catch { /* The current tab keeps the selected date in memory. */ }
     }
     setAuthAccountView(!!user && !user.isAnonymous && !hasPendingAccountTransfer());
+    setDateEmailAction(null);
     setAuthOpen(true);
   }
   function authenticationDone() {
     const user = getBrowserAuth()?.currentUser;
     if (!user || user.isAnonymous) return;
     setSignedIn(true); setAccountId(user.uid); setAuthOpen(false); setAuthMessage("");
+    setDateEmailAction(null); prepareEmailAction.current = null;
     if (result?.plans[0]) rememberPlan(result.plans[0]);
     setHistoryRevision((value) => value + 1);
     trackFunnel("authentication_completed");
@@ -1294,7 +1319,7 @@ export function DateAtlas({
             planningRequest={request}
             signedIn={signedIn && !authOpen && !authBusy && !authTransferPending}
             accountRevision={`${accountId}:${historyRevision}`}
-            onSignIn={openAuthentication}
+            onSignIn={openDateEmail}
             onActivePlan={rememberPlan}
             setResult={(next) => {
               setResult(next);
@@ -1305,6 +1330,7 @@ export function DateAtlas({
             onChangeTiming={() => customize("time")}
             onBack={() => router.push("/")}
             onSave={(plan) => void savePlan(plan)}
+            onKeepAcceptedPlan={keepAcceptedPlan}
             onShare={(plan) => void sharePlan(plan)}
             onCancelGeneration={cancelGeneration}
             onRegenerate={generate}
@@ -1474,28 +1500,29 @@ export function DateAtlas({
             </>
           )}
         </Dialog>
-        <Dialog open={shareOpen && !authOpen && signedIn} onOpenChange={(open) => { setShareOpen(open); if (!open) { shareController.current?.abort(); shareController.current = null; } }} title="Your date invitation" description="Choose how to share your invitation.">
-          <div className="form-stack">
-            <h2>{shareSelection ? "Your invitation is ready." : shareError ? "A little detour." : "Preparing your invitation…"}</h2>
-            <p>Anyone with this link can see the chosen venue, day, time and date story, and respond. Your budget, private preferences and account details stay private. You can revoke the link at any time.</p>
-            {shareError && <p role="alert" className="error-message">{shareError}</p>}
-            {shareSelection ? <>
-              <InvitationNote key={shareSelection.token} selection={shareSelection} onDirtyChange={setInvitationDirty} onSaved={(message) => setShareSelection((previous) => previous ? { ...previous, message } : previous)} />
-              <Button disabled={invitationDirty} onClick={() => void sendCatalogInvitation()}>Share with your date</Button>
-              <Button variant="outline" disabled={invitationDirty} onClick={() => void sendCatalogInvitation(true)}>Copy invitation link</Button>
-              <a className="button button-outline" aria-disabled={invitationDirty} onClick={(event) => { if (invitationDirty) event.preventDefault(); }} href={`https://wa.me/?text=${encodeURIComponent(`I've planned a little something for us. Will you come? ${window.location.origin}/invite/${shareSelection.token}`)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>
-              <RevokeInvitation id={shareSelection.id} onRevoked={() => { setShareOpen(false); setShareSelection(null); setToast("Invitation revoked. The old link no longer works."); }} />
-            </> : !shareError && <p role="status">Keeping your date together.</p>}
-          </div>
-        </Dialog>
+        {invitationRecipe && !authOpen && signedIn && <InvitationComposer key={invitationRecipe.id} onClose={() => { shareOwner.current = null; setInvitationRecipe(null); }} onCreate={async (inviterName, signal) => {
+          const response = await plannerFetch("/api/invitations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "catalog", recipe: invitationRecipe, inviterName, flowScope: funnelScope() }),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+          });
+          return createdInvitationSchema.parse(await readPlanningResponse(response, () => {}));
+        }} />}
+        {authOpen && dateEmailAction && <DateEmailDialog
+          key={dateEmailAction}
+          action={dateEmailAction}
+          prepare={() => prepareEmailAction.current?.()}
+          onClose={closeAuthentication}
+          onVerified={authenticationDone}
+          verifying={authBusy}
+          verificationError={authMessage}
+        />}
         <AuthScreen
-          open={authOpen}
+          open={authOpen && !dateEmailAction}
           onOpenChange={(open) => {
-            setAuthOpen(open);
-            if (!open) {
-              pendingSave.current = null;
-              try { sessionStorage.removeItem(pendingSaveKey); localStorage.removeItem(pendingSaveKey); localStorage.removeItem(pendingInvitationKey); } catch { /* The current plan remains available. */ }
-            }
+            if (open) setAuthOpen(true);
+            else closeAuthentication();
           }}
           signedIn={signedIn && authAccountView}
         >
