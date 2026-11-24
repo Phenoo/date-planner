@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ActionCodeURL } from "firebase/auth";
 import { GET } from "../app/auth/action/route";
 import { accountEmailMessage, accountEmailSchema, accountEmailReturnUrl } from "../lib/firebase/email-actions";
 
@@ -61,7 +62,7 @@ test("planner sign-in preserves the validated flow in Firebase settings and the 
   assert.equal(accountEmailReturnUrl(accountEmailSchema.parse({ email: input.email, intent: "signIn", returnPath: "/plan" })), "https://adateatlas.com/plan");
 });
 
-test("email actions use the configured Firebase key and preserve the one-time code", () => {
+test("email actions stay on the app domain and preserve the one-time code", () => {
   const previousKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const previousProject = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   try {
@@ -74,29 +75,79 @@ test("email actions use the configured Firebase key and preserve the one-time co
       const response = GET(new Request(input));
       assert.equal(response.status, 303);
       const target = new URL(response.headers.get("Location")!);
-      assert.equal(target.origin, "https://test-date-atlas.firebaseapp.com");
-      assert.equal(target.pathname, "/__/auth/action");
-      assert.equal(target.searchParams.get("apiKey"), "firebase-auth-key");
+      assert.equal(target.origin, "https://adateatlas.com");
+      assert.equal(target.pathname, mode === "signIn" ? "/plan" : "/auth/manage");
+      assert.equal(target.searchParams.get("apiKey"), mode === "signIn" ? "firebase-auth-key" : null);
       assert.equal(target.searchParams.get("oobCode"), "one-time-code");
       assert.equal(target.searchParams.get("mode"), mode);
-      assert.equal(target.searchParams.get("continueUrl"), continueUrl);
+      if (mode === "signIn") {
+        assert.equal(target.searchParams.get("continueUrl"), null);
+        assert.equal(target.searchParams.get("flow"), planningFlow);
+        assert.equal(target.searchParams.get("auth"), "email");
+        const action = ActionCodeURL.parseLink(target.href);
+        assert.ok(action, "The Firebase client must recognize the direct app link");
+        assert.equal(action.operation, "EMAIL_SIGNIN");
+        assert.equal(action.code, "one-time-code");
+        assert.equal(action.apiKey, "firebase-auth-key");
+      } else assert.equal(target.searchParams.get("continueUrl"), "https://adateatlas.com/plan");
       assert.equal(target.searchParams.get("lang"), "en");
       assert.equal(response.headers.get("Cache-Control"), "no-store");
       assert.equal(response.headers.get("Referrer-Policy"), "no-referrer");
       assert.match(response.headers.get("X-Robots-Tag")!, /noindex/);
     }
-    for (const destination of ["https://attacker.example/", "https://adateatlas.com.attacker.example/", "https://user:password@adateatlas.com/", "https://adateatlas.com/auth/action", "javascript:alert(1)", "not-a-url"]) {
+    for (const destination of ["https://attacker.example/", "https://adateatlas.com.attacker.example/", "https://user:password@adateatlas.com/", "https://adateatlas.com/auth/action", "https://adateatlas.com/auth/manage", "https://adateatlas.com/api/account/privacy", "javascript:alert(1)", "not-a-url"]) {
       const input = new URL("https://adateatlas.com/auth/action");
       input.search = new URLSearchParams({ mode: "signIn", oobCode: "one-time-code", continueUrl: destination }).toString();
       const response = GET(new Request(input));
       assert.equal(response.status, 400, destination);
       assert.equal(response.headers.get("Location"), null);
     }
-    for (const query of ["", "mode=signIn", "mode=unknown&oobCode=code"]) {
+    for (const query of ["", "mode=signIn", "mode=unknown&oobCode=code", `mode=signIn&oobCode=${"x".repeat(2049)}`]) {
       assert.equal(GET(new Request(`https://adateatlas.com/auth/action?${query}`)).status, 400);
     }
     delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
     assert.equal(GET(new Request("https://adateatlas.com/auth/action?mode=signIn&oobCode=code")).status, 503);
+  } finally {
+    if (previousKey === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    else process.env.NEXT_PUBLIC_FIREBASE_API_KEY = previousKey;
+    if (previousProject === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+    else process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = previousProject;
+  }
+});
+
+test("legacy account links canonicalize the return path and discard nested credentials", () => {
+  const previousKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const previousProject = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  try {
+    process.env.NEXT_PUBLIC_FIREBASE_API_KEY = "configured-auth-key";
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID = "test-date-atlas";
+    for (const path of ["/", "/plan", "/saved", "/favorites", "/profile", "/login"]) {
+      const destination = new URL(path, "https://date-atlas.vercel.app");
+      destination.search = "link=https://attacker.example&apiKey=untrusted&mode=resetPassword&oobCode=nested&email=private%40example.com";
+      const input = new URL("https://adateatlas.com/auth/action");
+      input.search = new URLSearchParams({ mode: "signIn", oobCode: "original-code", continueUrl: destination.href }).toString();
+      const response = GET(new Request(input));
+      assert.equal(response.status, 303);
+      const target = new URL(response.headers.get("Location")!);
+      assert.equal(target.origin, "https://adateatlas.com");
+      assert.equal(target.pathname, path === "/login" ? "/saved" : path);
+      assert.equal(target.searchParams.get("oobCode"), "original-code");
+      assert.equal(target.searchParams.get("apiKey"), "configured-auth-key");
+      assert.equal(target.searchParams.get("mode"), "signIn");
+      assert.deepEqual([...target.searchParams.keys()].sort(), ["apiKey", "auth", "mode", "oobCode"]);
+    }
+    for (const mode of ["signIn", "resetPassword"]) {
+      const response = GET(new Request(`https://adateatlas.com/auth/action?mode=${mode}&oobCode=code`));
+      assert.equal(response.status, 303);
+      const target = new URL(response.headers.get("Location")!);
+      assert.equal(target.pathname, mode === "signIn" ? "/saved" : "/auth/manage");
+      if (mode === "resetPassword") assert.equal(target.searchParams.get("continueUrl"), "https://adateatlas.com/login");
+    }
+    for (const destination of ["https://adateatlas.com/plan?flow=invalid", `https://adateatlas.com/saved?flow=${planningFlow}`]) {
+      const input = new URL("https://adateatlas.com/auth/action");
+      input.search = new URLSearchParams({ mode: "signIn", oobCode: "code", continueUrl: destination }).toString();
+      assert.equal(GET(new Request(input)).status, 400);
+    }
   } finally {
     if (previousKey === undefined) delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
     else process.env.NEXT_PUBLIC_FIREBASE_API_KEY = previousKey;

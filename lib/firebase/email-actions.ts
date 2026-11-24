@@ -29,7 +29,11 @@ export function accountEmailMessage(input: z.infer<typeof accountEmailSchema>, f
     eyebrow: input.intent === "signIn" ? "Your secure sign-in link" : "Account security",
     title: input.intent === "signIn" ? "Welcome back." : "Let’s get you back in.",
     paragraphs: [input.intent === "signIn" ? `Your saved dates are waiting. Use the button below to sign in securely to ${siteName}.` : `Use the button below to choose a new password for your ${siteName} account.`],
-    primaryAction: { label: input.intent === "signIn" ? "Sign in securely" : "Reset my password", url: link.href },
+    primaryAction: {
+      label: input.intent === "signIn" ? "Sign in securely" : "Reset my password",
+      url: link.href,
+      fallbackLabel: input.intent === "signIn" ? "Open your secure sign-in link" : "Open your password reset link",
+    },
     note: "If you didn’t request this email, you can ignore it. Your account stays as it is. Don’t forward this personal link or share it with anyone.",
   });
   return {

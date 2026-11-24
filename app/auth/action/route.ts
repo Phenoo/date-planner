@@ -1,6 +1,8 @@
 import { siteOrigin } from "@/lib/seo/site";
+import { z } from "zod";
 
 const modes = new Set(["signIn", "resetPassword", "verifyEmail", "recoverEmail", "verifyAndChangeEmail", "revertSecondFactorAddition"]);
+const returnPaths = new Set(["/", "/plan", "/saved", "/favorites", "/profile", "/login"]);
 const headers = {
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
@@ -21,23 +23,34 @@ export function GET(request: Request) {
     return new Response("This account link is incomplete. Please request a new email.", { status: 400, headers });
   }
 
-  // Firebase's generated emails can select a different browser key from this project's Maps keys.
-  const target = new URL(`https://${projectId}.firebaseapp.com/__/auth/action`);
-  target.searchParams.set("apiKey", apiKey);
-  target.searchParams.set("mode", mode);
-  target.searchParams.set("oobCode", code);
-
+  let destination = new URL(mode === "signIn" ? "/saved" : "/login", siteOrigin);
   const continueUrl = input.get("continueUrl");
   if (continueUrl) {
-    let destination: URL;
-    try { destination = new URL(continueUrl); }
+    let requested: URL;
+    try { requested = new URL(continueUrl); }
     catch { return new Response("This account link has an invalid destination.", { status: 400, headers }); }
     const allowedOrigins = new Set([siteOrigin, "https://date-atlas.vercel.app"]);
-    if (!allowedOrigins.has(destination.origin) || destination.username || destination.password || destination.pathname === "/auth/action") {
+    if (!allowedOrigins.has(requested.origin) || requested.username || requested.password || !returnPaths.has(requested.pathname)) {
       return new Response("This account link has an invalid destination.", { status: 400, headers });
     }
-    target.searchParams.set("continueUrl", destination.href);
+    destination = new URL(mode === "signIn" && requested.pathname === "/login" ? "/saved" : requested.pathname, siteOrigin);
+    const flow = requested.searchParams.get("flow");
+    if (flow !== null) {
+      if (mode !== "signIn" || requested.pathname !== "/plan" || !z.uuid().safeParse(flow).success) {
+        return new Response("This account link has an invalid planning session.", { status: 400, headers });
+      }
+      destination.searchParams.set("flow", flow);
+    }
   }
+
+  const target = mode === "signIn" ? destination : new URL("/auth/manage", siteOrigin);
+  target.searchParams.set("mode", mode);
+  target.searchParams.set("oobCode", code);
+  // The configured key takes precedence over any key included in an older email.
+  if (mode === "signIn") {
+    target.searchParams.set("apiKey", apiKey);
+    target.searchParams.set("auth", "email");
+  } else target.searchParams.set("continueUrl", destination.href);
   const language = input.get("lang");
   if (language && /^[a-zA-Z-]{2,35}$/.test(language)) target.searchParams.set("lang", language);
 

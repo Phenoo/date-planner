@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { brandEmail } from "../lib/email/brand-template";
 import { dateCreatedEmail } from "../lib/email/date-created";
+import { accountEmailMessage } from "../lib/firebase/email-actions";
 
 test("brand emails escape every dynamic field and preserve multiline plain text", () => {
   const hostile = '<img src=x onerror="alert(1)"> & \'quote\'';
@@ -37,6 +38,29 @@ test("email buttons reject insecure, misleading or noncanonical destinations", (
   for (const url of ["javascript:alert(1)", "data:text/html,fixture", "http://adateatlas.com/saved", "https://adateatlas.com.attacker.example/saved", "https://attacker.example/", "https://user:password@adateatlas.com/saved", "https://www.adateatlas.com/saved", "/saved", "//adateatlas.com/saved"]) {
     for (const action of ["primaryAction", "secondaryAction"] as const) assert.throws(() => brandEmail({ preheader: "Fixture", title: "Fixture", [action]: { label: "Continue", url } }));
   }
+});
+
+test("account emails hide the raw action URL in HTML and retain the working link", () => {
+  for (const intent of ["signIn", "resetPassword"] as const) {
+    const content = accountEmailMessage({ email: "fixture@example.com", intent, returnPath: "/saved" }, `https://fixture.firebaseapp.com/__/auth/action?mode=${intent}&oobCode=fixture-code`);
+    const expectedLabel = intent === "signIn" ? "Open your secure sign-in link" : "Open your password reset link";
+    const actionHrefs = [...content.html.matchAll(/href="([^"]*oobCode=fixture-code[^"]*)"/g)].map(match => match[1]);
+    assert.equal(actionHrefs.length, 2, "The primary button and fallback use the complete action link");
+    assert.equal(actionHrefs[0], actionHrefs[1]);
+    assert.ok(actionHrefs[0].includes(`mode=${intent}&amp;oobCode=fixture-code`));
+    assert.ok(content.html.includes(`>${expectedLabel}</a>`));
+    assert.doesNotMatch(content.html.replace(/<[^>]*>/g, ""), /oobCode=|https:\/\/adateatlas.com\/auth\/action/);
+    assert.ok(content.text.includes(actionHrefs[0].replaceAll("&amp;", "&")), "Plain-text recipients can still copy the full URL");
+  }
+});
+
+test("custom fallback labels are escaped while ordinary emails retain their URL label", () => {
+  const action = { label: "Continue", url: "https://adateatlas.com/saved?from=email&fixture=1" };
+  const content = brandEmail({ preheader: "Fixture", title: "Fixture", primaryAction: { ...action, fallbackLabel: '<img src=x onerror="alert(1)">' } });
+  assert.doesNotMatch(content.html, /<img/);
+  assert.ok(content.html.includes(">&lt;img src=x onerror=&quot;alert(1)&quot;&gt;</a>"));
+  const ordinary = brandEmail({ preheader: "Fixture", title: "Fixture", primaryAction: action });
+  assert.ok(ordinary.html.includes(">https://adateatlas.com/saved?from=email&amp;fixture=1</a>"));
 });
 
 test("saved date email is a private confirmation with an escaped venue snapshot", () => {

@@ -24,10 +24,14 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   async headers() {
-    return ["/api/:path*", "/invite/:path*", "/plan", "/saved", "/profile", "/favorites", "/admin", "/membership"].map((source) => ({
+    return [{ source: "/auth/:path*", headers: [
+      { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Cache-Control", value: "no-store" },
+    ] }, ...["/api/:path*", "/invite/:path*", "/plan", "/saved", "/profile", "/favorites", "/admin", "/membership"].map((source) => ({
       source,
       headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, nosnippet" }],
-    }));
+    }))];
   },
 };
 
