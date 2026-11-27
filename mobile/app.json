@@ -7,9 +7,12 @@
     "icon": "./assets/icon.png",
     "platforms": ["ios", "android"],
     "userInterfaceStyle": "light",
+    "plugins": [
+      ["expo-location", { "locationAlwaysPermission": false, "locationAlwaysAndWhenInUsePermission": false }]
+    ],
     "ios": {
       "bundleIdentifier": "com.adateatlas.mobile",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Use your location to find date ideas around you.",
         "NSMicrophoneUsageDescription": "Use the microphone when you choose to tell Oge about your date.",
