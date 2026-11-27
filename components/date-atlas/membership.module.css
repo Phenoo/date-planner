@@ -22,6 +22,14 @@
 .manage :global(.button) { min-height: 44px; border-color: #dbbfc8; font-size: 13px; }
 .textButton { min-height: 44px; border: 0; padding: 5px 0; background: transparent; color: #a91a37; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .notice { margin-bottom: 24px; padding: 15px 18px; border: 1px solid #e9cdd5; background: #fff3f6; color: #a91a37; border-radius: 8px; font-size: 14px; }
+.recurring { margin-bottom: 28px; padding: clamp(20px, 4vw, 30px); border: 1px solid #eadde1; border-radius: 18px; background: #fff; scroll-margin-top: 16px; }
+.recurring h2 { font-size: 25px; font-weight: 600; letter-spacing: -.04em; }
+.recurring p { margin-top: 10px; color: #725d63; font-size: 14px; line-height: 1.6; }
+.recurring p[role="alert"] { color: #a91a37; }
+.recurring button, .recurring form { margin-top: 16px; }
+.recurringFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; }
+.recurringFields input, .recurringFields select { min-width: 0; width: 100%; }
+.recurringActions { display: flex; flex-wrap: wrap; gap: 8px 12px; }
 .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .plan { min-width: 0; padding: 30px; border: 1px solid #eadde1; background: #fff; border-radius: 18px; }
 .plus { border-color: #d91335; box-shadow: inset 0 3px 0 #d91335; background: #fffaf9; }
@@ -76,3 +84,19 @@
   .footer > div { gap: 20px; }
   .cancelActions { flex-direction: column; }
 }
+
+.nativeShell.shell { background: var(--native-bg); color: var(--native-ink); }
+.nativeShell .main { width: min(100% - 36px,680px); padding-block: 26px; }
+.nativeShell .intro { display: flex; flex-direction: column; align-items: center; }
+.nativeShell .intro h1 { font-size: 35px; line-height: 1.08; font-weight: 800; margin-top: 28px; }
+.nativeShell .eyebrow { display: none; }
+.nativeShell .lead { color: var(--native-muted); font-size: 13px; }
+.nativeShell .intro > span:first-child { margin-bottom: 24px; }
+.nativeShell .plans { display: flex; flex-direction: column-reverse; gap: 18px; }
+.nativeShell :is(.plan,.current) { background: var(--native-panel); color: var(--native-ink); border-color: var(--native-line); border-radius: 20px; padding: 22px; }
+.nativeShell .plus { border: 2px solid var(--native-brand); }
+.nativeShell :is(.plan,.current) p, .nativeShell :is(.billingNote,.cancelNote,.details,.label) { color: var(--native-muted); }
+.nativeShell .plan li { font-size: 13px; }
+.nativeShell .plan li svg { color: var(--native-accent); }
+.nativeShell .price { color: var(--native-ink); font-size: 33px; }
+.nativeShell .country select { background: var(--native-bg); color: var(--native-ink); border-color: var(--native-line); }

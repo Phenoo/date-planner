@@ -1,0 +1,17 @@
+html[data-native-app="true"] {
+  --page-surface-bg: #fffaf7;
+  background: var(--page-surface-bg);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-native-app="true"] { --page-surface-bg: #171318; color-scheme: dark; }
+}
+html[data-native-app="true"][data-native-theme="white"] { --page-surface-bg: #fffaf7; color-scheme: light; }
+html[data-native-app="true"][data-native-theme="dark"] { --page-surface-bg: #171318; color-scheme: dark; }
+html[data-native-app="true"] body { background: var(--page-surface-bg); }
+html[data-native-app="true"] :is(button,input,select,textarea) { font-family: inherit; }
+html[data-native-app="true"][data-page-surface] { background: var(--page-surface-bg); }
+html[data-native-app="true"] .mobile-itinerary-actions { padding-bottom: 11px; }
+html[data-native-app="true"] .saved-card { background: var(--native-panel); border: 0; border-radius: 18px; overflow: hidden; }
+html[data-native-app="true"] .saved-card h3 { font-size: 23px; }
+html[data-native-app="true"] .planner-included { margin-block: 12px; border-radius: 12px; background: var(--native-panel); }

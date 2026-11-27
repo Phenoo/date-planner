@@ -5,7 +5,7 @@ This branch implements a **test-only monthly subscription pilot** for A Date At 
 ## Included
 
 - Free: one successful new recommendation per UTC calendar month.
-- Plus: four successful new recommendations and two venue changes per paid monthly period.
+- Plus: one recurring date-night schedule, with weekly, biweekly, or monthly ideas. New recommendations and venue changes have no monthly cap for Plus; ordinary request throttling still applies.
 - Nigeria billing country: Paystack test checkout, NGN 5,000 monthly (500,000 kobo).
 - Other billing countries: Polar sandbox checkout, USD 5 monthly (500 cents), with applicable taxes displayed by Polar.
 - Server verification of the configured monthly price, payment, owner, subscription and paid period. A return URL or `active` provider status alone never grants Plus.
@@ -14,7 +14,13 @@ This branch implements a **test-only monthly subscription pilot** for A Date At 
 - Atomic allowance reservations, failure release, persistent consumption receipts and guest-to-account usage transfer. Browser retries retain a digest and request ID, without copying personal notes into storage.
 - Ownership checks on legacy editing, restoration, saved-plan and invitation paths so they cannot manufacture a replacement outside the allowance.
 
-Annual billing, partner sharing, a shared wishlist, extra personalization and habit reminders are **not sold or advertised** by this version. They remain follow-up product work.
+Shared wishlists and Plan Together invitations are available independently of Plus. Plus can use places from the account’s shared wishlist as the starting point for its recurring suggestions.
+
+### Recurring date nights
+
+Membership lets the subscriber set a city, optional neighborhood and budget for two, vibe, cadence, and local day and time. The worker looks for an idea about two days ahead and checks wishlist places before searching nearby. The owner reviews the idea in the planner and chooses when to share it using Plan Together.
+
+For the hosted pilot, apply the two collection-group indexes in `firestore.indexes.json` to the preview Firebase project. Set `CRON_SECRET` in the Vercel Preview environment and schedule an authenticated POST to `/api/membership/recurring/dispatch` every five minutes. Use the Vercel preview with membership test mode enabled. Set `RESEND_API_KEY` for the optional notification to the owner’s verified address. When mail is unavailable, prepared ideas still appear in Membership. The delivery worker checks current Plus access and schedule before sending.
 
 ## Configuration
 
@@ -73,7 +79,7 @@ The unit suite, TypeScript, ESLint, Functions packaging, Preview build, allowanc
 
 All six provider variables are now configured in **adal-preview → Preview**; API tokens and signing secrets use Vercel Secret storage. Both real provider accounts passed monthly-price checks. A matching Paystack test plan was created after the original plan field contained a dashboard URL.
 
-Real Paystack test checkout activated Plus with four plans and two venue changes. Its renewal was then canceled and the paid-period allowance remained available. Paystack's official endpoint ping and Polar's harmless product-event redelivery both returned verified HTTP 200 deliveries.
+Real Paystack test checkout activated the original Plus pilot. Its renewal was then canceled and paid-period access remained available. Paystack's official endpoint ping and Polar's harmless product-event redelivery both returned verified HTTP 200 deliveries.
 
 **Polar's paid journey is still pending:** its sandbox checkout opened and the explicitly approved test-card submission entered processing. Subsequent provider reads failed with `PolarNetworkError`; no paid order or activated Polar membership has been established. Reconcile that existing attempt before submitting another payment. A reserved example-domain test email was rejected by Polar; a business-mailbox test alias was accepted. Explicit provider validation rejections now release their checkout claim, while ambiguous network or response failures retain it.
 

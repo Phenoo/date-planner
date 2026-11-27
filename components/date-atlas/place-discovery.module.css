@@ -6,6 +6,8 @@
 .location span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .location svg { flex: 0 0 auto; color: #c70f32; }
 .intro { font-size: 15px; color: #806b72; margin: 12px 0 26px; line-height: 1.5; }
+.locationMessage { font-size: 13px; color: #806b72; margin: -12px 0 22px; line-height: 1.6; }
+.planButton { width: 100%; margin: 0 0 24px; }
 .discovery { min-height: 530px; }
 .stack { height: clamp(310px,calc(100svh - 370px),520px); position: relative; margin: 0 8px 26px; isolation: isolate; }
 .card,.backCard { position: absolute; inset: 0; border-radius: 24px; overflow: hidden; background: #eadadd; box-shadow: 0 12px 36px #41202a16; }

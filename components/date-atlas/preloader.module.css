@@ -39,3 +39,5 @@
   .hand { display: none; }
   .wordmark path { stroke-dashoffset: 0; }
 }
+
+:global(html[data-native-app="true"]) .preloader { padding-bottom: 24px; }

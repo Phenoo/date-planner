@@ -1,4 +1,5 @@
 "use client";
+import { AtlasIcon } from "./atlas-icon";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,7 +16,6 @@ import {
   MapPin,
   Search,
   SlidersHorizontal,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -217,7 +217,7 @@ export function Explore({
           <p>Explore places and experiences worth sharing.</p>
         </div>
         <Button onClick={() => onPlan()}>
-          <Sparkles size={16} />
+          <AtlasIcon name="plan-note" size={16} />
           Plan my date
         </Button>
       </div>
@@ -516,7 +516,7 @@ export function ExperienceDetails({
           </div>
         )}
         <Button onClick={() => onPlan(experience)}>
-          <Sparkles size={16} />
+          <AtlasIcon name="plan-note" size={16} />
           Add to my date plan
           <ArrowRight size={16} />
         </Button>

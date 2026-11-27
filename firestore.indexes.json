@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "accountDeletionRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "automaticVersion", "order": "ASCENDING" },
+        { "fieldPath": "processAfter", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "dateReminders",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -84,6 +92,22 @@
     }
   ],
   "fieldOverrides": [
+    {
+      "collectionGroup": "nativeAuthSessions",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "recurringDateNights",
+      "fieldPath": "dueAt",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }]
+    },
+    {
+      "collectionGroup": "emailNotifications",
+      "fieldPath": "recurringDeliveryAt",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }]
+    },
     {
       "collectionGroup": "experiences",
       "fieldPath": "record",

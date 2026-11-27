@@ -1,10 +1,11 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import type { Query } from "firebase-admin/firestore";
+import type { DocumentReference, Query, Transaction } from "firebase-admin/firestore";
 import { z } from "zod";
 import { authenticatedClient, getDatabase } from "@/lib/firebase/server";
-import { datePreferencesSchema, invitationPlaceSchema, invitationResponseSchema, invitationTokenSchema, invitationMessageSchema, selectionIdSchema, suggestedTimeSchema, type ChosenDate, type PublicInvitation } from "@/lib/planner/invitations";
+import { datePreferencesSchema, invitationPlaceSchema, invitationResponseSchema, invitationTokenSchema, invitationMessageSchema, inviterNameSchema, selectionIdSchema, suggestedTimeSchema, suggestedVibeSchema, type ChosenDate, type PublicInvitation } from "@/lib/planner/invitations";
 import { dateStorySchema, fallbackDateStory } from "@/lib/planner/date-story";
 import { loadPlaceDetails } from "@/lib/maps/place-details";
 import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
@@ -33,15 +34,37 @@ export const storedDateSchema = datePreferencesSchema.extend({
   invitationRevoked: z.boolean().default(false),
   invitationPublished: z.boolean().default(true),
   message: invitationMessageSchema.optional(),
+  inviterName: inviterNameSchema.optional(),
   source: z.enum(["google", "catalog"]).default("google"),
   publicStoryVersion: z.literal(1).optional(),
   planningRequest: requestSchema.optional(), customTitle: z.string().max(100).optional(), savedRecipeId: z.string().max(500).optional(),
   suggestedTime: suggestedTimeSchema.optional(),
+  suggestedVibe: suggestedVibeSchema.optional(),
+  revisedFromInvitationKey: selectionIdSchema.optional(),
+  backupPlaceId: invitationPlaceSchema.shape.id.optional(),
 });
 export type StoredDate = z.infer<typeof storedDateSchema>;
-export const publicStoredDateSchema = storedDateSchema.omit({ planningRequest: true, customTitle: true, savedRecipeId: true });
+export const publicStoredDateSchema = storedDateSchema.omit({ planningRequest: true, customTitle: true, savedRecipeId: true, suggestedTime: true, suggestedVibe: true, revisedFromInvitationKey: true, backupPlaceId: true });
 export const tokenKey = (token: string) => createHash("sha256").update(token).digest("hex");
 export const dateSelectionId = (sessionId: string, placeId: string) => createHash("sha256").update(`${sessionId}:${placeId}`).digest("hex");
+
+export function invitationSelection(id: string, record: StoredDate) {
+  return { id, token: record.token, response: record.response, message: record.message ?? "", ...(record.inviterName ? { inviterName: record.inviterName } : {}) };
+}
+
+export async function sharePublishedDate(tx: Transaction, history: DocumentReference, ownerId: string, record: StoredDate, inviterName?: string) {
+  if (!inviterName || inviterName === record.inviterName) return invitationSelection(history.id, record);
+  const invitation = history.firestore.collection("dateInvitations").doc(record.invitationKey);
+  const published = (await tx.get(invitation)).data();
+  if (published?.ownerId !== ownerId || published.selectionId !== history.id) throw new RequestError("This invitation is no longer available.", 404);
+  tx.update(history, { inviterName });
+  tx.update(invitation, { inviterName });
+  return invitationSelection(history.id, { ...record, inviterName });
+}
+
+function carryBackup(current: StoredDate, next: StoredDate) {
+  return current.backupPlaceId && isDeepStrictEqual(current.planningRequest, next.planningRequest) ? { backupPlaceId: current.backupPlaceId } : {};
+}
 
 export async function persistDiscoverySession(request: Request, result: NearbyResult, preferences: PlanRequest) {
   if (!result.places.length || process.env.DATE_ATLAS_CATALOG_MODE === "demo") return result;
@@ -53,7 +76,7 @@ export async function persistDiscoverySession(request: Request, result: NearbyRe
   return { ...result, sessionId };
 }
 
-export async function createChosenDate(request: Request, sessionId: string, placeId: string, publish = true) {
+export async function createChosenDate(request: Request, sessionId: string, placeId: string, publish = true, inviterName?: string) {
   const auth = await authenticatedClient(request);
   if (!auth || auth.user.firebase.sign_in_provider === "anonymous") throw new RequestError("Create an account or sign in to save or share your date.", 401);
   const user = auth.db.collection("users").doc(auth.user.uid);
@@ -68,7 +91,14 @@ export async function createChosenDate(request: Request, sessionId: string, plac
   const existing = storedDateSchema.safeParse((await history.get()).data());
   const details = await loadPlaceDetails(placeId, false);
   if (!hasQualifyingGoogleRating(details.record.rating)) throw new RequestError("Only places with a confirmed Google rating above 3.75 can be saved or shared. Choose another recommendation.", 409);
-  if (existing.success && (!publish || existing.data.invitationPublished && !existing.data.invitationRevoked)) return { token: existing.data.token, id, response: existing.data.response, message: existing.data.message ?? "" };
+  if (existing.success && (!publish || existing.data.invitationPublished && !existing.data.invitationRevoked)) {
+    if (!publish || !inviterName || inviterName === existing.data.inviterName) return invitationSelection(id, existing.data);
+    return auth.db.runTransaction(async (tx) => {
+      const current = storedDateSchema.safeParse((await tx.get(history)).data());
+      if (!current.success || !current.data.invitationPublished || current.data.invitationRevoked) throw new RequestError("This invitation changed. Open the date and try again.", 409);
+      return sharePublishedDate(tx, history, auth.user.uid, current.data, inviterName);
+    });
+  }
   if (existing.success && existing.data.dateStatus === "completed") throw new RequestError("This date is already marked as done. Plan another date to create a new invitation.", 409);
   const privateRequest = requestSchema.safeParse(sessionRecord?.privateRequest);
   if (privateRequest.success) {
@@ -84,18 +114,20 @@ export async function createChosenDate(request: Request, sessionId: string, plac
   const record: StoredDate = { ...preferences, ...(privateRequest.success ? { planningRequest: privateRequest.data } : {}), token, invitationKey, placeId, story: candidate.story, response: "pending", dateStatus: "planned", createdAt: existing.success ? existing.data.createdAt : Timestamp.now(), invitationRevoked: false, invitationPublished: publish, source: "google" };
   return auth.db.runTransaction(async (tx) => {
     const current = storedDateSchema.safeParse((await tx.get(history)).data());
-    if (current.success && (!publish || current.data.invitationPublished && !current.data.invitationRevoked)) return { token: current.data.token, id, response: current.data.response, message: current.data.message ?? "" };
+    if (current.success && !publish) return invitationSelection(id, current.data);
+    if (current.success && current.data.invitationPublished && !current.data.invitationRevoked) return sharePublishedDate(tx, history, auth.user.uid, current.data, inviterName);
     if (current.success && current.data.dateStatus === "completed") throw new RequestError("This date is already marked as done.", 409);
     if (!current.success) await queueDateCreatedEmail(tx, user, { dateId: id, source: "google" });
-    const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}) };
+    const name = inviterName ?? (current.success ? current.data.inviterName : undefined);
+    const nextRecord = { ...record, ...(name ? { inviterName: name } : {}), ...(current.success && current.data.message ? { message: current.data.message } : {}), ...(current.success ? carryBackup(current.data, record) : {}) };
     tx.set(user, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(history, nextRecord);
     if (publish) tx.create(auth.db.collection("dateInvitations").doc(invitationKey), { ...publicStoredDateSchema.parse(nextRecord), story: fallbackDateStory(details.place.category), publicStoryVersion: 1, ownerId: auth.user.uid, selectionId: id });
-    return { token, id, response: nextRecord.response, message: nextRecord.message ?? "" };
+    return invitationSelection(id, nextRecord);
   });
 }
 
-export async function createCatalogInvitation(request: Request, recipe: SavedRecipe) {
+export async function createCatalogInvitation(request: Request, recipe: SavedRecipe, inviterName?: string) {
   const auth = await authenticatedClient(request);
   if (!auth || auth.user.firebase.sign_in_provider === "anonymous") throw new RequestError("Create an account or sign in to share your date.", 401);
   await requireOwnedActivities(request, recipe.id, recipe.experienceIds);
@@ -120,16 +152,17 @@ export async function createCatalogInvitation(request: Request, recipe: SavedRec
   };
   return auth.db.runTransaction(async (tx) => {
     const current = storedDateSchema.safeParse((await tx.get(history)).data());
-    if (current.success && !current.data.invitationRevoked) return { id, token: current.data.token, response: current.data.response, message: current.data.message ?? "" };
+    if (current.success && current.data.invitationPublished && !current.data.invitationRevoked) return sharePublishedDate(tx, history, auth.user.uid, current.data, inviterName);
     if (current.success && current.data.dateStatus === "completed") throw new RequestError("This date is already marked as done.", 409);
     if (!current.success) await queueDateCreatedEmail(tx, user, { dateId: id, source: "catalog", recipeId: plan.id });
     if (current.success) record.createdAt = current.data.createdAt;
-    const nextRecord = { ...record, ...(current.success && current.data.message ? { message: current.data.message } : {}) };
+    const name = inviterName ?? (current.success ? current.data.inviterName : undefined);
+    const nextRecord = { ...record, ...(name ? { inviterName: name } : {}), ...(current.success && current.data.message ? { message: current.data.message } : {}), ...(current.success ? carryBackup(current.data, record) : {}) };
     tx.set(user, { updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(history, nextRecord);
     tx.set(user.collection("savedPlans").doc(savedDocumentId(plan.id)), { recipe: encodeRecipe(toRecipe(plan)), updatedAt: FieldValue.serverTimestamp() });
     tx.create(auth.db.collection("dateInvitations").doc(invitationKey), { ...publicStoredDateSchema.parse(nextRecord), publicStoryVersion: 1, ownerId: auth.user.uid, selectionId: id });
-    return { id, token, response: nextRecord.response, message: nextRecord.message ?? "" };
+    return invitationSelection(id, nextRecord);
   });
 }
 
@@ -138,7 +171,7 @@ export async function readChosenSelection(request: Request, sessionId: string, p
   if (!auth || auth.user.firebase.sign_in_provider === "anonymous") throw new RequestError("Sign in to manage your invitation.", 401);
   const id = dateSelectionId(sessionId, placeId);
   const record = storedDateSchema.safeParse((await auth.db.collection("users").doc(auth.user.uid).collection("dateHistory").doc(id).get()).data());
-  return { saved: record.success, selection: record.success && record.data.invitationPublished && !record.data.invitationRevoked ? { id, token: record.data.token, response: record.data.response, message: record.data.message ?? "" } : null };
+  return { saved: record.success, selection: record.success && record.data.invitationPublished && !record.data.invitationRevoked ? invitationSelection(id, record.data) : null };
 }
 
 export async function revokeDateInvitation(request: Request, id: string) {
@@ -185,8 +218,9 @@ export async function hydrateDate(record: StoredDate, withPhoto: boolean | "hero
   return {
     date: record.date, duration: record.duration, datePreference: record.datePreference, startTime: record.startTime, timeZone: record.timeZone, city: record.city, country: record.country,
     placeId: record.placeId, place, source: record.source, story: record.story, response: record.response,
-    ...(record.message ? { message: record.message } : {}),
+    ...(record.message ? { message: record.message } : {}), ...(record.inviterName ? { inviterName: record.inviterName } : {}),
     dateStatus: record.dateStatus, createdAt: record.createdAt.toDate().toISOString(), ...(record.suggestedTime ? { suggestedTime: record.suggestedTime } : {}),
+    ...(record.suggestedVibe ? { suggestedVibe: record.suggestedVibe } : {}),
   };
 }
 
@@ -220,7 +254,7 @@ export async function listChosenDates(request: Request, cursor?: string, status?
   const dates = await Promise.all(rows.docs.slice(0, 10).map(async (row): Promise<ChosenDate | null> => {
     const record = storedDateSchema.safeParse(row.data());
     if (!record.success) return null;
-    return { ...await hydrateDate(record.data, "hero"), id: row.id, token: record.data.token, invitationRevoked: record.data.invitationRevoked, invitationPublished: record.data.invitationPublished, ...(record.data.customTitle ? { title: record.data.customTitle } : {}), canEdit: Boolean(record.data.planningRequest) };
+    return { ...await hydrateDate(record.data, "hero"), id: row.id, token: record.data.token, invitationRevoked: record.data.invitationRevoked, invitationPublished: record.data.invitationPublished, ...(record.data.customTitle ? { title: record.data.customTitle } : {}), canEdit: Boolean(record.data.planningRequest), ...(record.data.backupPlaceId ? { backupPlaceId: record.data.backupPlaceId } : {}) };
   }));
   return { dates: dates.filter((date) => date !== null), nextCursor: rows.docs.length > 10 ? rows.docs[9].id : null };
 }

@@ -57,3 +57,6 @@
 }
 @media(max-height:720px) and (max-width:700px) { .ready { gap: 12px; padding-top: 24px; } .art { width: 130px; } .copy h1 { font-size: 43px; } .copy p { margin-top: 12px; } .copy { margin-top: 8px; } .eyebrow { margin-bottom: 12px; } }
 @media(prefers-reduced-motion:reduce) { .ready * { animation: none !important; transition: none !important; } .ticket svg path:last-child { stroke-dashoffset: 0; } }
+
+:global(html[data-native-app="true"]) .ready { padding-bottom: 24px; }
+:global(html[data-native-app="true"]) .spark { display: none; }

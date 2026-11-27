@@ -2,19 +2,31 @@ import { requestForPlace } from "@/lib/planner/timing";
 import { amountPrecisionError } from "@/lib/planner/currency";
 import { persistPlans } from "@/lib/server/plan-persistence";
 import { incorporatePreferences } from "@/lib/planner/preferences";
-import { generateSchema } from "@/lib/planner/schema";
+import { generateSchema, type PlanRequest } from "@/lib/planner/schema";
 import { generateSinglePlan } from "@/lib/planner/engine";
 import { getCatalog } from "@/lib/planner/catalog";
 import { personalize } from "@/lib/planner/ai";
-import { apiError, readJson } from "@/lib/planner/http";
+import { apiError, readJson, RequestError } from "@/lib/planner/http";
 import { enforcePlannerLimit } from "@/lib/planner/rate-limit";
 import { planningOrigin } from "@/lib/maps/google";
+import { loadPlaceDetails } from "@/lib/maps/place-details";
+import { mapNearbyPlaces } from "@/lib/maps/nearby";
 import { discoverDatePlaces } from "@/lib/server/date-discovery";
 import { persistDiscoverySession } from "@/lib/server/date-invitations";
 import type { Coordinates, NearbyResult } from "@/lib/maps/schema";
 import { coordinateGeneration } from "@/lib/server/generation-coordinator";
 import { scheduleError } from "@/lib/planner/schedule";
 import { planHasQualifyingGoogleRatings } from "@/lib/server/plan-ratings";
+
+async function planSelectedPlace(request: Request, preferences: PlanRequest, placeId: string, signal: AbortSignal): Promise<NearbyResult> {
+  const [origin, { record, place }] = await Promise.all([planningOrigin(preferences), loadPlaceDetails(placeId, "hero")]);
+  if (!origin) throw new RequestError("We couldn't check this location. Try again or remove the wishlist venue.", 503);
+  const result = mapNearbyPlaces({ places: [record] }, origin, preferences, 1);
+  if (!result.places.length) return { ...result, warnings: ["This wishlist venue doesn’t fit your date. Adjust your answers or remove the venue to search again."] };
+  result.places = [{ ...result.places[0], ...place }];
+  signal.throwIfAborted();
+  return persistDiscoverySession(request, result, requestForPlace(preferences, result.places[0]));
+}
 
 export async function generate(request: Request, progress?: (stage: string) => void) {
   try {
@@ -43,6 +55,11 @@ export async function generate(request: Request, progress?: (stage: string) => v
     return await coordinateGeneration(request, parsed.data, async (signal) => {
       const operationRequest = new Request(request.url, { method: "POST", headers: request.headers, signal });
       await enforcePlannerLimit(operationRequest);
+      if (parsed.data.selectedPlaceId) {
+        progress?.("Checking your wishlist venue");
+        const nearby = await planSelectedPlace(operationRequest, parsed.data.request, parsed.data.selectedPlaceId, signal);
+        return { plans: [], request: requestForPlace(parsed.data.request, nearby.places[0]), nearby, warnings: nearby.warnings ?? [], diagnostics: [], source: "firebase", ai: false };
+      }
       progress?.("Retrieving verified experiences");
       const catalog = await getCatalog();
       const hasLocalCatalog = catalog.some((experience) => experience.city.toLowerCase() === parsed.data.request.city.toLowerCase() && experience.country.toLowerCase() === parsed.data.request.country.toLowerCase());

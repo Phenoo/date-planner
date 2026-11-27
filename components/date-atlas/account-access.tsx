@@ -1,13 +1,18 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { FirebaseError } from "firebase/app";
-import { GoogleAuthProvider, EmailAuthProvider, linkWithCredential, linkWithPopup, signInWithPopup, signInWithCredential, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, EmailAuthProvider, linkWithCredential, linkWithPopup, signInWithPopup, signInWithCredential, signInWithCustomToken, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { getBrowserAuth, authenticateAccount, hasPendingAccountTransfer, completeEmailSignIn, hasEmailSignInLink, sendEmailSignIn, sendAccountPasswordReset, authErrorMessage } from "@/lib/firebase/client";
+import { canUseGoogleSignIn, subscribeGoogleSignIn } from "@/lib/firebase/provider-availability";
+import { nativeGoogleSignIn } from "@/lib/firebase/native-google-sign-in";
+import { isNativeApp } from "./use-native-app";
 import { Button } from "@/components/ui/button";
 import styles from "./auth-screen.module.css";
+const serverProviders = () => false;
 export function AccountAccess({ onDone }: { onDone: () => void }) {
+  const googleAvailable = useSyncExternalStore(subscribeGoogleSignIn, canUseGoogleSignIn, serverProviders);
   const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
   const [create, setCreate] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [reset, setReset] = useState(false); const [resetSent, setResetSent] = useState(false);
@@ -33,7 +38,7 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
     } finally { authenticating.current = false; if (mounted.current) setBusy(false); }
   }
   async function authenticate(google = false, emailLink = false) {
-    if (authenticating.current) return;
+    if (authenticating.current || (google && !canUseGoogleSignIn())) return;
     const auth = getBrowserAuth(); if (!auth) { setError("Account services aren't available yet. You can still plan your date and try signing in later."); return; }
     authenticating.current = true;
     setBusy(true); setError("");
@@ -43,6 +48,10 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
       if (emailLink) { await sendEmailSignIn(email.trim()); if (mounted.current) setError("Your secure link is on its way. Check your email."); return; }
       await authenticateAccount(async (auth, guest) => {
         if (google) {
+          if (isNativeApp()) {
+            await signInWithCustomToken(auth, await nativeGoogleSignIn());
+            return;
+          }
           const provider = new GoogleAuthProvider();
           try { if (guest) await linkWithPopup(guest, provider); else await signInWithPopup(auth, provider); }
           catch (failure) {
@@ -71,7 +80,7 @@ export function AccountAccess({ onDone }: { onDone: () => void }) {
     <span className={styles.eyebrow}>YOUR NEXT CHAPTER</span>
     <h1>{reset ? "Forgot your password?" : create ? "Create your account." : "Welcome back."}</h1>
     <p className={styles.lead}>{reset ? "It happens. Enter your email and we’ll send you a link to choose a new password." : create ? "Create an account to save the dates you like and come back to them later." : "Sign in to keep the dates you like and pick up where you left off."}</p>
-    {!reset && <>
+    {!reset && googleAvailable && <>
       <Button type="button" variant="outline" className={styles.google} disabled={busy} onClick={() => void authenticate(true)}><Image src="/images/google-g.png" alt="" aria-hidden="true" width={20} height={20} unoptimized />Continue with Google</Button>
       <div className={styles.divider} aria-hidden="true">or continue with email</div>
     </>}

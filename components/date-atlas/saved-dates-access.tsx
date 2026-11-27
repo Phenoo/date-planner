@@ -6,6 +6,7 @@ import { onIdTokenChanged } from "firebase/auth";
 import { getBrowserAuth, hasEmailSignInLink, hasPendingAccountTransfer, subscribeAccountTransfer, waitForAccountTransition } from "@/lib/firebase/client";
 import { AccountAccess } from "./account-access";
 import { AuthScreen } from "./auth-screen";
+import { useNativeApp } from "./use-native-app";
 
 type SavedDatesAccessState = "checking" | "signed-in" | "sign-in" | "email-link";
 
@@ -56,10 +57,11 @@ function SavedDatesLoading() {
 }
 
 export function SavedDatesGate({ children }: { children: ReactNode }) {
+  const nativeApp = useNativeApp();
   const state = useSavedDatesAccess();
   const router = useRouter();
-  useEffect(() => { if (state === "sign-in") router.replace("/login"); }, [state, router]);
-  return state === "signed-in" || state === "email-link" ? children : <SavedDatesLoading />;
+  useEffect(() => { if (state === "sign-in" && !nativeApp) router.replace("/login"); }, [state, nativeApp, router]);
+  return state === "signed-in" || state === "email-link" || nativeApp && state === "sign-in" ? children : <SavedDatesLoading />;
 }
 
 export function SavedDatesLogin() {

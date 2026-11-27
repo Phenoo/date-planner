@@ -18,6 +18,9 @@ import { LottieAnimation } from "@/components/animations/lottie-animation";
 import { money } from "@/lib/utils";
 import { DateHistory } from "./date-history";
 import styles from "./dashboard.module.css";
+import { useNativeApp } from "./use-native-app";
+import { AtlasIcon } from "./atlas-icon";
+import { NativeUsSummary } from "./native-us-summary";
 
 export function Dashboard({
   saved,
@@ -25,6 +28,7 @@ export function Dashboard({
   signedIn,
   busy,
   onPlan,
+  onReplan,
   onOpen,
   onRemove,
   onHistoryChanged,
@@ -36,6 +40,7 @@ export function Dashboard({
   signedIn: boolean;
   busy: boolean;
   onPlan: () => void;
+  onReplan: (request: PlanRequest) => void;
   onOpen: (recipe: SavedRecipe) => void;
   onRemove: (id: string) => void;
   onFavorites: () => void;
@@ -44,6 +49,7 @@ export function Dashboard({
   onHistoryChanged: () => void;
   historyRevision?: number;
 }) {
+  const nativeApp = useNativeApp();
   const [tab, setTab] = useState("All plans");
   const now = new Date();
   const upcoming = saved.filter((item) => item.request.date >= zonedNow(item.request.timeZone, now).date);
@@ -54,15 +60,18 @@ export function Dashboard({
         ? saved.filter((item) => item.request.date < zonedNow(item.request.timeZone, now).date)
         : saved;
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${nativeApp ? styles.nativePage : ""}`}>
       <header className={styles.header}>
         <div>
-          <h1>My dates</h1>
+          <h1>{nativeApp ? <>A little less someday.<br /><em>A little more us.</em></> : "My dates"}</h1>
           <p>{signedIn ? "Your saved places, plans and invitations." : "Sign in to keep your plans together across devices."}</p>
         </div>
-        <Button onClick={onPlan}>Plan a date<ArrowRight size={16} aria-hidden="true" /></Button>
+        <div className="saved-actions">
+          {signedIn && <Button asChild variant="outline"><Link href="/wishlist">Shared wishlist</Link></Button>}
+          <Button onClick={onPlan}>Plan a date<ArrowRight size={16} aria-hidden="true" /></Button>
+        </div>
       </header>
-      {signedIn && <DateHistory key={historyRevision} onPlan={onPlan} onChanged={onHistoryChanged} />}
+      {signedIn && <DateHistory key={historyRevision} onPlan={onPlan} onChanged={onHistoryChanged} onReplan={onReplan} />}
       {(saved.length > 0 || !signedIn) && <>
       <div className={styles.collectionHeader}>
         <h2>Saved plans</h2>
@@ -81,7 +90,7 @@ export function Dashboard({
       </div>
       {!items.length ? (
         <div className="empty-state">
-          <LottieAnimation animation="empty" label="Your next great memory has not been planned yet" width={240} height={170} />
+          {nativeApp ? <div className={styles.emptyIcon}><AtlasIcon name="date-book" size={52} /></div> : <LottieAnimation animation="empty" label="Your next great memory has not been planned yet" width={240} height={170} />}
           <h2>
             {tab === "Past dates"
               ? "No past dates here yet."
@@ -165,6 +174,8 @@ export function ProfilePreferences({
   onSave,
   onReset,
   membershipEnabled = false,
+  accountId = null,
+  onPlus,
 }: {
   request: PlanRequest;
   signedIn: boolean;
@@ -174,7 +185,10 @@ export function ProfilePreferences({
   onSave: (preferences: StoredPreferences) => void;
   onReset: () => void;
   membershipEnabled?: boolean;
+  accountId?: string | null;
+  onPlus: () => void;
 }) {
+  const nativeApp = useNativeApp();
   const [preferences, setPreferences] = useState(() =>
     preferenceSchema.parse(request),
   );
@@ -189,8 +203,9 @@ export function ProfilePreferences({
   const currency = preferences.currency ?? "NGN";
   const location = [preferences.city, preferences.area].filter(Boolean).join(", ");
   return (
-    <main className={`${styles.page} ${styles.profile}`}>
-      <header className={styles.header}>
+    <main className={`${styles.page} ${styles.profile} ${nativeApp ? styles.nativePage : ""}`}>
+      {nativeApp && <NativeUsSummary ownerId={accountId} accountName={accountName} onAuth={onAuth} onPlus={onPlus} />}
+      {!nativeApp && <header className={styles.header}>
         <div>
           <h1>Your profile</h1>
           <p>A few defaults to make your next date easier to plan.</p>
@@ -199,7 +214,8 @@ export function ProfilePreferences({
           <Settings2 size={17} aria-hidden="true" />
           {signedIn ? "Manage account" : "Sign in or create account"}
         </Button>
-      </header>
+      </header>}
+      <details className={styles.defaults} open={nativeApp ? undefined : true}><summary><AtlasIcon name="sliders-horizontal" size={23} /><span>Planning defaults<small>Your city, budget and kind of date.</small></span><AtlasIcon name="chevron-down" size={17} /></summary>
       <div className={styles.profileLayout}>
         <aside className={styles.summary} aria-labelledby="profile-summary-heading">
           <div className={styles.profileMark} aria-hidden="true"><UserRound size={24} strokeWidth={1.6} /></div>
@@ -296,6 +312,7 @@ export function ProfilePreferences({
           </details>
         </form>
       </div>
+      </details>
     </main>
   );
 }

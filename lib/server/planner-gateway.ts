@@ -11,10 +11,11 @@ import { discoverPlaces } from "./actions/discover-places";
 import { dateReminders } from "./actions/date-reminders";
 import { invitations } from "./actions/invitations";
 import { dateHistory } from "./actions/date-history";
+import { sharedWishlist } from "./actions/shared-wishlist";
 import { conversation } from "./actions/conversation";
 import { intake } from "./actions/intake";
 import { apiError, RequestError } from "@/lib/planner/http";
-export const plannerActions = { generate, chat, customize, swap, restore, locate, places, discoverPlaces, dateReminders, invitations, dateHistory, conversation, intake };
+export const plannerActions = { generate, chat, customize, swap, restore, locate, places, discoverPlaces, dateReminders, invitations, dateHistory, sharedWishlist, conversation, intake };
 export type PlannerAction = keyof typeof plannerActions;
 let googleAuth: GoogleAuth | null = null;
 export async function plannerAction(action: PlannerAction, request: Request) {

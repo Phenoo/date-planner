@@ -18,6 +18,8 @@ import { confirmChatLocation } from "@/lib/planner/chat-location";
 import { budgetSuggestions, formatMoney } from "@/lib/planner/currency";
 import { funnelScope, trackFunnel } from "@/lib/planner/funnel-client";
 import styles from "./planner-chat.module.css";
+import { useNativeApp } from "./use-native-app";
+import { AtlasIcon } from "./atlas-icon";
 
 const quickReplies: Record<IntakeField, string[]> = {
   location: [], occasion: ["A first date", "Our anniversary", "Just because"], people: ["2 people", "4 people", "6 people"],
@@ -30,6 +32,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
   onGenerate: () => Promise<void>; onCancelGeneration?: () => void; loading: boolean; loadingStage: string; serverError: string;
   appearance?: "white" | "red" | "dark";
 }) {
+  const nativeApp = useNativeApp();
   const pendingMessage = session.messages.at(-1);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -141,7 +144,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
     }
   }
   if (loading) return <GeneratingScreen stage={loadingStage} theme={appearance} onCancel={onCancelGeneration} />;
-  return <main ref={screen} className={styles.chat}>
+  return <main ref={screen} className={`${styles.chat} ${nativeApp ? styles.nativeChat : ""}`}>
     <h1 className="sr-only">Plan your date</h1>
     <div ref={conversation} className={styles.transcript} onScroll={(event) => {
       const viewport = event.currentTarget;
@@ -152,11 +155,11 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
       <div className={styles.thread}>
         <div className={styles.messages} role="log" aria-label="Conversation with Oge" aria-live="polite" aria-relevant="additions">
           <article className={styles.assistant}>
-            <span className={styles.speaker}>Oge</span>
+            <span className={styles.speaker}>{nativeApp && <AtlasIcon name="oge-face" size={26} />}Oge</span>
             <p><span className="sr-only">{greeting}</span><span aria-hidden="true">{Array.from(greeting).map((character, index) => <span key={index} className={animateGreeting ? styles.typedCharacter : undefined} style={animateGreeting ? { animationDelay: `${index * 24}ms` } : undefined}>{character}</span>)}</span></p>
           </article>
-          {session.messages.map((item) => <article key={item.id} className={item.role === "user" ? styles.user : styles.assistant}><span className={item.role === "user" ? "sr-only" : styles.speaker}>{item.role === "user" ? "You" : "Oge"}</span><p>{item.text}</p></article>)}
-          {sending && <div className={styles.typing} role="status" aria-label="Oge is thinking"><span className={styles.speaker}>Oge</span><div aria-hidden="true"><i /><i /><i /></div></div>}
+          {session.messages.map((item) => <article key={item.id} className={item.role === "user" ? styles.user : styles.assistant}><span className={item.role === "user" ? "sr-only" : styles.speaker}>{item.role === "user" ? "You" : <>{nativeApp && <AtlasIcon name="oge-face" size={26} />}Oge</>}</span><p>{item.text}</p></article>)}
+          {sending && <div className={styles.typing} role="status" aria-label="Oge is thinking"><span className={styles.speaker}>{nativeApp && <AtlasIcon name="oge-face" size={26} />}Oge</span><div aria-hidden="true"><i /><i /><i /></div></div>}
         </div>
         {starting && focus === "location" && <ChatLocationSuggestion disabled={sending || voice.active} onManual={() => input.current?.focus()} onSelect={(location) => {
           if (controller.current || loading || voice.isActive()) return;
@@ -194,7 +197,7 @@ export function PlannerChat({ request, setRequest, session, setSession, onGenera
         <label className="sr-only" htmlFor="planner-chat-message">Message Oge</label>
         <textarea ref={input} id="planner-chat-message" readOnly={voice.active} aria-invalid={messageTooLong || undefined} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={1200} rows={1} placeholder={sending ? "Add another thought…" : voice.supported ? "Type or tap the mic…" : "Tell Oge what you have in mind…"} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && window.matchMedia("(hover: hover) and (pointer: fine)").matches) { event.preventDefault(); void send(message); } }} />
         <button className={styles.voiceButton} type="button" aria-label={voice.active ? "Stop voice note" : "Record a voice note"} aria-pressed={voice.active} disabled={sending || !voice.supported || message.length >= 1200 || voice.progress?.phase === "starting" || voice.progress?.phase === "stopping"} onClick={() => { if (voice.isActive()) voice.stop(); else voice.start(Math.max(1, 1200 - message.length)); }}>{voice.progress?.phase === "starting" || voice.progress?.phase === "stopping" ? <LoaderCircle className="spin" size={20} aria-hidden="true" /> : voice.active ? <Square size={18} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}</button>
-        <button type="submit" aria-label="Send message" disabled={sending || voice.active || !message.trim() || messageTooLong}><ArrowUp size={20} aria-hidden="true" /></button>
+        <button type="submit" aria-label="Send message" disabled={sending || voice.active || !message.trim() || messageTooLong}>{nativeApp ? <AtlasIcon name="arrow-up" size={20} /> : <ArrowUp size={20} aria-hidden="true" />}</button>
       </form>
     </div>
   </main>;

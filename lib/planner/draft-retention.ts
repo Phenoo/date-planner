@@ -3,6 +3,7 @@ import { requestSchema, type PlanRequest } from "./schema";
 import { plannerQuestions, plannerDraftVersion, restorePlannerStep } from "./questions";
 
 export const draftLifetimeMs = 60 * 60 * 1000;
+export const plannerDraftKey = `date-atlas:planning-draft:v${plannerDraftVersion}`;
 export const plannerModeKey = "date-atlas:planning-style:v1";
 export function savedPlannerMode(value: unknown) {
   return value === "chat" || value === "steps" ? value : null;

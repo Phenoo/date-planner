@@ -6,6 +6,7 @@ import { DateAtlas } from "./date-atlas";
 import { Preloader } from "./preloader";
 import { PlannerLoadingScreen } from "./planner-loading-screen";
 import { observeSavedDatesAccess } from "./saved-dates-access";
+import { useNativeApp } from "./use-native-app";
 
 const introKey = "date-atlas:onboarding:v3";
 
@@ -29,6 +30,7 @@ export function HomeEntryFallback() {
 }
 
 export function HomeEntry() {
+  const nativeApp = useNativeApp();
   const params = useSearchParams();
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -46,7 +48,7 @@ export function HomeEntry() {
   }, []);
   const returning = params.has("plan") || params.has("auth") || params.has("oobCode");
 
-  if (signedIn || ready || returning || completedIntro) return <DateAtlas />;
+  if (nativeApp || signedIn || ready || returning || completedIntro) return <DateAtlas />;
   if (completedIntro === null) return <HomeEntryFallback />;
   return <Preloader onContinue={continueToHome} />;
 }

@@ -20,10 +20,46 @@ export function browserLocationError(code: number) {
 }
 
 export class BrowserLocationFailure extends Error {
-  constructor(public readonly code: number) {
-    super(browserLocationError(code));
+  constructor(public readonly code: number, message = browserLocationError(code)) {
+    super(message);
     this.name = "BrowserLocationFailure";
   }
+}
+
+export function nativeLocationSupport(): boolean | null {
+  if (typeof window === "undefined") return false;
+  const bridge = "ReactNativeWebView" in window ? window.ReactNativeWebView : null;
+  if (!bridge || typeof bridge !== "object" || !("postMessage" in bridge) || typeof bridge.postMessage !== "function") return false;
+  if ("__dateAtlasNativeLocation" in window && window.__dateAtlasNativeLocation === true) return true;
+  return "__dateAtlasNative" in window && window.__dateAtlasNative === true ? false : null;
+}
+
+export function subscribeNativeLocation(notify: () => void) {
+  window.addEventListener("dateatlas:native-ready", notify);
+  return () => window.removeEventListener("dateatlas:native-ready", notify);
+}
+
+function getNativeCoordinates(signal: AbortSignal): Promise<Coordinates> {
+  return new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const cleanup = () => { signal.removeEventListener("abort", cancel); window.removeEventListener("dateatlas:location-result", complete); };
+    const cancel = () => { cleanup(); reject(signal.reason); };
+    function complete(event: Event) {
+      if (!(event instanceof CustomEvent)) return;
+      const detail: unknown = event.detail;
+      if (!detail || typeof detail !== "object" || !("requestId" in detail) || detail.requestId !== requestId) return;
+      cleanup();
+      const coordinates = coordinatesSchema.safeParse("coordinates" in detail ? detail.coordinates : undefined);
+      if (coordinates.success) { resolve(coordinates.data); return; }
+      const error = "error" in detail ? detail.error : null;
+      const code = error && typeof error === "object" && "code" in error && typeof error.code === "number" ? error.code : 2;
+      const message = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "Your location couldn't be determined. Try again or choose a city manually.";
+      reject(new BrowserLocationFailure(code, message));
+    }
+    signal.addEventListener("abort", cancel, { once: true });
+    window.addEventListener("dateatlas:location-result", complete);
+    window.dispatchEvent(new CustomEvent("dateatlas:location", { detail: { requestId } }));
+  });
 }
 
 type BrowserPositionSource = {
@@ -33,6 +69,7 @@ type BrowserPositionSource = {
 
 export async function getBrowserCoordinates(signal: AbortSignal, source?: BrowserPositionSource, timeoutMs = 5000): Promise<Coordinates> {
   signal.throwIfAborted();
+  if (!source && nativeLocationSupport() === true) return getNativeCoordinates(signal);
   const geolocation = source ?? (typeof navigator === "undefined" ? undefined : navigator.geolocation);
   if (!geolocation) throw new Error("Location detection isn't supported. Choose your area manually.");
   return new Promise((resolve, reject) => {

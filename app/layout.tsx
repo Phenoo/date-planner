@@ -8,6 +8,7 @@ import { analyticsMeasurementId } from "@/lib/analytics/policy";
 import { pageSurfaceBootstrap } from "@/lib/planner/page-surface";
 import { siteDescription, siteName, siteOrigin } from "@/lib/seo/site";
 import "./globals.css";
+import "./native.css";
 
 const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"] });
 export const metadata: Metadata = {

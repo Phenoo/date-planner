@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useNativeApp } from "./use-native-app";
+import { NativeAppHeader, NativeAppNavigation, nativePlanningPath } from "./native-app-ui";
+import { AtlasIcon } from "./atlas-icon";
+import nativeStyles from "./native-app.module.css";
 import { onIdTokenChanged } from "firebase/auth";
 import { ArrowLeft, ArrowRight, Bookmark, CalendarDays, Check, CreditCard, Heart, RefreshCw, ShieldCheck } from "lucide-react";
 import { z } from "zod";
@@ -11,6 +16,7 @@ import { plannerFetch, planningToken } from "@/lib/firebase/planner-client";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { AccountAccess } from "./account-access";
+import { RecurringDateNight } from "./recurring-date-night";
 import styles from "./membership.module.css";
 
 const linkSchema = z.object({ url: z.url() });
@@ -28,8 +34,11 @@ function displayDate(value: number) {
 }
 
 export function Membership({ countries }: { countries: { code: string; name: string }[] }) {
+  const nativeApp = useNativeApp();
+  const router = useRouter();
   const [summary, setSummary] = useState<MembershipSummary | null>(null);
-  const [signedIn, setSignedIn] = useState(false);
+  const [signedInOwner, setSignedInOwner] = useState<string | null>(null);
+  const signedIn = signedInOwner !== null;
   const [country, setCountry] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<MembershipAction | null>(null);
@@ -111,7 +120,7 @@ export function Membership({ countries }: { countries: { code: string; name: str
       owner.current = user?.uid ?? null;
       summaryRequest.current?.abort(); actionRequest.current?.abort(); actionRequest.current = null;
       setSummary(null); setError(""); setMessage(""); setBusy(null); setCancelOpen(false);
-      setSignedIn(!!user && !user.isAnonymous);
+      setSignedInOwner(user && !user.isAnonymous ? user.uid : null);
       if (user) void refresh();
       else setLoading(true);
     }) : null;
@@ -138,28 +147,30 @@ export function Membership({ countries }: { countries: { code: string; name: str
   const disabled = loading || busy !== null;
   const membershipName = summary?.tier === "plus" ? "A Date At las Plus" : "Free";
 
-  return <div className={styles.shell}>
-    <header className={styles.header}>
+  return <div className={`${styles.shell} ${nativeApp ? `${nativeStyles.surface} ${nativeStyles.root} ${styles.nativeShell} atlas-app` : ""}`}>
+    {nativeApp && <NativeAppHeader title="A Date At las Plus" onHome={() => router.push("/")} />}
+    {!nativeApp && <header className={styles.header}>
       <Link href="/" className="atlas-wordmark" aria-label="A Date At las home">adal<span>.</span></Link>
       <Link href="/profile" className={styles.back}><ArrowLeft size={16} aria-hidden="true" />Your profile</Link>
-    </header>
+    </header>}
     <main className={styles.main}>
       <div className={styles.intro}>
         <span className={styles.test}><ShieldCheck size={14} aria-hidden="true" />Test mode · no real payments</span>
         <p className={styles.eyebrow}>A LITTLE MORE TIME TOGETHER</p>
-        <h1>Make room for your next date.</h1>
+        {nativeApp && <span className={nativeStyles.membershipTicket}><AtlasIcon name="us-rings" size={34} /><strong>PLUS</strong></span>}
+        <h1>{nativeApp ? <>Keep choosing<br />each other.</> : "Make room for your next date."}</h1>
         <p className={styles.lead}>Thoughtful plans, whenever you’re ready to make a little time for each other.</p>
       </div>
 
       <section className={styles.current} aria-labelledby="current-membership-heading" aria-busy={loading}>
         <div><span className={styles.label}>Your membership</span><h2 id="current-membership-heading">{loading && !summary ? "Checking your membership…" : summary ? membershipName : "Let’s get you connected."}</h2>
-          {summary && <p>{summary.status === "canceling" ? `Plus access ends ${displayDate(summary.periodEnd)}.` : summary.status === "past_due" ? "Your latest payment needs attention. Review your billing details." : summary.status === "expired" ? "Your Plus access has ended. Your saved dates are still here." : summary.tier === "plus" ? `Your allowance renews ${displayDate(summary.periodEnd)}.` : `Your free allowance resets ${displayDate(summary.periodEnd)}.`}</p>}
+          {summary && <p>{summary.status === "canceling" ? `Plus access ends ${displayDate(summary.periodEnd)}.` : summary.status === "past_due" ? "Your latest payment needs attention. Review your billing details." : summary.status === "expired" ? "Your Plus access has ended. Your saved dates are still here." : summary.tier === "plus" ? `Your billing period ends ${displayDate(summary.periodEnd)}.` : `Your free allowance resets ${displayDate(summary.periodEnd)}.`}</p>}
         </div>
         <Button type="button" variant="ghost" size="small" onClick={() => void refresh()} disabled={disabled}><RefreshCw size={15} aria-hidden="true" />Refresh status</Button>
-        {summary && <dl className={styles.usage}>
+        {summary?.tier === "free" && <dl className={styles.usage}>
           <div><dt>New date plans</dt><dd><strong>{summary.plans.remaining}</strong> of {summary.plans.limit} available</dd></div>
-          {summary.tier === "plus" && <div><dt>Venue changes</dt><dd><strong>{summary.changes.remaining}</strong> of {summary.changes.limit} available</dd></div>}
         </dl>}
+        {!signedIn && <Button type="button" variant="outline" size="small" onClick={() => setAuthOpen(true)}>Sign in</Button>}
         {summary?.provider && <div className={styles.manage}>
           <span><CreditCard size={15} aria-hidden="true" />Billing with {summary.provider === "paystack" ? "Paystack" : "Polar"}</span>
           <Button type="button" variant="outline" size="small" disabled={disabled} onClick={() => void act("portal")}>{busy === "portal" ? "Opening billing…" : "Manage billing"}<ArrowRight size={14} aria-hidden="true" /></Button>
@@ -170,6 +181,7 @@ export function Membership({ countries }: { countries: { code: string; name: str
       {error && <div className={styles.notice} role="alert">{error}</div>}
       {message && <div className={styles.notice} role="status">{message}</div>}
 
+      {signedInOwner && summary?.provider && <RecurringDateNight key={signedInOwner} ownerId={signedInOwner} entitled={summary.tier === "plus"} countries={countries} />}
       <div className={styles.plans}>
         <section className={styles.plan} aria-labelledby="free-heading">
           <span className={styles.planMark}><Heart size={22} strokeWidth={1.5} aria-hidden="true" /></span>
@@ -179,10 +191,15 @@ export function Membership({ countries }: { countries: { code: string; name: str
           <Link href="/plan" className={styles.freeLink}>Plan a date<ArrowRight size={16} aria-hidden="true" /></Link>
         </section>
         <section className={`${styles.plan} ${styles.plus}`} aria-labelledby="plus-heading">
-          <span className={styles.planMark}><CalendarDays size={22} strokeWidth={1.5} aria-hidden="true" /></span>
+          <span className={styles.planMark}>{nativeApp ? <AtlasIcon name="membership" size={27} /> : <CalendarDays size={22} strokeWidth={1.5} aria-hidden="true" />}</span>
           <h2 id="plus-heading">A Date At las Plus</h2><p>Keep good dates on the calendar.</p>
           <div className={styles.price}>{country ? price : "₦5,000 / US$5"}<span>per month{!country ? " · based on billing country" : ""}</span></div>
-          <ul><li><Check size={17} aria-hidden="true" />4 new date plans each month</li><li><Check size={17} aria-hidden="true" />2 venue changes each month</li><li><Check size={17} aria-hidden="true" />Everything included in Free</li></ul>
+          <ul>
+            <li><Check size={17} aria-hidden="true" />Recurring date nights with a fresh idea before each one</li>
+            <li><Check size={17} aria-hidden="true" />Ideas from your shared wishlist when a place fits</li>
+            <li><Check size={17} aria-hidden="true" />Date plans and venue changes with no monthly cap</li>
+            <li><Check size={17} aria-hidden="true" />Everything included in Free</li>
+          </ul>
           {!existingMembership && <>
             <label className={styles.country}><span>Your billing country</span><select autoComplete="country" value={country} disabled={disabled} onChange={(event) => { setCountry(event.target.value); setError(""); }}><option value="">Choose your country</option>{countries.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select><small>Choose where you live. Your date can be anywhere.</small></label>
             {!!country && <p className={styles.billingNote}>{provider === "paystack" ? "Billed in naira through Paystack." : "Billed in US dollars through Polar. Any applicable taxes are shown at checkout."}</p>}
@@ -197,12 +214,13 @@ export function Membership({ countries }: { countries: { code: string; name: str
         <h2 id="membership-details-heading">A few good things to know.</h2>
         <div><Bookmark size={21} aria-hidden="true" /><p><strong>Your dates stay yours.</strong> Saved dates and invitations remain available when your membership ends.</p></div>
         <div><RefreshCw size={21} aria-hidden="true" /><p><strong>Only successful recommendations count.</strong> Failed searches don’t use your allowance. Editing a time or invitation doesn’t use a new plan.</p></div>
-        <div><Heart size={21} aria-hidden="true" /><p><strong>Planning is included.</strong> Meals, tickets, transport and venue purchases are paid separately. Unused plans and venue changes do not roll over.</p></div>
+        <div><Heart size={21} aria-hidden="true" /><p><strong>Planning is included.</strong> Meals, tickets, transport and venue purchases are paid separately. The free plan allowance resets each month.</p></div>
         <p className={styles.cancelNote}>Plus renews monthly until canceled. Cancel renewal at any time and keep access for the remainder of your paid period.</p>
       </section>
     </main>
-    <footer className={styles.footer}><span>A Date At las</span><div><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><a href="mailto:support@adateatlas.com">Get in touch</a></div></footer>
-    <Dialog open={authOpen} onOpenChange={setAuthOpen} title="Sign in for your membership" className={styles.authDialog}><AccountAccess onDone={() => { setAuthOpen(false); setMessage("You’re signed in. Choose Continue to test checkout when you’re ready."); void refresh(); }} /></Dialog>
+    {!nativeApp && <footer className={styles.footer}><span>A Date At las</span><div><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><a href="mailto:support@adateatlas.com">Get in touch</a></div></footer>}
+    {nativeApp && <NativeAppNavigation active="profile" onPlan={() => router.push(nativePlanningPath())} />}
+    <Dialog open={authOpen} onOpenChange={setAuthOpen} title="Sign in for your membership" className={styles.authDialog}><AccountAccess onDone={() => { setAuthOpen(false); void refresh(); }} /></Dialog>
     <Dialog open={cancelOpen} onOpenChange={(open) => { if (busy !== "cancel") setCancelOpen(open); }} title="Cancel your Plus renewal?" className={styles.cancelDialog}>
       <h2>Cancel your Plus renewal?</h2><p>Your Plus benefits continue until {summary ? displayDate(summary.periodEnd) : "the end of your paid period"}. Your saved dates and invitations stay available.</p>
       <div className={styles.cancelActions}><Button type="button" variant="outline" disabled={disabled} onClick={() => setCancelOpen(false)}>Keep Plus</Button><Button type="button" disabled={disabled} onClick={() => void act("cancel")}>{busy === "cancel" ? "Canceling renewal…" : "Cancel renewal"}</Button></div>

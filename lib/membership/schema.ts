@@ -4,7 +4,7 @@ export const membershipProviderSchema = z.enum(["paystack", "polar"]);
 export type MembershipProvider = z.infer<typeof membershipProviderSchema>;
 export const membershipLimits = {
   free: { plans: 1, changes: 0 },
-  plus: { plans: 4, changes: 2 },
+  plus: { plans: null, changes: null },
 } as const;
 
 export const membershipRecordSchema = z.object({
@@ -35,7 +35,7 @@ export function membershipPeriod(record: MembershipRecord | null, now = Date.now
   };
 }
 
-const allowanceSchema = z.object({ limit: z.number().int().nonnegative(), used: z.number().int().nonnegative(), remaining: z.number().int().nonnegative() });
+const allowanceSchema = z.object({ limit: z.number().int().nonnegative().nullable(), used: z.number().int().nonnegative(), remaining: z.number().int().nonnegative().nullable() });
 export const membershipSummarySchema = z.object({
   enabled: z.boolean(),
   mode: z.enum(["off", "test"]),

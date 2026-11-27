@@ -102,3 +102,15 @@
 @media(prefers-reduced-motion:reduce) { .choice *,.chat * { animation: none !important; transition: none !important; } }
 
 .composer textarea { max-height: min(144px,25dvh); }
+
+.chat.nativeChat { --chat-canvas: var(--native-bg); --chat-ink: var(--native-ink); --chat-muted: var(--native-muted); --chat-incoming: var(--native-panel); --chat-outgoing: #35202d; --chat-line: var(--native-line); --chat-hover: var(--native-soft); --chat-accent: var(--native-accent); --chat-color-scheme: inherit; }
+.nativeChat .transcript { background-image: none; }
+.nativeChat .thread { padding: 14px 18px 20px; }
+.nativeChat .dock { padding: 8px 12px; }
+.nativeChat .composer { border-radius: 16px; padding: 8px 9px 8px 13px; }
+.nativeChat .speaker { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.nativeChat .messages .assistant { border: 1px solid var(--native-line); border-radius: 16px 16px 16px 4px; padding: 14px; }
+.nativeChat .messages .user { border-radius: 16px 16px 4px 16px; }
+.nativeChat .messages p { font-size: 14px; }
+.nativeChat .suggestions { gap: 8px; margin-top: 18px; }
+.nativeChat .suggestions > button { border-radius: 12px; font-size: 12px; }

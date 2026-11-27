@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authenticatedClient, getDatabase } from "@/lib/firebase/server";
 import { apiError, readJson, RequestError } from "@/lib/planner/http";
 import { membershipRecordSchema, membershipPeriod, type MembershipProvider, type MembershipRecord } from "@/lib/membership/schema";
-import { membershipCheckoutAvailability, requireMembershipTest } from "./membership-config";
+import { membershipCheckoutAvailability, membershipTestUrl, requireMembershipTest } from "./membership-config";
 import { getMembershipUsageSnapshot } from "./membership-usage";
 import { CheckoutValidationError, initializeProviderCheckout, validateProviderConfig, providerPortal, cancelProviderSubscription, verifyProviderCheckout, type VerifiedMembership } from "./billing-providers";
 import countries from "@/lib/planner/data/currencies.json";
@@ -30,13 +30,6 @@ async function payer(request: Request) {
   if (auth.user.firebase.sign_in_provider === "anonymous" || !auth.user.email) throw new RequestError("Sign in with your email before starting a subscription.", 401);
   return auth;
 }
-function returnUrl(id?: string) {
-  const origin = new URL(process.env.DATE_ATLAS_BILLING_ORIGIN || (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3005"));
-  if (origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash || origin.hostname === "adateatlas.com" || origin.hostname.endsWith(".adateatlas.com") || origin.hostname === "date-atlas.vercel.app"
-    || origin.protocol !== "https:" && !(origin.protocol === "http:" && ["localhost", "127.0.0.1"].includes(origin.hostname))) throw new RequestError("The test checkout return address isn't configured.", 503);
-  return new URL(id ? `/membership?checkout=${id}` : "/membership", origin).href;
-}
-
 export async function membershipSummary(request: Request) {
   try {
     const auth = await account(request);
@@ -53,7 +46,7 @@ export async function membershipCheckout(request: Request) {
     const provider = input.data.country === "NG" ? "paystack" : "polar";
     if (!membershipCheckoutAvailability()[provider]) throw new RequestError("Test checkout isn't connected for this region yet.", 503);
     await validateProviderConfig(provider);
-    const callback = returnUrl();
+    const callback = membershipTestUrl();
     const user = ownerPath(auth.user.uid);
     const checkout = user.collection("billingCheckout").doc("current");
     const id = randomUUID();
@@ -146,7 +139,7 @@ export async function membershipManage(request: Request, action: "portal" | "can
     const parsed = membershipRecordSchema.safeParse((await ref.get()).data());
     if (!parsed.success) throw new RequestError("No subscription is linked to this account.", 404);
     const member = parsed.data;
-    const options = { provider: member.provider, customerId: member.customerId, subscriptionId: member.subscriptionId, returnUrl: returnUrl() };
+    const options = { provider: member.provider, customerId: member.customerId, subscriptionId: member.subscriptionId, returnUrl: membershipTestUrl() };
     if (action === "portal") return Response.json({ url: await providerPortal(options) }, { headers: { "Cache-Control": "no-store" } });
     await cancelProviderSubscription(options);
     await auth.db.runTransaction(async (tx) => {

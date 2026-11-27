@@ -69,3 +69,5 @@
   .form:global(.form-stack) { gap: 16px; }
   .mode, .emailLink { min-height: 40px; }
 }
+
+:global(html[data-native-app="true"]) .panel { padding-bottom: 24px; }

@@ -20,7 +20,7 @@
     "build:animations": "node scripts/build-atlas-character.mjs && node scripts/build-atlas-lively.mjs && node scripts/build-atlas-heart-themes.mjs && node scripts/build-atlas-human.mjs && node scripts/build-reaction-hearts.mjs && node scripts/animation-stills.mjs && python3 scripts/package-animations.py"
   },
   "dependencies": {
-    "@ai-sdk/deepseek": "^3.0.73",
+    "@ai-sdk/openai": "^4.0.102",
     "@lottiefiles/dotlottie-react": "^0.20.0",
     "@polar-sh/sdk": "1.0.2",
     "@radix-ui/react-alert-dialog": "^1.2.1",

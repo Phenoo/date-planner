@@ -193,7 +193,7 @@ try {
   assert.equal((await membershipConfirm(req({ checkoutId: checkout.id }, member.idToken))).status, 200);
   assert.deepEqual(membershipRecordSchema.parse((await record(member.localId).get()).data()), confirmed, "Duplicate confirmation does not reset the paid period");
   const plus = membershipSummarySchema.parse(await (await membershipSummary(req({}, member.idToken))).json());
-  assert.equal(plus.tier, "plus"); assert.equal(plus.plans.limit, 4); assert.equal(plus.changes.limit, 2); assert.equal(plus.provider, "paystack");
+  assert.equal(plus.tier, "plus"); assert.equal(plus.plans.limit, null); assert.equal(plus.changes.limit, null); assert.equal(plus.provider, "paystack");
   assert.equal((await membershipCheckout(req({ country: "US" }, member.idToken))).status, 409);
   assert.equal((await membershipManage(req({}, member.idToken), "cancel")).status, 200);
   const canceled = membershipRecordSchema.parse((await record(member.localId).get()).data());

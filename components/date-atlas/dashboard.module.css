@@ -186,3 +186,26 @@
 @media (prefers-reduced-motion: reduce) {
   .mood { transition: none; }
 }
+
+.defaults { border: 0; }
+.defaults > summary { display: none; }
+.nativePage.page { width: min(100% - 36px,680px); padding: 24px 0; }
+.nativePage .header { margin-bottom: 24px; gap: 16px; }
+.nativePage .header h1 { font-size: 26px; font-weight: 800; line-height: 1.1; }
+.nativePage .header p { font-size: 12px; color: var(--native-muted); }
+.nativePage :global(.saved-actions) { display: flex; gap: 8px; width: 100%; }
+.nativePage :global(.saved-actions) :global(.button) { flex: 1; font-size: 12px; padding: 10px; }
+.nativePage .collectionHeader h2 { font-size: 19px; font-weight: 800; }
+.nativePage .collectionHeader { margin: 24px 0 16px; }
+.emptyIcon { margin: 8px auto 24px; width: 90px; height: 90px; display: grid; place-items: center; border-radius: 26px; background: var(--native-soft); color: var(--native-accent); }
+.nativePage .defaults { margin-top: 16px; border-radius: 16px; padding: 0 16px; background: var(--native-panel); }
+.nativePage .defaults > summary { display: flex; align-items: center; gap: 12px; min-height: 78px; cursor: pointer; font-size: 14px; font-weight: 700; }
+.nativePage .defaults > summary > span { flex: 1; }
+.nativePage .defaults > summary small { display: block; font-size: 11px; font-weight: 400; color: var(--native-muted); margin-top: 4px; }
+.nativePage .profileLayout { display: block; padding-bottom: 16px; }
+.nativePage .summary { display: none; }
+.nativePage .form :global(.field) :is(input,select,textarea), .nativePage .mood { background: var(--native-bg); color: var(--native-ink); border-color: var(--native-line); }
+.nativePage .mood[aria-pressed="true"] { background: var(--native-soft); color: var(--native-accent); border-color: var(--native-accent); }
+.nativePage .group legend { font-size: 19px; }
+
+.nativePage .header h1 em { font-style: normal; color: var(--native-accent); }

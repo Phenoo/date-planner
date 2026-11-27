@@ -6,6 +6,7 @@ import { z } from "zod";
 import { plannerFetch, readPlanningResponse } from "@/lib/firebase/planner-client";
 import { dateHistoryResponseSchema, type ChosenDate } from "@/lib/planner/invitations";
 import { dateTimingLabel } from "@/lib/planner/date-story";
+import type { PlanRequest } from "@/lib/planner/schema";
 import { Button } from "@/components/ui/button";
 import { DateActions } from "./date-actions";
 import styles from "./date-history.module.css";
@@ -20,7 +21,7 @@ function DatePhoto({ date }: { date: ChosenDate }) {
   </figure>;
 }
 
-export function DateHistory({ onPlan, onChanged }: { onPlan: () => void; onChanged: () => void }) {
+export function DateHistory({ onPlan, onChanged, onReplan }: { onPlan: () => void; onChanged: () => void; onReplan: (request: PlanRequest) => void }) {
   const [dates, setDates] = useState<ChosenDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,10 +73,10 @@ export function DateHistory({ onPlan, onChanged }: { onPlan: () => void; onChang
     {loading ? <p className={styles.empty} role="status">Loading your dates…</p> : visible.length ? <div className={styles.grid}>{visible.map((date) => <article key={date.id} className={styles.card}>
       <DatePhoto date={date} />
       <div className={styles.body}>
-        <span className={styles.status}>{date.dateStatus === "completed" ? "Done" : date.suggestedTime ? "New time suggested" : !date.invitationPublished ? "Saved privately" : date.invitationRevoked ? "Invitation revoked" : date.response === "accepted" ? "They said yes" : date.response === "declined" ? "Another time" : "Invitation pending"}</span>
+        <span className={styles.status}>{date.dateStatus === "completed" ? "Done" : date.suggestedVibe ? "New vibe suggested" : date.suggestedTime ? "New time suggested" : !date.invitationPublished ? "Saved privately" : date.invitationRevoked ? "Invitation revoked" : date.response === "accepted" ? "They said yes" : date.response === "declined" ? "Another time" : "Invitation pending"}</span>
         <h3>{date.title ?? date.place?.name ?? date.story.title}</h3><p className={styles.meta}>{dateTimingLabel(date.datePreference, date.startTime, date.dateStatus === "completed", date.date)} · {date.city}</p>
         {date.place?.attributions.length ? <div className={styles.attributions}>{date.place.attributions.map((item, index) => item.url ? <a key={`${item.name}:${index}`} href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span key={`${item.name}:${index}`}>{item.name}</span>)}</div> : null}
-        <DateActions date={date} disabled={!!updating || loadingMore} completing={updating === date.id} onComplete={() => void complete(date.id)} onRevoked={() => setDates((previous) => previous.map((item) => item.id === date.id ? { ...item, invitationRevoked: true } : item))} onChanged={() => { setLoading(true); setRevision((value) => value + 1); onChanged(); }} />
+        <DateActions date={date} disabled={!!updating || loadingMore} completing={updating === date.id} onComplete={() => void complete(date.id)} onRevoked={() => setDates((previous) => previous.map((item) => item.id === date.id ? { ...item, invitationRevoked: true } : item))} onChanged={() => { setLoading(true); setRevision((value) => value + 1); onChanged(); }} onReplan={onReplan} onBackupChanged={(backupPlaceId) => setDates((previous) => previous.map((item) => item.id === date.id ? { ...item, backupPlaceId } : item))} />
       </div>
     </article>)}</div> : !error && <div className={styles.empty}><p>{filter === "completed" ? "The dates you mark as done will appear here." : filter === "planned" ? "Your next plan will appear here." : "Save a date you love to keep it here."}</p><Button onClick={onPlan}>Plan a date</Button></div>}
     {error && <p className="error-message" role="alert">{error}</p>}<div className={styles.pagination}>{nextCursor && <Button variant="outline" disabled={loadingMore || !!updating} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more dates"}</Button>}<button type="button" disabled={loading || loadingMore || !!updating} onClick={() => { setLoading(true); setError(""); setRevision((value) => value + 1); }}>Refresh dates</button></div>

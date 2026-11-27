@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { citySearchSchema } from "./cities";
-import { nearbyPlaceSchema, nearbyResultSchema } from "./schema";
+import { coordinatesSchema, nearbyPlaceSchema, nearbyResultSchema } from "./schema";
 import { hasQualifyingGoogleRating } from "./recommendation-quality";
 
 export const cityDiscoverySearchSchema = citySearchSchema.extend({
+  coordinates: coordinatesSchema.optional(),
   excludeIds: z.array(z.string().trim().min(1).max(200)).max(60).default([]),
 }).strict();
 

@@ -59,3 +59,19 @@
   .phrase { font-size: 35px; }
 }
 @media(prefers-reduced-motion:reduce) { .screen,.screen *,.enter,.enter *,.scrollCue > svg { animation: none !important; } .art path { stroke-dashoffset: 0; } .letter { visibility: visible; } .letter::after { display: none; } }
+
+:global(html[data-native-app="true"]) .wizard { width: min(100% - 36px,680px); min-height: calc(100dvh - 198px); padding: 3px 0 0; }
+:global(html[data-native-app="true"]) .wizard :global(.typeform-stage) { padding: 18px 0 24px; }
+:global(html[data-native-app="true"]) .wizard :global(.typeform-stage) h1 { font-size: clamp(27px,7vw,34px); font-weight: 800; letter-spacing: -1px; line-height: 1.12; }
+:global(html[data-native-app="true"]) .wizard :global(.typeform-description) { font-size: 13px; line-height: 1.65; color: var(--native-muted); }
+:global(html[data-native-app="true"]) .wizard :global(.eyebrow) { font-size: 9px; letter-spacing: 1.2px; color: var(--native-accent); }
+:global(html[data-native-app="true"]) .wizard :global(.typeform-confirm) { margin-top: 22px; }
+:global(html[data-native-app="true"]) .wizard :global(.typeform-confirm) > span { display: none; }
+:global(html[data-native-app="true"]) .wizard :global(.typeform-confirm) > :global(.button) { flex: 1; }
+:global(html[data-native-app="true"]) .wizard :global(.planner-progress) { height: 4px; background: var(--native-line); border-radius: 4px; overflow: hidden; }
+:global(html[data-native-app="true"]) .wizard :global(.planner-progress) > span { background: var(--native-brand); }
+:global(html[data-native-app="true"]) .reviewActionSlot { min-height: 74px; }
+:global(html[data-native-app="true"]) .reviewActionFixed { bottom: 68px; padding: 12px 18px; margin-top: 0; }
+:global(html[data-native-app="true"]) .scrollCue { bottom: 86px; }
+:global(html[data-native-app="true"]) .screen { min-height: calc(100dvh - 198px); padding: 50px 24px 24px; }
+:global(html[data-native-app="true"]) .phrase { font-size: 32px; }

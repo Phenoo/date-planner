@@ -1,0 +1,18 @@
+.page { width: min(100% - 36px, 680px); margin: 0 auto; padding: 24px 0 56px; display: grid; gap: 18px; }
+.page > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.page > h1 { font-size: clamp(32px, 7vw, 52px); line-height: 1.1; }
+.page a { text-decoration: underline; text-underline-offset: 3px; }
+.page button { min-height: 44px; }
+.section { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid #ecdde2; }
+.section h2 { font-size: 22px; }
+.places { display: grid; gap: 10px; padding: 0; list-style: none; }
+.places li { display: grid; gap: 8px; justify-items: start; padding: 14px; border: 1px solid #ecdde2; border-radius: 12px; overflow-wrap: anywhere; }
+.places h3 { font-size: 18px; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+
+.nativePage.page { padding-block: 24px; font-size: 13px; }
+.nativePage.page > h1 { font-size: 27px; font-weight: 800; }
+.nativePage .section { border-color: var(--native-line); }
+.nativePage .section h2 { font-size: 20px; font-weight: 800; }
+.nativePage .places li { padding: 17px; border: 0; border-radius: 16px; background: var(--native-panel); }
+.nativePage :global(.field) :is(input,select) { background: var(--native-panel); color: var(--native-ink); border-color: var(--native-line); border-radius: 12px; }

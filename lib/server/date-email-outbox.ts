@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { Timestamp, type DocumentReference, type Transaction } from "firebase-admin/firestore";
 import { z } from "zod";
 
@@ -12,7 +13,9 @@ export const dateEmailPayloadSchema = z.object({
 }).strict();
 
 export const dateEmailJobSchema = z.object({
-  kind: z.enum(["date-created", "reminder"]).default("date-created"),
+  kind: z.enum(["date-created", "reminder", "invitation-reply", "recurring-date-night"]).default("date-created"),
+  recurringDate: z.iso.date().optional(),
+  recurringDeliveryId: z.uuid().optional(),
   sourceDateId: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   reminderOccurrenceId: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   source: z.enum(["google", "catalog"]),
@@ -29,6 +32,24 @@ export const dateEmailJobSchema = z.object({
 
 export type DateEmailJob = z.infer<typeof dateEmailJobSchema>;
 export type DateEmailPayload = z.infer<typeof dateEmailPayloadSchema>;
+
+export function invitationReplyEmailId(invitationKey: string) {
+  return createHash("sha256").update(`invitation-reply:${invitationKey}`).digest("hex");
+}
+
+export function queueInvitationReplyEmail(tx: Transaction, userRef: DocumentReference, input: {
+  dateId: string;
+  invitationKey: string;
+  source: DateEmailJob["source"];
+}) {
+  tx.create(userRef.collection("emailNotifications").doc(invitationReplyEmailId(input.invitationKey)), {
+    kind: "invitation-reply",
+    sourceDateId: input.dateId,
+    source: input.source,
+    status: "pending",
+    createdAt: Timestamp.now(),
+  });
+}
 
 export async function queueDateCreatedEmail(
   tx: Transaction,

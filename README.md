@@ -1,10 +1,12 @@
 # date-planner
 
-**A Date At las (adal)** is a mobile-first Next.js date planner using TypeScript, Firebase Authentication, Cloud Firestore, DeepSeek, and Google Maps. Planning works without registration through either chat or the Typeform-style questions. Users choose an actual day, time and duration, then receive one primary recommendation with a red cinematic reveal. Saving requires a registered account. Creating an invitation is a separate, explicit action; recipients can view and deliberately accept or decline without an account. Creators can revoke the link. Private history distinguishes planned and explicitly completed dates.
+**A Date At las (adal)** is a mobile-first Next.js date planner using TypeScript, Firebase Authentication, Cloud Firestore, OpenAI, and Google Maps. Planning works without registration through either chat or the Typeform-style questions. Users choose an actual day, time and duration, then receive one primary recommendation with a red cinematic reveal. Saving requires a registered account. Creating an invitation is a separate, explicit action; recipients can view and deliberately accept or decline without an account. Creators can revoke the link. Private history distinguishes planned and explicitly completed dates.
 
 The [current release audit](docs/release-audit-2026-10-30.md) records verified behavior, checks, remaining release blockers and safe preview instructions. This is an incremental P0 improvement pass, not a release-readiness sign-off.
 
 ## Run
+
+The [iOS and Android app](mobile/README.md) runs from `mobile/` and displays the same responsive web experience.
 
 Use Node.js 24.12 or later in the Node 24 LTS line (`nvm use`).
 
@@ -65,9 +67,17 @@ Add legally sourced, verified records through the authenticated catalog editor. 
 
 For an explicit development demonstration, set `DATE_ATLAS_CATALOG_MODE=demo`. The 16 fictional fixtures, sample prices, and schematic locations are labeled and cannot produce real-world booking or directions links. Reopening saved plans recalculates them against the current catalog, so old demo saves cannot become real itineraries.
 
-## DeepSeek
+## OpenAI
 
-Set server-only `DEEPSEEK_API_KEY` and `DEEPSEEK_MODEL` (currently `deepseek-flash`). The direct provider uses the AI SDK's structured output with Zod validation. DeepSeek forms activity-type searches from the full preference set, ranks eligible Google Places records down to one primary pick, and chooses from approved date-story moments. Candidate IDs, preference explanations and moment IDs are validated against server-supplied records; unrestricted AI prose cannot add venue facilities or services to the story. Generation requires the user-selected calendar day and time. Requests, saved dates and invitations carry an explicit timezone, defaulting to Africa/Lagos for the initial launch. The server rejects past days and times without replacing them. The deterministic catalog engine still controls any explicitly scheduled catalog itinerary, including costs and spending limits.
+Set the server-only `OPENAI_API_KEY`. `OPENAI_MODEL` defaults to `gpt-5.4-mini`. The AI SDK calls the OpenAI Responses API with response storage disabled and validates the returned data with Zod. OpenAI forms activity-type searches from the full preference set, ranks eligible Google Places records down to one primary pick, and chooses from approved date-story moments. Candidate IDs, preference explanations and moment IDs are validated against server-supplied records; unrestricted AI prose cannot add venue facilities or services to the story. Generation requires the user-selected calendar day and time. Requests, saved dates and invitations carry an explicit timezone, defaulting to Africa/Lagos for the initial launch. The server rejects past days and times without replacing them. The deterministic catalog engine still controls any explicitly scheduled catalog itinerary, including costs and spending limits.
+
+To load a key from an existing file while using the local Next.js backend:
+
+```sh
+DATE_ATLAS_FUNCTIONS_URL= node --env-file "/absolute/path/to/.env.local" node_modules/next/dist/bin/next dev
+```
+
+When `DATE_ATLAS_FUNCTIONS_URL` is configured, the private Firebase function makes the AI calls. Before deploying the updated `datePlanner` function, provision its key with `firebase functions:secrets:set OPENAI_API_KEY` in the target Firebase project. Supply any `OPENAI_MODEL` override in that function's server environment.
 
 Budget increases need an explicit amount in the user's message. Dietary additions preserve existing restrictions. Invalid output, provider errors, or timeouts use the supported command parser and template introductions. Personal notes are processed only when relevant to the request; they are not included in public share links.
 
@@ -109,7 +119,7 @@ Verified venue curation, live booking inventory, Paystack payments, vendor accep
 
 ## Release hardening pass
 
-See [the current-state audit](docs/release-audit-2026-10-30.md) for evidence, changed files, remaining external checks and rollback requirements. The existing Firebase/DeepSeek stack and one-place reveal remain in place. Generation now has shared request coordination; the existing lab includes protected venue controls, accuracy reports and minimal funnel counts. New-tab email sign-in resumes pending Save/Share actions; old device saves require explicit review/import.
+See [the release audit](docs/release-audit-2026-10-30.md) for the original release evidence, remaining external checks and rollback requirements. Generation uses shared request coordination and a one-place reveal; the lab includes protected venue controls, accuracy reports and minimal funnel counts. New-tab email sign-in resumes pending Save/Share actions; old device saves require explicit review/import.
 
 The [completion report and release runbook](docs/release-completion-2026-10-30.md) covers the isolated real-provider preview, plan management, calendar downloads, recipient time proposals, private feedback, deletion requests and retention operations. In My dates, editing a saved date revalidates its venue and revokes the old invitation; publishing a revised invitation is a separate deliberate action. Older dates without their original private preferences remain readable but cannot be edited or republished without starting a new plan. No reservation or payment system is enabled by these controls.
 

@@ -9,7 +9,7 @@ import { activeDiscoveryKey, invitationReturnKey } from "@/lib/planner/discovery
 import type { RejectionReason } from "./rejection-dialog";
 export function SinglePlaceJourney({ place, sessionId, request, signedIn, accountRevision, busy, error, rejected, loadingStage, onReject, onCancelGeneration, onEdit, onTiming, onSignIn }: {
   place: NearbyResult["places"][number]; sessionId?: string; request: PlanRequest; signedIn: boolean; accountRevision: string;
-  onCancelGeneration?: () => void; busy: boolean; error: string; rejected: boolean; onReject: (reason: RejectionReason) => void; onEdit: () => void; onTiming: () => void; onSignIn: () => void;
+  onCancelGeneration?: () => void; busy: boolean; error: string; rejected: boolean; onReject: (reason: RejectionReason) => void; onEdit: () => void; onTiming: () => void; onSignIn: (action: "save" | "invite", prepare: () => void) => void;
   loadingStage?: string;
 }) {
   const [accepted, setAccepted] = useState(false);
@@ -29,11 +29,13 @@ export function SinglePlaceJourney({ place, sessionId, request, signedIn, accoun
     setAccepted(true);
     window.scrollTo({ top: 0 });
   }
-  function signIn() {
-    try {
-      if (sessionId) localStorage.setItem(invitationReturnKey, JSON.stringify({ flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", sessionId, placeId: place.id, expiresAt: Date.now() + 3600000 }));
-    } catch { /* The current tab still preserves the accepted date. */ }
-    onSignIn();
+  function signIn(action: "save" | "invite", prepare: () => void) {
+    onSignIn(action, () => {
+      try {
+        if (sessionId) localStorage.setItem(invitationReturnKey, JSON.stringify({ flow: new URLSearchParams(window.location.search).get("flow") ?? "direct", sessionId, placeId: place.id, expiresAt: Date.now() + 3600000 }));
+      } catch { /* The current tab still preserves the accepted date. */ }
+      prepare();
+    });
   }
   if (accepted) return <ChosenDateReveal key={`${place.id}:${accountRevision}`} place={place} sessionId={sessionId} request={request} signedIn={signedIn} onSignIn={signIn} onChange={() => { try { sessionStorage.removeItem(key); } catch { /* The current choice can still change. */ } setAccepted(false); setReturning(true); window.scrollTo({ top: 0 }); }} />;
   return <CinematicReveal loadingStage={loadingStage} onCancelGeneration={onCancelGeneration} place={place} request={request} busy={busy} error={error} rejected={rejected} initialChapter={returning ? 2 : 0} onAccept={accept} onReject={onReject} onEdit={onEdit} onTiming={onTiming} />;

@@ -20,6 +20,8 @@ export function savePlannerAppearance(appearance: PlannerAppearance) {
 }
 
 export function applyPageSurface(root: Pick<HTMLElement, "getAttribute" | "setAttribute" | "removeAttribute">, pathname: string, appearance: PlannerAppearance) {
+  if (root.getAttribute("data-native-app") === "true") root.setAttribute("data-native-theme", appearance);
+  else root.removeAttribute("data-native-theme");
   if (pathname !== "/") root.removeAttribute("data-home-account");
   if (pathname === "/plan" || pathname === "/" && root.getAttribute("data-home-account") !== "true") root.setAttribute("data-page-surface", pathname === "/" ? "home" : "planner");
   else root.removeAttribute("data-page-surface");

@@ -12,13 +12,15 @@ import { loadPlaceDetails } from "@/lib/maps/place-details";
 import { hasQualifyingGoogleRating } from "@/lib/maps/recommendation-quality";
 import { getCatalog } from "@/lib/planner/catalog";
 import { recalculateExactPlan } from "@/lib/planner/engine";
-import { datePreferencesSchema } from "@/lib/planner/invitations";
+import { datePreferencesSchema, selectionIdSchema } from "@/lib/planner/invitations";
 import { decodeRecipe } from "@/lib/planner/money";
 import { calendarLabel } from "@/lib/planner/schedule";
 import { siteName, siteOrigin, supportEmail } from "@/lib/seo/site";
 import { deletionKey } from "./account-privacy";
-import { dateEmailJobSchema, dateEmailPayloadSchema, type DateEmailJob, type DateEmailPayload } from "./date-email-outbox";
+import { dateEmailJobSchema, dateEmailPayloadSchema, invitationReplyEmailId, type DateEmailJob, type DateEmailPayload } from "./date-email-outbox";
 import { dateReminderSchema, reminderCanSend, reminderSourceSchema } from "./date-reminder-state";
+import { membershipTestUrl } from "./membership-config";
+import { recurringDateCollection, recurringDateEmailId, recurringDateEntitled, recurringDateRecordSchema } from "./recurring-date-state";
 
 export { queueDateCreatedEmail } from "./date-email-outbox";
 
@@ -27,6 +29,11 @@ const leaseMs = 60000;
 const retryWindowMs = 24 * 3600000 - 60000;
 const terminal = new Set<DateEmailJob["status"]>(["sent", "skipped", "failed", "needs-review"]);
 const scheduleSchema = datePreferencesSchema.extend({ source: z.enum(["google", "catalog"]).default("google"), placeId: z.string().min(1).max(200) });
+const invitationReplySourceSchema = z.object({
+  invitationKey: selectionIdSchema,
+  invitationPublished: z.boolean().default(true),
+  invitationRevoked: z.boolean().default(false),
+});
 const providerResultSchema = z.object({ id: z.string().min(1).max(200).optional(), name: z.string().max(100).optional() });
 
 type Source = { ref: DocumentReference; snapshot: DocumentSnapshot; payload?: DateEmailPayload; reminder?: DocumentReference };
@@ -58,9 +65,49 @@ function scheduleLabel(date: z.infer<typeof datePreferencesSchema>) {
 }
 
 async function sourceFor(user: DocumentReference, dateId: string, job: DateEmailJob, recipient: string, personalized: boolean): Promise<Source | null> {
+  if (job.kind === "recurring-date-night") {
+    if (!personalized || !job.recurringDate || recurringDateEmailId(job.recurringDate) !== dateId) return null;
+    const ref = user.collection(recurringDateCollection).doc("current");
+    const snapshot = await ref.get();
+    const latest = recurringDateRecordSchema.safeParse(snapshot.data()).data?.latest;
+    if (!latest || latest.date !== job.recurringDate || latest.deliveryId !== job.recurringDeliveryId || latest.startsAt <= Date.now()) return null;
+    if (job.payload) return { ref, snapshot };
+    const day = calendarLabel(latest.date);
+    const action = new URL(membershipTestUrl("/membership#recurring-date-night"));
+    return { ref, snapshot, payload: {
+      from: `${siteName} <noreply@adateatlas.com>`, to: [recipient], reply_to: supportEmail,
+      subject: `Your next date night | ${siteName}`,
+      ...brandEmail({
+        preheader: "Open your date night to review it together.",
+        eyebrow: "Recurring date night",
+        title: latest.place ? "Your next date idea is ready." : "Your date night is coming up.",
+        paragraphs: [`You have a date night coming up on ${day}. Open it to review your plans and share an invitation when you’re ready.`],
+        ...(action.protocol === "https:" ? { primaryAction: { label: "Open date night", url: action.href } } : {}),
+      }, action.origin),
+    } };
+  }
   if (job.kind === "reminder" && (!job.sourceDateId || !job.reminderOccurrenceId || job.source !== "google" || !personalized)) return null;
-  const historyRef = user.collection("dateHistory").doc(job.kind === "reminder" ? job.sourceDateId ?? dateId : dateId);
+  if (job.kind === "invitation-reply" && !job.sourceDateId) return null;
+  const historyRef = user.collection("dateHistory").doc(job.kind === "date-created" ? dateId : job.sourceDateId ?? dateId);
   const history = await historyRef.get();
+  if (job.kind === "invitation-reply") {
+    const invitation = invitationReplySourceSchema.safeParse(history.data());
+    if (!invitation.success || !invitation.data.invitationPublished || invitation.data.invitationRevoked || invitationReplyEmailId(invitation.data.invitationKey) !== dateId) return null;
+    if (job.payload) return { ref: historyRef, snapshot: history };
+    return { ref: historyRef, snapshot: history, payload: {
+      from: `${siteName} <noreply@adateatlas.com>`,
+      to: [recipient],
+      reply_to: supportEmail,
+      subject: `Your date invitation has a reply | ${siteName}`,
+      ...brandEmail({
+        preheader: "Open My dates to see their reply.",
+        eyebrow: "Plan together",
+        title: "Your date invitation has a reply.",
+        paragraphs: ["Someone replied to your invitation. Open My dates to see their response and review any suggested changes."],
+        primaryAction: { label: "Open My dates", url: `${siteOrigin}/saved` },
+      }),
+    } };
+  }
   if (history.exists) {
     const parsed = scheduleSchema.safeParse(history.data());
     if (!parsed.success || parsed.data.source !== job.source) return null;
@@ -120,22 +167,28 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
   const user = db.collection("users").doc(ownerId);
   const jobRef = user.collection("emailNotifications").doc(dateId);
   const deletion = db.collection("accountDeletionRequests").doc(deletionKey(ownerId));
+  const initial = dateEmailJobSchema.safeParse((await jobRef.get()).data());
+  if (!initial.success || terminal.has(initial.data.status)) return;
+  const deliveryId = initial.data.recurringDeliveryId;
 
   async function finish(status: "sent" | "skipped" | "failed" | "needs-review" | "retry", reason: string, leaseId?: string, emailId?: string) {
     await db.runTransaction(async tx => {
       const snapshot = await tx.get(jobRef);
       const job = dateEmailJobSchema.safeParse(snapshot.data());
-      if (!snapshot.exists || !job.success || terminal.has(job.data.status) || leaseId && job.data.leaseId !== leaseId) return;
+      if (!job.success || terminal.has(job.data.status) || job.data.recurringDeliveryId !== deliveryId || leaseId && job.data.leaseId !== leaseId) return;
       if (!leaseId && job.data.status === "sending" && job.data.leaseUntil && job.data.leaseUntil.toMillis() > Date.now()) throw new Error("Date email is already being processed.");
       const reminderRef = job.data.kind === "reminder" && job.data.sourceDateId ? user.collection("dateReminders").doc(job.data.sourceDateId) : null;
       const reminder = reminderRef ? dateReminderSchema.safeParse((await tx.get(reminderRef)).data()) : null;
-      tx.update(jobRef, { status, reason, updatedAt: Timestamp.now(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete(), ...(status !== "retry" ? { payload: FieldValue.delete() } : {}), ...(emailId ? { emailId, sentAt: Timestamp.now() } : {}) });
+      tx.update(jobRef, { status, reason, updatedAt: Timestamp.now(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete(),
+        ...(status !== "retry" ? { payload: FieldValue.delete() } : {}),
+        ...(job.data.kind === "recurring-date-night" ? { recurringDeliveryAt: status === "retry" ? Date.now() + 5 * 60000 : FieldValue.delete() } : {}),
+        ...(emailId ? { emailId, sentAt: Timestamp.now() } : {}),
+      });
       if (reminderRef && reminder?.success && reminder.data.occurrenceId === job.data.reminderOccurrenceId && status !== "retry") tx.update(reminderRef, { status: status === "sent" ? "sent" : "canceled", updatedAt: Timestamp.now() });
     });
   }
 
-  const initial = dateEmailJobSchema.safeParse((await jobRef.get()).data());
-  if (!initial.success || terminal.has(initial.data.status)) return;
+  const recurringMembership = initial.data.kind === "recurring-date-night" ? user.collection("membership").doc("current") : null;
   if (initial.data.firstAttemptAt && Date.now() - initial.data.firstAttemptAt.toMillis() >= retryWindowMs) { await finish("needs-review", "retry-window-expired"); return; }
   const [owner, deleted, recipient] = await Promise.all([user.get(), deletion.get(), ownerEmail(ownerId)]);
   if (!owner.exists || deleting(deleted.data()) || !recipient.email) {
@@ -143,6 +196,7 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
     return;
   }
   if (initial.data.payload && initial.data.payload.to[0].toLowerCase() !== recipient.email.toLowerCase()) { await finish("skipped", "recipient-changed"); return; }
+  if ((initial.data.kind === "invitation-reply" || recurringMembership) && !recipient.verified) { await finish("skipped", "recipient-unverified"); return; }
   if (initial.data.payload && initial.data.personalized !== false && !recipient.verified) { await finish("skipped", "verification-changed"); return; }
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("Date email delivery is not configured.");
@@ -151,14 +205,14 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
 
   const leaseId = randomUUID();
   const claim: Claim | null = await db.runTransaction(async tx => {
-    const [snapshot, currentOwner, currentDeletion, currentSource, currentReminder] = await Promise.all([tx.get(jobRef), tx.get(user), tx.get(deletion), tx.get(source.ref), source.reminder ? tx.get(source.reminder) : Promise.resolve(null)]);
+    const [snapshot, currentOwner, currentDeletion, currentSource, currentReminder, currentMembership] = await Promise.all([tx.get(jobRef), tx.get(user), tx.get(deletion), tx.get(source.ref), source.reminder ? tx.get(source.reminder) : Promise.resolve(null), recurringMembership ? tx.get(recurringMembership) : Promise.resolve(null)]);
     const parsed = dateEmailJobSchema.safeParse(snapshot.data());
-    if (!parsed.success || terminal.has(parsed.data.status)) return null;
+    if (!parsed.success || terminal.has(parsed.data.status) || parsed.data.recurringDeliveryId !== deliveryId) return null;
     const job = parsed.data;
     const now = Date.now();
     if (job.status === "sending" && job.leaseUntil && job.leaseUntil.toMillis() > now) throw new Error("Date email is already being processed.");
-    if (!currentOwner.exists || deleting(currentDeletion.data()) || !currentSource.exists) {
-      tx.update(jobRef, { status: "skipped", reason: "source-unavailable", payload: FieldValue.delete(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete() });
+    if (!currentOwner.exists || deleting(currentDeletion.data()) || !currentSource.exists || recurringMembership && !recurringDateEntitled(currentMembership?.data(), now)) {
+      tx.update(jobRef, { status: "skipped", reason: "source-unavailable", payload: FieldValue.delete(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete(), ...(recurringMembership ? { recurringDeliveryAt: FieldValue.delete() } : {}) });
       return null;
     }
     if (job.kind === "reminder") {
@@ -170,7 +224,7 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
       }
     }
     if (job.firstAttemptAt && now - job.firstAttemptAt.toMillis() >= retryWindowMs) {
-      tx.update(jobRef, { status: "needs-review", reason: "retry-window-expired", payload: FieldValue.delete(), leaseId: FieldValue.delete(), leaseUntil: FieldValue.delete() });
+      tx.update(jobRef, { status: "needs-review", reason: "retry-window-expired", payload: FieldValue.delete(), leaseId: FieldValue.delete(), ...(recurringMembership ? { recurringDeliveryAt: FieldValue.delete() } : {}) });
       return null;
     }
     if (!currentSource.updateTime || !source.snapshot.updateTime || !currentSource.updateTime.isEqual(source.snapshot.updateTime)) throw new Error("Date details changed before the email was prepared.");
@@ -184,7 +238,7 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
   if (!claim) return;
 
   try {
-    const [currentOwner, currentDeletion, currentJob, currentSource, currentRecipient, currentReminder] = await Promise.all([user.get(), deletion.get(), jobRef.get(), source.ref.get(), ownerEmail(ownerId), source.reminder ? source.reminder.get() : Promise.resolve(null)]);
+    const [currentOwner, currentDeletion, currentJob, currentSource, currentRecipient, currentReminder, currentMembership] = await Promise.all([user.get(), deletion.get(), jobRef.get(), source.ref.get(), ownerEmail(ownerId), source.reminder ? source.reminder.get() : Promise.resolve(null), recurringMembership ? recurringMembership.get() : Promise.resolve(null)]);
     const latest = dateEmailJobSchema.safeParse(currentJob.data());
     if (!latest.success || latest.data.status !== "sending" || latest.data.leaseId !== claim.leaseId) return;
     if (!currentOwner.exists || deleting(currentDeletion.data()) || !currentSource.exists || !currentRecipient.email || currentRecipient.email.toLowerCase() !== claim.payload.to[0].toLowerCase() || claim.personalized && !currentRecipient.verified) {
@@ -199,13 +253,21 @@ export async function sendDateCreatedEmail(ownerId: string, dateId: string): Pro
         return;
       }
     }
+    if (recurringMembership) {
+      const occurrence = recurringDateRecordSchema.safeParse(currentSource.data()).data?.latest;
+      if (!recurringDateEntitled(currentMembership?.data()) || !occurrence || occurrence.date !== latest.data.recurringDate || occurrence.deliveryId !== latest.data.recurringDeliveryId || occurrence.startsAt <= Date.now()) {
+        await finish("skipped", "recurring-date-unavailable", claim.leaseId);
+        return;
+      }
+    }
     if (!latest.data.firstAttemptAt || Date.now() - latest.data.firstAttemptAt.toMillis() >= retryWindowMs) {
       await finish("needs-review", "retry-window-expired", claim.leaseId);
       return;
     }
     if (!latest.data.leaseUntil || latest.data.leaseUntil.toMillis() <= Date.now()) throw new Error("Date email lease expired before delivery.");
     if (!currentSource.updateTime || !source.snapshot.updateTime || !currentSource.updateTime.isEqual(source.snapshot.updateTime)) throw new Error("Date details changed before delivery.");
-    const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `${latest.data.kind === "reminder" ? "date-reminder" : "date-created"}/${createHash("sha256").update(ownerId).digest("hex")}/${dateId}` }, body: JSON.stringify(claim.payload), signal: AbortSignal.timeout(15000) });
+    const emailKind = latest.data.kind === "reminder" ? "date-reminder" : latest.data.kind;
+    const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `${emailKind}/${createHash("sha256").update(ownerId).digest("hex")}/${dateId}` }, body: JSON.stringify(claim.payload), signal: AbortSignal.timeout(15000) });
     const result = providerResultSchema.safeParse(await response.json().catch(() => null));
     if (response.ok && result.success && result.data.id) { await finish("sent", "provider-accepted", claim.leaseId, result.data.id); return; }
     if (response.status === 409 && (!result.success || result.data.name !== "concurrent_idempotent_requests")) { await finish("needs-review", "idempotency-conflict", claim.leaseId); return; }

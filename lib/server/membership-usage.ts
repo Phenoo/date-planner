@@ -43,6 +43,7 @@ function activeHolds(usage: Usage, now: number) {
 }
 function allowance(usage: Usage, period: Period, kind: MembershipUsageKind, now: number) {
   const limit = membershipLimits[period.tier][kind];
+  if (limit === null) return { limit, used: usage[kind], remaining: null };
   const held = Object.values(activeHolds(usage, now)).filter((hold) => hold.kind === kind).length;
   return { limit, used: usage[kind], remaining: Math.max(0, limit - usage[kind] - held) };
 }
@@ -75,7 +76,7 @@ export async function reserveMembershipUsage(tx: Transaction, db: Firestore, uid
   const holds = activeHolds(usage, now);
   delete holds[receiptId];
   if (allowance({ ...usage, holds }, period, kind, now).remaining === 0) {
-    throw new RequestError(kind === "changes" ? "You've used your venue changes for this month. Your current date is still here. See Membership for your allowance." : "You've used your date plans for this month. Your saved dates are still here. See Membership for your allowance.", 402);
+    throw new RequestError(kind === "changes" ? "Venue changes are available with Plus. Your current date is still here." : "You've used your date plans for this month. Your saved dates are still here. See Membership for your allowance.", 402);
   }
   const reservation: UsageReservation = { receiptId, periodId: id, attempt, kind, payloadHash };
   holds[receiptId] = { kind, attempt, until };

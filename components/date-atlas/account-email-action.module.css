@@ -11,3 +11,5 @@
 .message { margin: 22px 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
 .footer { margin-top: 30px; color: #725d63; font-size: 13px; line-height: 1.7; }
 .footer a { text-decoration: underline; text-underline-offset: 3px; }
+
+:global(html[data-native-app="true"]) .screen { padding-bottom: 28px; }

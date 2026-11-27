@@ -10,7 +10,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const { token } = await params;
     const body = await readJson(request);
     const input = body && typeof body === "object" ? body : {};
-    const action = "action" in input && input.action === "suggest" ? "suggest" : "reply";
+    const requested = "action" in input ? input.action : undefined;
+    const action = requested === "suggest" || requested === "suggest-vibe" ? requested : "reply";
     return plannerAction("invitations", new Request(request.url, { method: "POST", headers: request.headers, body: JSON.stringify({ ...input, action, token }), signal: request.signal }));
   } catch (error) { return apiError(error); }
 }

@@ -15,15 +15,15 @@ export type BrandEmailInput = {
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 const lines = (value: string) => escapeHtml(value).replace(/\r\n|\r|\n/g, "<br />");
 
-function actionUrl(value: string) {
+function actionUrl(value: string, origin: string) {
   const url = new URL(value);
-  if (url.protocol !== "https:" || url.origin !== siteOrigin || url.username || url.password) throw new Error("Email actions must use the canonical application origin.");
+  if (url.protocol !== "https:" || url.origin !== origin || url.username || url.password) throw new Error("Email actions must use the configured application origin.");
   return url.href;
 }
 
-export function brandEmail(input: BrandEmailInput): EmailContent {
-  const primary = input.primaryAction ? { ...input.primaryAction, url: actionUrl(input.primaryAction.url) } : undefined;
-  const secondary = input.secondaryAction ? { ...input.secondaryAction, url: actionUrl(input.secondaryAction.url) } : undefined;
+export function brandEmail(input: BrandEmailInput, actionOrigin = siteOrigin): EmailContent {
+  const primary = input.primaryAction ? { ...input.primaryAction, url: actionUrl(input.primaryAction.url, actionOrigin) } : undefined;
+  const secondary = input.secondaryAction ? { ...input.secondaryAction, url: actionUrl(input.secondaryAction.url, actionOrigin) } : undefined;
   const paragraphs = (input.paragraphs ?? []).map(paragraph => `<p style="margin:0 0 20px;font-size:17px;line-height:1.75;color:#725d63;overflow-wrap:anywhere;word-break:break-word;">${lines(paragraph)}</p>`).join("");
   const facts = input.facts?.length ? `<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;margin:10px 0 28px;border-top:1px solid #ecdde2;">${input.facts.map(fact => `<tr><td style="padding:20px 0;border-bottom:1px solid #ecdde2;"><p style="margin:0 0 8px;font-size:11px;line-height:1.5;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:#a12742;">${escapeHtml(fact.label)}</p><p style="margin:0;font-size:18px;line-height:1.6;font-weight:500;color:#261014;overflow-wrap:anywhere;word-break:break-word;">${lines(fact.value)}</p></td></tr>`).join("")}</table>` : "";
   const action = primary ? `<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;"><tr><td align="center" bgcolor="#d91335" style="background-color:#d91335;mso-padding-alt:17px 24px;"><a href="${escapeHtml(primary.url)}" style="display:block;padding:17px 24px;color:#ffffff;font-size:16px;line-height:1.5;font-weight:700;text-align:center;text-decoration:none;mso-padding-alt:0;">${escapeHtml(primary.label)}</a></td></tr></table><p style="margin:16px 0 0;color:#795d67;font-size:12px;line-height:1.7;">If the button doesn’t open, use this link:<br /><a href="${escapeHtml(primary.url)}" style="color:#a12742;text-decoration:underline;overflow-wrap:anywhere;word-break:break-all;">${escapeHtml(primary.fallbackLabel ?? primary.url)}</a></p>` : "";

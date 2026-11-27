@@ -75,6 +75,7 @@
 .planner { min-height: 100svh; background: var(--planner-bg); }
 .journey { min-height: 100svh; background: var(--planner-bg); }
 .journey :global(.atlas-header), .journey :global(.mobile-nav) { background: var(--planner-bg); border-color: var(--planner-border); box-shadow: none; }
+.journey:has([data-chosen-date]) > :global(.atlas-header) { display: none; }
 .journey :global(.atlas-wordmark) > span, .journey :global(.desktop-nav) :is(a,button):hover { color: var(--planner-accent); }
 .journey :global(.atlas-footer) { border-color: var(--planner-border); }
 .journey :global(.atlas-footer) :is(button,a:not(.atlas-wordmark)), .journey :global(.mobile-nav) a { color: var(--planner-muted); }

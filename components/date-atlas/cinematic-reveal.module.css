@@ -125,3 +125,5 @@
 .loading .eyebrow { margin-bottom: 0; }
 @media(max-width:700px) { .loading { gap: 12px; } .loadingLine { margin-block: 6px; } }
 @media(max-height:620px) { .loading { justify-content: flex-start; } }
+
+:global(html[data-native-app="true"]) .footer { padding-bottom: 20px; }

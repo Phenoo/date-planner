@@ -15,6 +15,7 @@ const place = nearbyPlaceSchema.parse({
 
 test("city discovery accepts a bounded location/exclusion contract without weakening the three-place planner schema", () => {
   assert.deepEqual(cityDiscoverySearchSchema.parse({ city: " London ", country: " United Kingdom " }), { city: "London", country: "United Kingdom", excludeIds: [] });
+  assert.deepEqual(cityDiscoverySearchSchema.parse({ city: "London", country: "United Kingdom", coordinates: { lat: 51.5, lng: -0.12 } }).coordinates, { lat: 51.5, lng: -0.12 });
   for (const input of [
     { city: "", country: "United Kingdom" },
     { city: "London", country: "a".repeat(81) },
@@ -22,6 +23,8 @@ test("city discovery accepts a bounded location/exclusion contract without weake
     { city: "London", country: "United Kingdom", excludeIds: [""] },
     { city: "London", country: "United Kingdom", excludeIds: ["a".repeat(201)] },
     { city: "London", country: "United Kingdom", lat: 51.5, lng: -0.1 },
+    { city: "London", country: "United Kingdom", coordinates: { lat: 91, lng: -0.1 } },
+    { city: "London", country: "United Kingdom", coordinates: { lat: 51.5 } },
     { city: "London", country: "United Kingdom", notes: "private planning information" },
   ]) assert.equal(cityDiscoverySearchSchema.safeParse(input).success, false);
   const result = { city: "London", country: "United Kingdom", area: "London", places: Array.from({ length: 12 }, (_, index) => ({ ...place, id: `${index}` })) };
@@ -144,10 +147,36 @@ test("authenticated city discovery reuses real Google quality filters and fails 
       assert.ok(photos.every(({ url }) => /places\/(qualifying|five)\//.test(url.pathname)));
     });
 
-    await t.test("anonymous or missing identities cannot run provider requests", async () => {
+    await t.test("guest identities can browse without creating an account", async () => {
+      const response = await POST(request(undefined, "anonymous"));
+      assert.equal(response.status, 200);
+      const data = cityDiscoveryResultSchema.parse(await response.json());
+      assert.deepEqual(data.places.map((place) => place.id), ["qualifying", "five", "excluded"]);
+    });
+
+    await t.test("device coordinates drive nearby searches directly instead of geocoding the city centre", async () => {
+      const before = googleRequests.length;
+      const coordinates = { lat: 51.501, lng: -0.121 };
+      const response = await POST(request({ city: "London", country: "United Kingdom", coordinates }, "anonymous"));
+      assert.equal(response.status, 200);
+      const raw: unknown = await response.json();
+      assert.ok(raw && typeof raw === "object" && !("coordinates" in raw));
+      const data = cityDiscoveryResultSchema.parse(raw);
+      assert.ok(data.places.length > 0);
+      const requests = googleRequests.slice(before);
+      assert.ok(!requests.some(({ url }) => url.hostname === "maps.googleapis.com"));
+      const searches = requests.filter(({ url }) => url.pathname === "/v1/places:searchNearby");
+      assert.ok(searches.length > 0);
+      for (const { init } of searches) {
+        const body = JSON.parse(String(init.body));
+        assert.deepEqual(body.locationRestriction.circle.center, { latitude: coordinates.lat, longitude: coordinates.lng });
+        assert.equal(body.rankPreference, "DISTANCE");
+      }
+    });
+
+    await t.test("missing identities cannot run provider requests", async () => {
       const before = googleRequests.length;
       assert.equal((await POST(request(undefined, null))).status, 401);
-      assert.equal((await POST(request(undefined, "anonymous"))).status, 401);
       assert.equal(googleRequests.length, before);
     });
 
@@ -161,6 +190,7 @@ test("authenticated city discovery reuses real Google quality filters and fails 
       const limited = await POST(request());
       assert.equal(limited.status, 429);
       assert.equal(limited.headers.get("Cache-Control"), "no-store");
+      assert.equal((await POST(request(undefined, "anonymous"))).status, 429);
       setLimitStatus(0);
       assert.equal(googleRequests.length, before);
     });

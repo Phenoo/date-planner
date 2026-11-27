@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateModification } from "../lib/planner/ai";
+import { interpretModification, validateModification } from "../lib/planner/ai";
 import { requestSchema } from "../lib/planner/schema";
 const request = requestSchema.parse({
   city: "Lagos",
@@ -27,6 +27,24 @@ const unchanged = {
   mode: "balanced",
   understood: true,
 };
+test("chat edits apply a model-parsed budget and preserve dietary restrictions", async (t) => {
+  const env = process.env;
+  process.env = { ...env, OPENAI_API_KEY: "test-only-key", OPENAI_MODEL: "", OPENAI_BASE_URL: "https://api.openai.com/v1" };
+  t.after(() => { process.env = env; });
+  const fetch = t.mock.method(globalThis, "fetch", async () => Response.json({
+    id: "resp_test",
+    output: [{
+      id: "msg_test",
+      type: "message",
+      role: "assistant",
+      content: [{ type: "output_text", text: JSON.stringify({ ...unchanged, budget: 45000 }), annotations: [] }],
+    }],
+  }));
+  const result = await interpretModification("Could we spend at most 45000 for both of us?", request);
+  assert.equal(fetch.mock.callCount(), 1);
+  assert.equal(result.request.budget, 45000);
+  assert.deepEqual(result.request.dietary, ["halal"]);
+});
 test("AI cannot increase spending without an explicit amount", () => {
   assert.equal(
     validateModification("Make it more romantic", request, {

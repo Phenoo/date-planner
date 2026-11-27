@@ -18,6 +18,9 @@
 .attributions a { text-decoration: underline; text-underline-offset: 3px; }
 .cardActions { margin-top: 24px; }
 .cardActions .open { width: 100%; min-height: 48px; padding: 12px 20px; border-radius: 0; font-size: 15px; }
+.backupButton { width: 100%; min-height: 44px; margin-top: 8px; }
+.backupVenue { display: grid; gap: 6px; border: 1px solid #ecdde2; padding: 14px; overflow-wrap: anywhere; }
+.backupVenue a { text-decoration: underline; text-underline-offset: 3px; }
 .options { margin-top: 10px; }
 .options > summary { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; color: #725d63; font-size: 13px; cursor: pointer; list-style: none; }
 .options > summary::-webkit-details-marker { display: none; }
@@ -27,6 +30,7 @@
 .optionList > :is(button,a):hover:not(:disabled) { background: #fff1f3; color: #9c1631; transform: none; box-shadow: none; }
 .optionList > a[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .optionsNotice { padding: 12px; color: #725d63; font-size: 13px; line-height: 1.8; }
+.optionsNotice button { margin-top: 8px; min-height: 44px; }
 .empty { padding: 40px 24px; border: 1px solid #ecdde2; text-align: center; font-size: 15px; }
 .empty > p { margin-bottom: 20px; }
 .pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 26px; }
@@ -34,3 +38,16 @@
 .pagination > button:last-child { color: #725d63; text-decoration: underline; text-underline-offset: 4px; }
 .section :is(button,a,summary):focus-visible { outline: 2px solid #b71232; outline-offset: 4px; }
 @media (max-width:700px) { .grid { grid-template-columns: 1fr; gap: 24px; } .body { padding: 22px; } .section { margin-top: 28px; } }
+
+:global(html[data-native-app="true"]) .section { margin: 24px 0; }
+:global(html[data-native-app="true"]) .filters { gap: 5px; border-radius: 12px; padding: 4px; background: var(--native-panel); margin: 16px 0; }
+:global(html[data-native-app="true"]) .filters > button { flex: 1; font-size: 12px; padding: 9px 8px; border: 0; border-radius: 9px; color: var(--native-muted); }
+:global(html[data-native-app="true"]) .filters > button[aria-pressed="true"] { background: var(--native-soft); color: var(--native-accent); }
+:global(html[data-native-app="true"]) .card { border: 0; border-radius: 18px; background: var(--native-panel); overflow: hidden; }
+:global(html[data-native-app="true"]) .body { padding: 18px; }
+:global(html[data-native-app="true"]) .body h3 { font-size: 23px; font-weight: 800; }
+:global(html[data-native-app="true"]) :is(.meta,.attributions,.options > summary) { color: var(--native-muted); }
+:global(html[data-native-app="true"]) .status { color: var(--native-accent); }
+:global(html[data-native-app="true"]) .empty { border: 0; background: var(--native-panel); border-radius: 18px; font-size: 13px; padding: 25px 18px; }
+:global(html[data-native-app="true"]) .cardActions .open { border-radius: 12px; }
+:global(html[data-native-app="true"]) .optionList { border-color: var(--native-line); }

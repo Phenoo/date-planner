@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyDiscoveryRanking } from "../lib/planner/discovery-ai";
+import { z } from "zod";
+import { applyDiscoveryRanking, rankDiscoveredPlaces } from "../lib/planner/discovery-ai";
 import { cardSwipeMotion, rotatePlaceDeck, swipeDirection } from "../lib/planner/place-deck";
 import { generateSchema, requestSchema } from "../lib/planner/schema";
 import { nearbyResultSchema, nearbySearchSchema, type NearbyResult } from "../lib/maps/schema";
@@ -10,7 +11,44 @@ const request = requestSchema.parse({ city: "Lagos", area: "Lekki", occasion: "R
 const result: NearbyResult = { city: "Lagos", area: "Lekki", country: "Nigeria", places: Array.from({ length: 9 }, (_, index) => ({ id: `test-${index}`, name: `Test fixture ${index}`, address: `Fixture address ${index}`, category: "Art gallery", distanceKm: index, reason: "Source reason", mapsUrl: `https://www.google.com/maps/search/?query_place_id=test-${index}`, attributions: [{ name: "Fixture attribution" }] })) };
 const ranked = { headline: "A little creativity, together.", introduction: "Ideas for your creative side.", picks: result.places.slice(0, 1).map((place) => ({ id: place.id, matches: ["vibe:Creative", "interests"] })) };
 
-test("DeepSeek returns one best-fit place while preserving canonical venue facts", () => {
+test("discovery uses stateless OpenAI Responses and falls back when the provider fails", async (t) => {
+  const env = process.env;
+  process.env = { ...env, OPENAI_API_KEY: "", OPENAI_MODEL: "", OPENAI_BASE_URL: "https://api.openai.com/v1" };
+  t.after(() => { process.env = env; });
+  const picked = { ...ranked, picks: [{ ...ranked.picks[0], id: "test-8" }] };
+  let httpStatus = 200;
+  const fetch = t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    assert.equal(url, "https://api.openai.com/v1/responses");
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer test-only-key");
+    assert.ok(typeof init.body === "string");
+    z.object({
+      model: z.literal("gpt-5.4-mini"), store: z.literal(false),
+      reasoning: z.object({ effort: z.literal("none") }), temperature: z.literal(0.7),
+      text: z.object({ format: z.object({ type: z.literal("json_schema"), strict: z.literal(false) }) }),
+    }).parse(JSON.parse(init.body));
+    if (httpStatus !== 200) return Response.json({ error: { message: "Unavailable" } }, { status: httpStatus });
+    return Response.json({
+      id: "resp_test",
+      model: "gpt-5.4-mini",
+      output: [{ id: "msg_test", type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(picked), annotations: [] }] }],
+    });
+  });
+  assert.equal((await rankDiscoveredPlaces(result, request)).ai, false);
+  assert.equal(fetch.mock.callCount(), 0);
+
+  process.env.OPENAI_API_KEY = "test-only-key";
+  const recommendation = await rankDiscoveredPlaces(result, request);
+  assert.equal(recommendation.ai, true);
+  assert.equal(recommendation.places[0].id, "test-8");
+
+  httpStatus = 503;
+  const fallback = await rankDiscoveredPlaces(result, request);
+  assert.equal(fallback.ai, false);
+  assert.equal(fallback.places[0].id, result.places[0].id);
+  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test("AI ranking returns one best-fit place while preserving canonical venue facts", () => {
   const output = applyDiscoveryRanking(result, request, { ...ranked, picks: [{ ...ranked.picks[0], id: "test-8" }] });
   assert.equal(output?.ai, true);
   assert.equal(output?.places.length, 1);
